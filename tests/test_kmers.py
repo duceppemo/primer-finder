@@ -8,7 +8,6 @@ from primer_finder import PrimerFinderError
 from primer_finder.kmers import (
     NO_MAX_COUNT,
     count,
-    count_lines,
     dump,
     dump_to_fasta,
     kmc_memory,
@@ -39,12 +38,6 @@ def test_dump_to_fasta_numbers_the_kmers(tmp_path):
     assert fasta.read_text() == ">kmer_0\nACGT\n>kmer_1\nTTGA\n"
 
 
-def test_count_lines(tmp_path):
-    path = tmp_path / "x.txt"
-    path.write_text("a\nb\nc\n")
-    assert count_lines(path, block_size=2) == 3
-
-
 def test_require_db_names_the_missing_file(tmp_path):
     (tmp_path / "db.kmc_pre").touch()
     with pytest.raises(PrimerFinderError, match="broke .db.kmc_suf missing."):
@@ -71,3 +64,14 @@ def test_an_empty_dump_is_an_error(stubs, tmp_path):
     (tmp_path / "db.kmc_suf").touch()
     with pytest.raises(PrimerFinderError, match="No inclusion-specific kmer"):
         dump(tmp_path / "db", tmp_path / "dump.txt", threads=1)
+
+
+def test_the_counter_ceiling_is_raised_for_a_large_inclusion_group(stubs, tmp_path):
+    """KMC counts to 255 unless -cs says otherwise, so -ci300 would match nothing in 300 genomes."""
+    calls = stubs()
+    list_file = write_file_list([tmp_path / "g.fasta"], tmp_path / "list.txt")
+    count(list_file, tmp_path / "small", tmp_path / "work", 31, 1, 2, min_count=4, max_count=4)
+    count(list_file, tmp_path / "big", tmp_path / "work", 31, 1, 2, min_count=300, max_count=600)
+    text = calls.read_text()
+    assert "-fm -ci4 -cx4" in text  # Up to 255, KMC's default counter is enough
+    assert "-fm -cs600 -ci300 -cx600" in text

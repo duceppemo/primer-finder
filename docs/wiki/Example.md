@@ -29,7 +29,8 @@ position 9,000:
 | mismatch | 9,100 |
 
 Three mismatches within 16 bases, an insertion, and one isolated mismatch that could not carry an assay on
-its own. `example/data/truth.json` records all of it, with the private changes of each genome.
+its own. `<output_folder>/data/truth.json` records all of it: the positions of the planted variants in the
+inclusion genomes (`variants`), and the private changes of each genome.
 
 ## What primer-finder finds
 
@@ -53,8 +54,11 @@ what an assay would be designed on.
 
 - exactly one contig in `final_kmers.fasta`;
 - it carries the planted insertion;
-- the planted variants are in lower case, and at least three of them are within 21 bases;
-- the header lists the variant positions;
+- its header lists variant positions;
+- the lower-case bases, mapped back to `inclusion_1.fasta`, are **exactly** the planted variants — no
+  others, none missing. This is what catches marks that are shifted, on the wrong strand, or taken from the
+  wrong coordinates;
+- three of the planted mismatches are marked within 21 bases of each other;
 - the contig is a substring of all four inclusion genomes, in either orientation, and of none of the
   exclusion genomes;
 - `run_info.json` counts one final contig, and the first exclusion genome was used as the reference.
@@ -66,10 +70,10 @@ KMC, SKESA, minimap2 and blast.
 ## Running it by hand
 
 ```bash
-python example/make_example.py /tmp/example/data
+python3 example/make_example.py /tmp/example/data
 primer-finder -i /tmp/example/data/inclusion -e /tmp/example/data/exclusion -o /tmp/example/results \
     -t 4 -m 8 --keep-intermediate
-python example/check_example.py /tmp/example/results /tmp/example/data
+python3 example/check_example.py /tmp/example/results /tmp/example/data
 ```
 
 `--keep-intermediate` is a good way to see what each step produced; see [Outputs](Outputs).

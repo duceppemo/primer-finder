@@ -17,8 +17,11 @@ log = logging.getLogger(__name__)
 # A primer is about 21 bases long: two differences closer than this can sit in the same primer or probe.
 PRIMER_LENGTH = 21
 
-# The cigar operations that are a difference with the reference, and those that consume query bases.
+# The cigar operations that are a difference with the reference, those that are a match, those that are
+# bases of the contig the aligner left out, and those that consume query bases.
 DIFFERENCE_OPS = "XID"
+MATCH_OPS = "=M"
+CLIP_OPS = "SH"
 QUERY_OPS = "MIS=X"
 CIGAR = re.compile(r"(\d+)([MIDNSHP=X])")
 
@@ -38,7 +41,6 @@ class Alignment:
     mapped: bool
     reverse: bool
     cigar: list[tuple[int, str]]
-    length: int
 
 
 @dataclass
@@ -93,36 +95,49 @@ def parse_sam(sam_file: Path) -> Iterator[Alignment]:
             flag = int(fields[1])
             if flag & (FLAG_SECONDARY | FLAG_SUPPLEMENTARY):
                 continue
-            seq = fields[9]
-            cigar = parse_cigar(fields[5])
-            length = len(seq) if seq != "*" else sum(n for n, op in cigar if op in QUERY_OPS)
             yield Alignment(
                 name=fields[0],
                 mapped=not flag & FLAG_UNMAPPED,
                 reverse=bool(flag & FLAG_REVERSE),
-                cigar=cigar,
-                length=length,
+                cigar=parse_cigar(fields[5]),
             )
 
 
 def is_candidate(cigar: list[tuple[int, str]]) -> bool:
     """True if the differences with the exclusion genome could fit in one primer or probe:
-    an insertion, a deletion or a run of mismatches longer than one base, or two differences less than
-    PRIMER_LENGTH bases apart."""
-    for index, (length, op) in enumerate(cigar):
-        if op in DIFFERENCE_OPS and length > 1:
-            return True
-        if op in DIFFERENCE_OPS and index + 2 < len(cigar):
-            gap_length, gap_op = cigar[index + 1]
-            next_op = cigar[index + 2][1]
-            if gap_op in "=M" and gap_length < PRIMER_LENGTH and next_op in DIFFERENCE_OPS:
+
+    - a mismatch run, an insertion or a deletion longer than one base;
+    - two differences fewer than PRIMER_LENGTH matching bases apart, including two that touch;
+    - a clipped end of at least PRIMER_LENGTH bases, which the exclusion genome does not have at all.
+
+    A difference is a mismatch, an insertion or a deletion; a deletion consumes no base of the contig, so
+    two mismatches on either side of one are adjacent as far as a primer is concerned.
+    """
+    matches_since_difference = 0
+    after_difference = False
+    for length, op in cigar:
+        if op in DIFFERENCE_OPS:
+            if length > 1:
                 return True
+            if after_difference and matches_since_difference < PRIMER_LENGTH:
+                return True
+            after_difference, matches_since_difference = True, 0
+        elif op in MATCH_OPS:
+            matches_since_difference += length
+        elif op in CLIP_OPS:
+            # The aligner could not place these bases of the contig anywhere in the exclusion genome
+            if length >= PRIMER_LENGTH:
+                return True
+            after_difference, matches_since_difference = False, 0
+        else:  # N and P: reference-only operations that leave the contig untouched
+            after_difference, matches_since_difference = False, 0
     return False
 
 
 def mark_differences(seq: str, cigar: list[tuple[int, str]]) -> str:
-    """The sequence in upper case, with the bases that differ from the reference (mismatches and inserted
-    bases) in lower case. Deleted bases are not in the sequence: they only show in the cigar string."""
+    """The sequence in upper case, with the bases that are not a match to the reference in lower case:
+    mismatches, inserted bases, and the clipped ends the aligner could not place. Deleted bases are not in
+    the sequence at all: they only show in the cigar string."""
     seq = seq.upper()
     marked: list[str] = []
     position = 0
@@ -130,7 +145,7 @@ def mark_differences(seq: str, cigar: list[tuple[int, str]]) -> str:
         if op not in QUERY_OPS:  # D, N, H and P consume no query base
             continue
         chunk = seq[position:position + length]
-        marked.append(chunk.lower() if op in DIFFERENCE_OPS else chunk)
+        marked.append(chunk if op in MATCH_OPS else chunk.lower())
         position += length
     marked.append(seq[position:])  # Whatever the cigar did not cover
     return "".join(marked)
@@ -161,6 +176,10 @@ def select_candidates(assembly: dict[str, Record], alignments: Iterable[Alignmen
 
 
 def sort_candidates(candidates: dict[str, Candidate]) -> list[Candidate]:
-    """The most promising contigs first: those with the most differences, which is to say the longest cigar
-    string. Contigs with cigar strings of the same length keep a stable order (by name)."""
-    return sorted(candidates.values(), key=lambda candidate: (-len(candidate.desc), candidate.name))
+    """The most promising contigs first: those with the most differing bases, which puts a contig that the
+    exclusion genome does not hold at all at the top. Contigs that differ as much keep a stable order."""
+    def key(candidate: Candidate) -> tuple[int, int, str]:
+        differing = sum(1 for base in candidate.seq if base.islower())
+        return -differing, -len(candidate.desc), candidate.name
+
+    return sorted(candidates.values(), key=key)

@@ -35,7 +35,7 @@ command line, which keeps the conda environment small and the tests fast. Please
 ```bash
 pytest -q                                  # the whole suite, a few seconds
 pytest --cov=primer_finder --cov-report=term-missing
-pytest -m tools                            # also the example with the real programs
+pytest -m tools                            # only the example, with the real programs
 ruff check .
 ```
 

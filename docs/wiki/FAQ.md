@@ -38,6 +38,22 @@ genome did not hold up against the whole exclusion group. The 90% rule means a p
 nearly every exclusion genome that matches the contig. Looking at `3_candidates/best_kmers.fasta` with
 `--keep-intermediate` shows what was dropped and why.
 
+## "The output folder path contains a space" / "the output folder and the inclusion folder overlap"
+
+Two things the run refuses before doing any work:
+
+- BLAST cannot open a database whose path holds a space, and it only finds out after writing it, so the
+  output folder must have a space-free path. The **input** folders may contain spaces: each genome is linked
+  into the output folder before blast sees it.
+- The output folder must be outside both input folders. They are searched recursively, so results written
+  inside one of them would be picked up as input genomes by the next run.
+
+## I have more than 255 inclusion genomes
+
+That works. KMC counts to 255 by default, which would make "present in all 300 genomes" impossible to ask
+for, so primer-finder raises the ceiling (`-cs`) when the group is that large. Before 1.0.0 such a run
+reported that no inclusion-specific kmer existed.
+
 ## Which kmer size should I use?
 
 99 is a good default for bacteria: long enough to be specific, short enough to be found. Shorter kmers (31,
@@ -65,12 +81,23 @@ rather than in the probe.
 
 ## Why is the result not exactly the same as in the 2022 version?
 
-A few rules were fixed; they are listed in
-[CHANGELOG.md](https://github.com/duceppemo/primer-finder/blob/master/CHANGELOG.md). The main ones: the
-reference exclusion genome is now the first one alphabetically instead of a random one (so a run can be
-repeated), the variant positions in the headers are positions in the contig rather than in the blast
-alignment, contigs that map to the minus strand have the right bases marked, and the "two differences within
-21 bases" rule is applied to indels as well as mismatches.
+Several rules were fixed; they are listed in
+[CHANGELOG.md](https://github.com/duceppemo/primer-finder/blob/master/CHANGELOG.md). The ones that change
+which contigs come out:
+
+- the exclusion kmers are now really all subtracted. The old command line passed `-cx1e9` to KMC, which KMC
+  reads as `1`, so only the kmers seen **exactly once** in the whole exclusion group were subtracted;
+  candidates in repeated exclusion regions survived that they no longer do;
+- the reference exclusion genome is the first one alphabetically instead of a random one, so a run can be
+  repeated;
+- the variant positions in the headers are positions in the contig, not in the blast alignment;
+- contigs that map to the minus strand have the right bases marked;
+- "two differences within 21 bases" now covers insertions and deletions, differences that touch, and
+  clipped ends of at least 21 bases;
+- a position has to differ in every copy of the region a given exclusion genome holds, and genomes that do
+  not hold the region at all no longer count towards the 90%;
+- two shared variant positions are enough to keep a contig; the old code needed four because of an
+  off-by-three in its loop.
 
 ## Can I run it on a cluster?
 

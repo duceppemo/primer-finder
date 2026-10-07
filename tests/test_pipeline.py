@@ -26,6 +26,9 @@ def test_full_run(stubs, settings):
     assert info["counts"] == {"kmers": 3, "contigs": 1, "candidates": 1, "in_all_inclusion": 1, "final": 1}
     assert Path(info["reference"]).name == "exclusion_1.fasta"
     assert info["parameters"]["assembler"] == "skesa"
+    # Every program used must have reported a version, including the two KMC ones (no --version flag)
+    assert set(info["programs"]) == {"blastn", "kmc", "kmc_tools", "makeblastdb", "minimap2", "skesa"}
+    assert all(version == f"{name} stub 1.0" for name, version in info["programs"].items()), info["programs"]
     # The variant positions are in the header, in contig coordinates
     assert "[5, 12]" in (scenario.output / "final_kmers.fasta").read_text()
 
@@ -51,6 +54,7 @@ def test_keep_intermediate(stubs, settings):
     assert (scenario.output / "1_kmers" / "kmers.txt").exists()
     assert (scenario.output / "3_candidates" / "mapping.sam").exists()
     assert (scenario.output / "4_blast" / "exclusion_db").is_dir()
+    assert (scenario.output / "4_blast" / "exclusion_db" / "0000_exclusion_1" / "hits.tsv").exists()
 
 
 def test_programs_are_called_with_the_right_options(stubs, settings):
@@ -216,10 +220,13 @@ def test_a_file_that_is_not_a_fasta_is_refused(stubs, settings, genomes):
         run(settings())
 
 
-def test_output_folder_cannot_hold_the_input(stubs, settings, genomes):
+@pytest.mark.parametrize("where", ["same", "below", "above"])
+def test_the_output_folder_may_not_overlap_an_input_folder(stubs, settings, genomes, tmp_path, where):
+    """The input folders are searched recursively, so results written inside one would come back as input."""
     inclusion, _ = genomes
-    with pytest.raises(PrimerFinderError, match="output folder holds input genomes"):
-        run(settings(output=inclusion))
+    output = {"same": inclusion, "below": inclusion / "results", "above": tmp_path}[where]
+    with pytest.raises(PrimerFinderError, match="output folder and the inclusion folder overlap"):
+        run(settings(output=output))
 
 
 def test_lower_positions():
@@ -230,3 +237,64 @@ def test_write_presence_table(tmp_path):
     path = tmp_path / "hits.tsv"
     write_presence_table(path, {"b": {"g2.fasta": True}, "a": {"g1.fasta": False, "g2.fasta": True}})
     assert path.read_text() == "contig\tg1.fasta\tg2.fasta\na\t0\t1\nb\t0\t1\n"
+
+
+def test_several_genomes_are_blasted_in_parallel(stubs, settings, tmp_path):
+    """The blast steps run one genome per thread; the results must not be mixed up."""
+    inclusion = tmp_path / "inclusion"
+    for number in range(3, 9):
+        (inclusion / f"inclusion_{number}.fasta").write_text(">chr\n" + "ACGT" * 50 + "\n")
+    stubs(presence={f"inclusion_{number}": ["ctg1"] for number in range(1, 9)})
+    scenario = settings(threads=4)
+    assert run(scenario) == 0
+    rows = (scenario.output / "4_blast" / "inclusion_blast_hits.tsv").read_text().splitlines()
+    assert len(rows[0].split("\t")) == 1 + 8  # The contig column and one per genome
+    assert rows[1] == "ctg1\t" + "\t".join(["1"] * 8)
+
+
+def test_two_genomes_with_the_same_file_name(stubs, genomes, tmp_path):
+    """Per-sample assembler folders give several genomes the same file name; they must stay apart."""
+    _, exclusion = genomes
+    inclusion = tmp_path / "samples"
+    for sample in ("sampleA", "sampleB"):
+        (inclusion / sample).mkdir(parents=True)
+        (inclusion / sample / "contigs.fasta").write_text(">chr\n" + "ACGT" * 50 + "\n")
+    stubs(contigs={"ctg1": "ACGT" * 25, "ctg2": "TTGG" * 25},
+          sam=[["ctg1", 0, "40=1X7=1X50="], ["ctg2", 0, "40=1X7=1X50="]],
+          presence={"sampleA/contigs": ["ctg1", "ctg2"], "sampleB/contigs": ["ctg1"]})
+    output = tmp_path / "out"
+    assert run(Settings(inclusion=inclusion, exclusion=exclusion, output=output,
+                        threads=2, memory_gb=2, keep_intermediate=True)) == 0
+    rows = (output / "4_blast" / "inclusion_blast_hits.tsv").read_text().splitlines()
+    assert rows[0].split("\t") == ["contig", "sampleA/contigs.fasta", "sampleB/contigs.fasta"]
+    assert rows[1:] == ["ctg1\t1\t1", "ctg2\t1\t0"]
+    # Each genome got a folder of its own, named after its position in the list
+    folders = sorted(path.name for path in (output / "4_blast" / "inclusion_db").iterdir())
+    assert folders == ["0000_contigs", "0001_contigs"]
+
+
+def test_genome_labels(tmp_path):
+    from primer_finder.pipeline import genome_labels
+
+    root = tmp_path / "inclusion"
+    labels = genome_labels([root / "a.fasta", root / "sub" / "a.fasta"], root)
+    assert sorted(labels.values()) == ["a.fasta", "sub/a.fasta"]
+
+
+def test_an_output_path_with_a_space_is_refused_before_anything_runs(stubs, settings, tmp_path):
+    """BLAST cannot open a database whose path holds a space; failing late would waste the whole run."""
+    with pytest.raises(PrimerFinderError, match="output folder path contains a space"):
+        run(settings(output=tmp_path / "with space" / "out"))
+
+
+def test_input_folders_may_hold_a_space(stubs, genomes, tmp_path):
+    """Each genome is linked into the output folder, so blast never sees the input path."""
+    import shutil
+
+    inclusion, exclusion = genomes
+    spaced = tmp_path / "my genomes"
+    shutil.copytree(inclusion, spaced)
+    output = tmp_path / "out"
+    assert run(Settings(inclusion=spaced, exclusion=exclusion, output=output,
+                        threads=1, memory_gb=2)) == 0
+    assert (output / "final_kmers.fasta").exists()

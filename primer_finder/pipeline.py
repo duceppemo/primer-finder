@@ -114,8 +114,23 @@ def check(settings: Settings) -> tuple[list[Path], list[Path], Path]:
         raise PrimerFinderError(
             "The same genome is in both groups: " + ", ".join(sorted(str(path) for path in shared))
         )
-    if settings.output.resolve() in {path.resolve().parent for path in inclusion + exclusion}:
-        raise PrimerFinderError(f"The output folder holds input genomes: {settings.output}")
+    output = settings.output.resolve()
+    # makeblastdb reopens the database it has just written by its absolute path, and BLAST splits paths on
+    # whitespace, so a blast database cannot live under a folder whose name holds a space. The input
+    # folders may: every genome is linked into the output folder before blast sees it.
+    if any(character.isspace() for character in str(output)):
+        raise PrimerFinderError(
+            f"The output folder path contains a space, which BLAST cannot use: {settings.output}. "
+            "Choose an output folder whose path has no space (the input folders may have one)."
+        )
+    for group, folder in (("inclusion", settings.inclusion), ("exclusion", settings.exclusion)):
+        root = folder.resolve()
+        if _inside(output, root) or _inside(root, output):
+            raise PrimerFinderError(
+                f"The output folder and the {group} folder overlap ({settings.output} and {folder}). "
+                "primer-finder searches the input folders recursively, so it would read its own results as "
+                "input genomes. Choose an output folder outside both input folders."
+            )
 
     if settings.reference is not None:
         wanted = settings.reference.resolve()
@@ -131,6 +146,11 @@ def check(settings: Settings) -> tuple[list[Path], list[Path], Path]:
 
     tools.require(sorted({*BASE_PROGRAMS, assemble.PROGRAMS[settings.assembler]}))
     return inclusion, exclusion, reference
+
+
+def _inside(child: Path, parent: Path) -> bool:
+    """True if `child` is `parent` or sits below it. Both paths must be resolved."""
+    return child == parent or parent in child.parents
 
 
 def add_log_file(path: Path) -> None:
@@ -215,7 +235,7 @@ def keep_shared_by_inclusion(settings: Settings, best: Path, inclusion: list[Pat
     folder.mkdir(parents=True, exist_ok=True)
     log.info("Checking the candidates against the %d inclusion genomes...", len(inclusion))
     presence = blast.presence_in_genomes(best, inclusion, folder / "inclusion_db", settings.threads)
-    write_presence_table(folder / HITS_NAME, presence)
+    write_presence_table(folder / HITS_NAME, presence, genome_labels(inclusion, settings.inclusion))
 
     all_inclusion = folder / ALL_INCLUSION_NAME
     count = seqio.write_fasta(all_inclusion, (
@@ -230,11 +250,27 @@ def keep_shared_by_inclusion(settings: Settings, best: Path, inclusion: list[Pat
     return all_inclusion, count
 
 
-def write_presence_table(path: Path, presence: dict[str, dict[str, bool]]) -> None:
+def genome_labels(genomes: list[Path], root: Path) -> dict[str, str]:
+    """A short name for each genome, for the columns of the presence table: its path inside the input
+    folder, so that two genomes with the same file name in different subfolders stay apart."""
+    labels: dict[str, str] = {}
+    for genome in genomes:
+        try:
+            label = str(genome.relative_to(root))
+        except ValueError:  # pragma: no cover - find_genomes returns paths inside the folder
+            label = genome.name
+        labels[str(genome)] = label
+    return labels
+
+
+def write_presence_table(path: Path, presence: dict[str, dict[str, bool]],
+                         labels: dict[str, str] | None = None) -> None:
     """A table of contigs (rows) against genomes (columns), 1 when the contig is present."""
-    genomes = sorted({genome for hits in presence.values() for genome in hits})
+    labels = labels or {}
+    genomes = sorted({genome for hits in presence.values() for genome in hits},
+                     key=lambda genome: labels.get(genome, genome))
     with path.open("w") as fh:
-        fh.write("contig\t" + "\t".join(genomes) + "\n")
+        fh.write("contig\t" + "\t".join(labels.get(genome, genome) for genome in genomes) + "\n")
         for contig in sorted(presence):
             row = ["1" if presence[contig].get(genome) else "0" for genome in genomes]
             fh.write(f"{contig}\t" + "\t".join(row) + "\n")

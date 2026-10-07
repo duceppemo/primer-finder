@@ -101,11 +101,25 @@ def makeblastdb(argv: list[str]) -> int:
     return 0
 
 
+def stub_programs_local_fasta() -> str:
+    """The name make_db() links each genome to, next to the database."""
+    from primer_finder.blast import LOCAL_FASTA
+
+    return LOCAL_FASTA
+
+
 def blastn(argv: list[str]) -> int:
     """Write the tabular output the pipeline asked for, for the genome the database was made from."""
     fields = argument(argv, "-outfmt").split()[1:]
     out_file = Path(argument(argv, "-out"))
-    genome = Path(argument(argv, "-db")).name
+    # blastn runs in the database's folder, with the genome linked there under a fixed name. A scenario can
+    # name a genome by its file stem, by "<parent folder>/<stem>" when two genomes share a name, or by the
+    # folder blast is running in.
+    local = Path(stub_programs_local_fasta())
+    real = local.resolve() if local.exists() else local
+    keys = [real.stem, f"{real.parent.name}/{real.stem}", Path.cwd().name]
+    genome = next((key for key in keys if key in value("presence", {}) or key in value("exclusion_hits", {})),
+                  keys[0])
     queries = [line[1:].split()[0] for line in Path(argument(argv, "-query")).read_text().splitlines()
                if line.startswith(">")]
     rows: list[list[str]] = []
@@ -116,7 +130,8 @@ def blastn(argv: list[str]) -> int:
             rows.append([str(query), str(qstart), str(qend), str(evalue), qseq, sseq])
     else:  # The inclusion step: is the contig there at all?
         present = value("presence", {}).get(genome, queries)
-        rows = [[query, "1e-30"] for query in queries if query in present]
+        evalue = value("presence_evalue", "1e-30")
+        rows = [[query, evalue] for query in queries if query in present]
     out_file.write_text("".join("\t".join(row) + "\n" for row in rows))
     return 0
 
@@ -138,7 +153,8 @@ def main(name: str, argv: list[str] | None = None) -> int:
     if calls:
         with open(calls, "a") as fh:
             fh.write(f"{name} {shlex.join(argv)}\n")
-    if argv in (["--version"], ["-version"]):
+    if argv in (["--version"], ["-version"]) or (not argv and name in ("kmc", "kmc_tools")):
+        # KMC has no version flag: it prints its banner when run with no argument (see tools.VERSION_FLAGS)
         print(f"{name} stub 1.0")
         return 0
     if value("fail", "") == name:

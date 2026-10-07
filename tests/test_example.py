@@ -39,16 +39,26 @@ def test_the_groups_hold_four_genomes_each(dataset):
 
 
 def test_the_planted_variants_are_where_the_truth_says(dataset):
+    """truth.json gives positions in the inclusion genomes; the exclusion genomes are the backbone."""
     make_example = load("make_example")
     truth = json.loads((dataset / "truth.json").read_text())
+    insertion = truth["insertion"]
     inclusion = "".join(r.seq for r in iter_records(dataset / "inclusion" / "inclusion_1.fasta"))
     exclusion = "".join(r.seq for r in iter_records(dataset / "exclusion" / "exclusion_1.fasta"))
     assert len(exclusion) == make_example.LENGTH
-    assert len(inclusion) == make_example.LENGTH + len(truth["insertion"])
-    assert inclusion[truth["insertion_at"]:truth["insertion_at"] + len(truth["insertion"])] == truth["insertion"]
+    assert len(inclusion) == make_example.LENGTH + len(insertion)
+    assert inclusion[truth["insertion_at"]:truth["insertion_at"] + len(insertion)] == insertion
+
     for position in truth["mismatches"]:
-        offset = len(truth["insertion"]) if position > truth["insertion_at"] else 0
-        assert inclusion[position + offset] != exclusion[position]
+        # The same base in the exclusion genome, which does not hold the insertion
+        backbone = position - len(insertion) if position >= truth["insertion_at"] else position
+        assert inclusion[position] != exclusion[backbone], position
+
+    # variants = the mismatches and the inserted bases: what primer-finder must report in lower case
+    assert set(truth["variants"]) == set(truth["mismatches"]) | set(
+        range(truth["insertion_at"], truth["insertion_at"] + len(insertion))
+    )
+    assert len(truth["variants"]) == len(truth["mismatches"]) + len(insertion)
 
 
 def test_every_inclusion_genome_carries_the_same_specific_region(dataset):
@@ -66,6 +76,37 @@ def test_the_dataset_is_the_same_every_time(dataset, tmp_path):
     assert load("make_example").main([str(tmp_path / "again")]) == 0
     first = (dataset / "inclusion" / "inclusion_1.fasta").read_text()
     assert (tmp_path / "again" / "inclusion" / "inclusion_1.fasta").read_text() == first
+
+
+def fake_results(folder: Path, dataset: Path, shift: int = 0) -> Path:
+    """A results folder holding the contig primer-finder should find: a slice of an inclusion genome with
+    the planted variants in lower case, moved by `shift` bases to stand for a marking bug."""
+    truth = json.loads((dataset / "truth.json").read_text())
+    genome = "".join(r.seq for r in iter_records(dataset / "inclusion" / "inclusion_1.fasta"))
+    start, end = truth["target"] - 100, truth["target"] + 160
+    bases = list(genome[start:end].upper())
+    for position in truth["variants"]:
+        index = position - start + shift
+        bases[index] = bases[index].lower()
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "final_kmers.fasta").write_text(f">Contig_1 {truth['variants']}\n{''.join(bases)}\n")
+    (folder / "run_info.json").write_text(json.dumps(
+        {"counts": {"final": 1, "kmers": 214}, "reference": "x/exclusion_1.fasta"}))
+    return folder
+
+
+def test_the_checks_pass_on_the_contig_that_should_be_found(dataset, tmp_path, capsys):
+    results = fake_results(tmp_path / "results", dataset)
+    assert load("check_example").main([str(results), str(dataset)]) == 0
+    assert "FAIL" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("shift", [1, -3])
+def test_the_checks_fail_when_the_marked_bases_are_shifted(dataset, tmp_path, capsys, shift):
+    """The bug the 1.0.0 changelog claims fixed: lower-case marks on the wrong bases."""
+    results = fake_results(tmp_path / f"results{shift}", dataset, shift=shift)
+    assert load("check_example").main([str(results), str(dataset)]) == 1
+    assert "the lower-case bases are exactly the planted variants" in capsys.readouterr().out
 
 
 def test_the_checks_fail_when_there_is_no_result(dataset, tmp_path, capsys):

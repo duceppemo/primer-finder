@@ -12,7 +12,9 @@ kmc_tools -t<threads> transform inclusion_specific dump kmers.txt
 ```
 
 KMC counts the kmers of all the files of a group together, so with `N` inclusion genomes a kmer that occurs
-at least `N` times (`-ci N`) is, in practice, a kmer every inclusion genome carries. `-cx N × d` (`-d`,
+at least `N` times (`-ci N`) is, in practice, a kmer every inclusion genome carries. With more than 255
+inclusion genomes, `-cs` is added as well: KMC's counters stop at 255 by default, so without it `-ci 300`
+would match nothing at all. `-cx N × d` (`-d`,
 default 1) drops the kmers that occur more often than that, which are the repeated regions: they would give
 an assay that amplifies several places at once. The trade-off is that a kmer which happens to occur `N`
 times inside fewer genomes also passes this step — which is why step 4 checks the presence of every
@@ -53,16 +55,20 @@ A contig is kept when, judged on that cigar string:
 
 - it does not map at all — the whole contig is missing from that exclusion genome, the best case; or
 - a mismatch run, an insertion or a deletion is longer than one base; or
-- two differences (mismatch, insertion or deletion) are separated by fewer than 21 matching bases.
+- two differences (mismatch, insertion or deletion) are fewer than 21 matching bases apart, including two
+  that touch, and including two separated only by a deletion (a deletion takes up no base of the contig); or
+- an end of the contig is clipped over at least 21 bases, which means the aligner could not place a whole
+  primer's worth of sequence anywhere in that genome.
 
 21 bases is about the length of a PCR primer: two differences that close can sit in the same primer or probe,
 which is what makes an assay selective. A single mismatch somewhere in the contig is not enough, because a
 primer carrying one mismatch still amplifies the exclusion template often enough to be useless.
 
-The kept contigs are written to `best_kmers.fasta`, the ones with the most differences first (the cigar
-string is used as the measure), with the differing bases in lower case. Mismatched and inserted bases are
-marked; a deletion is in the cigar string only, since those bases are not in the contig. When a contig maps
-to the minus strand, the marks are put back on the forward sequence, which is the one written out.
+The kept contigs are written to `best_kmers.fasta`, the ones with the most differing bases first — which puts
+a contig the exclusion genome does not hold at all at the top — with those bases in lower case. Mismatched,
+inserted and clipped bases are marked; a deletion is in the cigar string only, since those bases are not in
+the contig. When a contig maps to the minus strand, the marks are put back on the forward sequence, which is
+the one written out.
 
 Because only one exclusion genome is used here, the differences found may be particular to that genome.
 Step 5 is what checks them against the whole exclusion group.
@@ -89,14 +95,17 @@ blastn -db <each exclusion genome> -query all_inclusion_contigs.fasta -evalue 1e
        -max_target_seqs 10 -outfmt "6 qseqid qstart qend evalue qseq sseq"
 ```
 
-For each exclusion genome, the best hit of each contig (lowest e-value, then longest) gives the positions of
-the contig that differ from that genome: mismatches, bases the contig has and the genome does not, and the
+Every hit of a contig in an exclusion genome is read, not just the best one, and each gives the positions of
+the contig that differ from that copy: mismatches, bases the contig has and the genome does not, and the
 position where bases the genome has are missing from the contig. The aligned sequences blast returns are
 walked base by base, so the positions are positions **in the contig**, counted from 0.
 
-A position is kept when it differs in at least **90%** of the exclusion genomes that the contig hits at all —
-a few exclusion genomes carrying the inclusion allele do not spoil an assay, and the threshold leaves room
-for them. A contig is kept when:
+A position counts as different in a genome only when **every copy** of that region in the genome differs
+there: one matching copy is enough for the assay to amplify that genome. A position is then kept when it
+differs in at least **90%** of the exclusion genomes that align it — a few exclusion genomes carrying the
+inclusion allele do not spoil an assay, and the threshold leaves room for them. A genome whose hits do not
+reach that position is left out of the count rather than counted as identical: it does not hold that region,
+which only makes the assay more selective. A contig is kept when:
 
 - no exclusion genome hits it at all (it is specific on its own), in which case it is written as it came out
   of step 3; or
@@ -124,3 +133,7 @@ primer-finder does not do them (yet).
 - **No assay is designed or tested.** The output is the region to design on, not a primer pair.
 - **Plasmids and repeats.** `-d 1` discards anything repeated inside a genome; a kmer carried by a plasmid
   that moves between the two groups will not be specific.
+- **Where the output folder may be.** It must be outside both input folders — they are searched recursively,
+  so results written inside one would come back as input genomes — and its path must not contain a space,
+  which BLAST cannot handle in a database path. The input folders themselves may contain spaces: every
+  genome is linked into the output folder before blast sees it.

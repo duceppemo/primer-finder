@@ -5,7 +5,10 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+# Where a control group's memory limit is, when this process sees its own cgroup as the root (containers).
 CGROUP_MEMORY_FILES = ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes")  # v2, v1
+CGROUP_ROOT = Path("/sys/fs/cgroup")
+PROC_CGROUP = Path("/proc/self/cgroup")
 MEMORY_FRACTION = 0.85  # Of the total memory, as the previous versions did
 
 
@@ -16,16 +19,51 @@ def usable_cpus() -> int:
     return os.cpu_count() or 1  # pragma: no cover - macOS
 
 
-def cgroup_memory_limit(files: tuple[str, ...] = CGROUP_MEMORY_FILES) -> int | None:
-    """The memory limit of this process's control group (a job scheduler's or a container's), in bytes."""
-    for path in files:
+def cgroup_memory_files(proc_cgroup: Path = PROC_CGROUP, root: Path = CGROUP_ROOT) -> tuple[str, ...]:
+    """Every file that could hold a memory limit for this process: the roots, then this process's own
+    control group and each of its parents.
+
+    A job scheduler (Slurm, systemd) puts the job in a control group below the root, so the limit is not in
+    `/sys/fs/cgroup/memory.max` but in `/sys/fs/cgroup<path from /proc/self/cgroup>/memory.max`, and it may
+    be set on a parent of it. In a container the process sees its cgroup as the root instead, which is what
+    the first two files cover.
+    """
+    files = list(CGROUP_MEMORY_FILES)
+    try:
+        lines = proc_cgroup.read_text().splitlines()
+    except OSError:  # pragma: no cover - not Linux
+        return tuple(files)
+    for line in lines:
+        parts = line.split(":", 2)
+        if len(parts) != 3:
+            continue
+        _, controllers, path = parts
+        if controllers == "":  # cgroup v2: one line, "0::<path>"
+            base, limit = root, "memory.max"
+        elif "memory" in controllers.split(","):  # cgroup v1: one line per controller
+            base, limit = root / "memory", "memory.limit_in_bytes"
+        else:
+            continue
+        group = base / path.strip("/") if path.strip("/") else base
+        while True:
+            files.append(str(group / limit))
+            if group == base or base not in group.parents:
+                break
+            group = group.parent
+    return tuple(dict.fromkeys(files))  # In order, without duplicates
+
+
+def cgroup_memory_limit(files: tuple[str, ...] | None = None) -> int | None:
+    """The smallest memory limit any of this process's control groups sets, in bytes, or None."""
+    limits = []
+    for path in files if files is not None else cgroup_memory_files():
         try:
             value = Path(path).read_text().strip()
         except OSError:
             continue
         if value.isdigit() and int(value) < 1 << 60:  # "max" or a huge number: no limit
-            return int(value)
-    return None
+            limits.append(int(value))
+    return min(limits) if limits else None
 
 
 def total_memory() -> int | None:

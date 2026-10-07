@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import gzip
+import logging
 import os
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
 from primer_finder import PrimerFinderError
+
+log = logging.getLogger(__name__)
 
 # The file extensions accepted in the inclusion and exclusion folders.
 EXTENSIONS = (".fa", ".fasta", ".fna", ".fa.gz", ".fasta.gz", ".fna.gz")
@@ -28,11 +31,15 @@ class Record:
 
 
 def open_text(path: Path | str):
-    """Open a fasta file for reading, transparently decompressing a gzipped one."""
+    """Open a fasta file for reading, transparently decompressing a gzipped one.
+
+    A byte that is not UTF-8 is replaced instead of raising: fasta files from older pipelines hold accented
+    strain names in their headers, and a header is only a label here.
+    """
     path = Path(path)
     if path.suffix == ".gz":
-        return gzip.open(path, "rt")
-    return path.open("r")
+        return gzip.open(path, "rt", errors="replace")
+    return path.open("r", errors="replace")
 
 
 def iter_records(path: Path | str) -> Iterator[Record]:
@@ -57,8 +64,21 @@ def iter_records(path: Path | str) -> Iterator[Record]:
 
 
 def read_fasta(path: Path | str) -> dict[str, Record]:
-    """Read a fasta file into a dictionary keyed by record name. The last entry wins on duplicate names."""
-    return {record.name: record for record in iter_records(path)}
+    """Read a fasta file into a dictionary keyed by record name.
+
+    Duplicate names are reported: the records of such a file cannot be told apart, and the last one would
+    silently stand for all of them.
+    """
+    records: dict[str, Record] = {}
+    duplicates: list[str] = []
+    for record in iter_records(path):
+        if record.name in records:
+            duplicates.append(record.name)
+        records[record.name] = record
+    if duplicates:
+        log.warning("%s holds %d record(s) whose name is not unique (%s); only the last of each is used",
+                    path, len(duplicates), ", ".join(sorted(set(duplicates))[:5]))
+    return records
 
 
 def write_fasta(path: Path | str, records: Iterable[Record]) -> int:

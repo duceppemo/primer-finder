@@ -55,9 +55,11 @@ PACKAGE_RELS_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
 
 
 def write_xlsx(path: Path, grid: list[list[str]], namespaces: bool = True) -> Path:
-    """An .xlsx holding one worksheet, as Excel and openpyxl write it: namespaced XML, shared strings, and
-    an absolute relationship target. With `namespaces` off, the same file without any namespace, which some
-    exporters produce."""
+    """An .xlsx holding one worksheet, as Excel writes it: namespaced XML, shared strings and an absolute
+    relationship target. With `namespaces` off, the same file without any namespace, which some exporters
+    produce. openpyxl instead writes inline strings and no shared-strings part, which
+    test_inline_strings covers.
+    """
     strings: list[str] = []
     rows_xml = []
     for row_number, row in enumerate(grid, start=1):
@@ -182,3 +184,129 @@ def test_a_sheet_can_be_chosen_by_name(tmp_path):
     assert read_xlsx(table, "Sheet1")[0] == ["Type", "Sequence", "Amplicon"]
     with pytest.raises(PrimerFinderError, match="No sheet named"):
         read_xlsx(table, "Nope")
+
+
+def write_parts(path: Path, parts: dict[str, str], sheet_name: str = "Sheet1") -> Path:
+    """An .xlsx whose worksheet and shared strings are given as raw XML, for the shapes a spreadsheet
+    program produces that write_xlsx does not."""
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("[Content_Types].xml", "<Types/>")
+        archive.writestr(
+            "xl/workbook.xml",
+            f'<workbook xmlns="{MAIN_NS}" xmlns:r="{RELS_NS}"><sheets>'
+            f'<sheet name="{sheet_name}" sheetId="1" r:id="rId1"/></sheets></workbook>',
+        )
+        archive.writestr(
+            "xl/_rels/workbook.xml.rels",
+            f'<Relationships xmlns="{PACKAGE_RELS_NS}">'
+            '<Relationship Id="rId1" Target="/xl/worksheets/sheet1.xml"/></Relationships>',
+        )
+        for name, xml in parts.items():
+            archive.writestr(name, xml)
+    return path
+
+
+def sheet_xml(rows: str) -> str:
+    return f'<worksheet xmlns="{MAIN_NS}"><sheetData>{rows}</sheetData></worksheet>'
+
+
+ASSAY_CSV = "Type,Sequence,Amplicon\nForward Primer,AAAA,95\nReverse Primer,TTTT,\n"
+
+
+@pytest.mark.parametrize(
+    ("name", "data"),
+    [
+        # Excel's "CSV UTF-8", the default CSV format, starts with a byte-order mark
+        ("bom.csv", b"\xef\xbb\xbf" + ASSAY_CSV.encode()),
+        # Excel writes semicolons where the comma is the decimal separator (fr, de, ...)
+        ("semicolon.csv", ASSAY_CSV.replace(",", ";").encode()),
+        # The legacy "CSV (Comma delimited)" on Windows is cp1252, here with a degree sign
+        ("cp1252.csv", ASSAY_CSV.replace("95", "95,60\xb0C").encode("cp1252")),
+        # Excel's "Unicode Text (*.txt)" is UTF-16 with tabs
+        ("unicode.txt", ASSAY_CSV.replace(",", "\t").encode("utf-16")),
+    ],
+)
+def test_the_text_formats_excel_saves(tmp_path, name, data):
+    table = tmp_path / name
+    table.write_bytes(data)
+    assert convert(table, tmp_path / "out.fasta") == 1
+    assert (tmp_path / "out.fasta").read_text() == ">0_95bp-F\nAAAA\n>0_95bp-R\nTTTT\n"
+
+
+def test_inline_strings(tmp_path):
+    """openpyxl writes the text inside the cell and no shared-strings part."""
+    def row(number, values):
+        cells = "".join(
+            f'<c r="{chr(ord("A") + column)}{number}" t="inlineStr"><is><t>{value}</t></is></c>'
+            for column, value in enumerate(values)
+        )
+        return f'<row r="{number}">{cells}</row>'
+
+    table = write_parts(tmp_path / "order.xlsx", {"xl/worksheets/sheet1.xml": sheet_xml(
+        row(1, ["Type", "Sequence", "Amplicon"]) + row(2, ["Forward Primer", "AAAA", "95"])
+        + row(3, ["Reverse Primer", "TTTT"])
+    )})
+    assert convert(table, tmp_path / "out.fasta") == 1
+
+
+def test_phonetic_runs_are_not_part_of_the_value(tmp_path):
+    """East Asian versions of Excel store a phonetic run (rPh) beside the text; it is not the value."""
+    shared = (
+        f'<sst xmlns="{MAIN_NS}">'
+        '<si><r><t>Forward </t></r><r><t>Primer</t></r><rPh sb="0" eb="7"><t>FW</t></rPh></si>'
+        "<si><t>Sequence</t></si><si><t>Type</t></si>"
+        "<si><r><t>Reverse Primer</t></r><rPh sb=\"0\" eb=\"7\"><t>RV</t></rPh></si>"
+        "</sst>"
+    )
+    rows = (
+        '<row r="1"><c r="A1" t="s"><v>2</v></c><c r="B1" t="s"><v>1</v></c></row>'
+        '<row r="2"><c r="A2" t="s"><v>0</v></c><c r="B2" t="s"><v>1</v></c></row>'
+        '<row r="3"><c r="A3" t="s"><v>3</v></c><c r="B3" t="s"><v>1</v></c></row>'
+    )
+    table = write_parts(tmp_path / "order.xlsx",
+                        {"xl/sharedStrings.xml": shared, "xl/worksheets/sheet1.xml": sheet_xml(rows)})
+    rows_read = read_table(table)
+    assert [row["type"] for row in rows_read] == ["Forward Primer", "Reverse Primer"]
+
+
+def test_a_first_row_that_only_carries_formatting_is_not_the_header(tmp_path):
+    """Excel writes a styled but empty row as cells with no value at all."""
+    grid = [["", "", ""], ["Type", "Sequence", "Amplicon"], ["Forward Primer", "AAAA", "95"],
+            ["Reverse Primer", "TTTT", ""]]
+    table = write_xlsx(tmp_path / "order.xlsx", grid)
+    assert read_table(table)[0]["type"] == "Forward Primer"
+    assert convert(table, tmp_path / "out.fasta") == 1
+
+
+def test_columns_past_z(tmp_path):
+    rows = (
+        '<row r="1"><c r="AA1" t="inlineStr"><is><t>Type</t></is></c>'
+        '<c r="AB1" t="inlineStr"><is><t>Sequence</t></is></c></row>'
+        '<row r="2"><c r="AA2" t="inlineStr"><is><t>Forward Primer</t></is></c>'
+        '<c r="AB2" t="inlineStr"><is><t>AAAA</t></is></c></row>'
+        '<row r="3"><c r="AA3" t="inlineStr"><is><t>Reverse Primer</t></is></c>'
+        '<c r="AB3" t="inlineStr"><is><t>TTTT</t></is></c></row>'
+    )
+    table = write_parts(tmp_path / "order.xlsx", {"xl/worksheets/sheet1.xml": sheet_xml(rows)})
+    assert convert(table, tmp_path / "out.fasta") == 1
+
+
+def test_an_xlsm_file_is_read(tmp_path):
+    table = write_xlsx(tmp_path / "order.xlsm", GRID)
+    assert convert(table, tmp_path / "out.fasta") == 1
+
+
+def test_only_the_first_sheet_is_read_and_it_is_said(tmp_path, caplog):
+    import zipfile as zf
+
+    table = write_xlsx(tmp_path / "order.xlsx", GRID)
+    # Add a second sheet, so that the workbook lists two
+    with zf.ZipFile(table) as archive:
+        parts = {name: archive.read(name) for name in archive.namelist()}
+    parts["xl/workbook.xml"] = parts["xl/workbook.xml"].replace(
+        b"</sheets>", b'<sheet name="Notes" sheetId="2" r:id="rId2"/></sheets>')
+    with zf.ZipFile(table, "w") as archive:
+        for name, data in parts.items():
+            archive.writestr(name, data)
+    assert convert(table, tmp_path / "out.fasta") == 1
+    assert "several sheets (Sheet1, Notes); reading the first one" in caplog.text

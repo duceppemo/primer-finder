@@ -50,14 +50,23 @@ def add_private_changes(rng: random.Random, bases: list[str], how_many: int) -> 
 
 
 def plant_variants(rng: random.Random, bases: list[str]) -> dict[str, object]:
-    """Apply the inclusion-specific variants to a copy of the backbone."""
-    changed = []
+    """Apply the inclusion-specific variants to a copy of the backbone.
+
+    `mismatches` and `insertion_at` are positions in this sequence (the inclusion genomes), and `variants`
+    is every base that differs from the exclusion genomes: the mismatches and the inserted bases. That is
+    exactly what primer-finder must report in lower case, so check_example.py compares against it.
+    """
+    insertion_at = TARGET + INSERTION_AT
+    mismatches = []
     for offset in MISMATCHES:
         position = TARGET + offset
         bases[position] = other_base(rng, bases[position])
-        changed.append(position)
-    bases[TARGET + INSERTION_AT:TARGET + INSERTION_AT] = list(INSERTION)
-    return {"mismatches": changed, "insertion_at": TARGET + INSERTION_AT, "insertion": INSERTION}
+        # A mismatch after the insertion point moves along once the insertion is spliced in
+        mismatches.append(position + len(INSERTION) if position >= insertion_at else position)
+    bases[insertion_at:insertion_at] = list(INSERTION)
+    variants = sorted(set(mismatches) | set(range(insertion_at, insertion_at + len(INSERTION))))
+    return {"mismatches": sorted(mismatches), "insertion_at": insertion_at, "insertion": INSERTION,
+            "variants": variants}
 
 
 def write_genome(path: Path, bases: list[str], line_length: int = 70) -> None:

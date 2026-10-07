@@ -11,6 +11,7 @@ import pytest
 
 from primer_finder import __version__
 from primer_finder.cli import main, with_default_command
+from primer_finder.system import default_memory_gb, usable_cpus
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -90,8 +91,8 @@ def test_too_many_threads_and_too_much_memory_are_capped(stubs, genomes, tmp_pat
                  "-t", "100000", "-m", "100000"]) == 0
     assert "only" in caplog.text
     info = json.loads((out / "run_info.json").read_text())
-    assert info["parameters"]["threads"] < 100000
-    assert info["parameters"]["memory_gb"] < 100000
+    assert info["parameters"]["threads"] == usable_cpus()
+    assert info["parameters"]["memory_gb"] == default_memory_gb()
 
 
 @pytest.mark.parametrize("argv", [["-t", "0"], ["-m", "0"]])

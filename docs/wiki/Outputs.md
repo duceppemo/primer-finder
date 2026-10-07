@@ -10,7 +10,9 @@ results/
 │   ├── exclusion_list.txt     the exclusion genomes, as given to KMC
 │   ├── inclusion_specific_99mers.fasta   the kmers only the inclusion group has
 │   ├── kmers.txt              the KMC dump (--keep-intermediate)
-│   └── inclusion*.kmc_pre/suf the KMC databases (--keep-intermediate)
+│   ├── inclusion.kmc_pre/suf, exclusion.kmc_pre/suf, inclusion_specific.kmc_pre/suf
+│   │                          the KMC databases (--keep-intermediate)
+│   └── kmc_work/              KMC's temporary folder (--keep-intermediate)
 ├── 2_assembly/
 │   └── assembly.fasta         those kmers assembled into contigs
 ├── 3_candidates/
@@ -23,7 +25,8 @@ results/
 ```
 
 Without `--keep-intermediate`, the files marked above are removed when the run finishes; everything else is
-kept.
+kept. A run that stops on an error keeps them all, whatever the option says, so that the step that failed can
+be examined; `run_info.json` is only written by a run that reaches the end.
 
 ## final_kmers.fasta
 
@@ -45,8 +48,9 @@ below) instead of a list of positions: all of it is specific.
 
 ## best_kmers.fasta
 
-The candidates after the mapping step, before blast. Their description is the cigar string of their
-alignment to the one exclusion genome they were mapped to, which reads as a summary of the differences:
+The candidates after the mapping step, before blast, the ones with the most differing bases first. Their
+description is the cigar string of their alignment to the one exclusion genome they were mapped to, which
+reads as a summary of the differences:
 
 ```
 >Contig_1_67.5167 72=1X7=1X6=1X34=15I50=1X72=
@@ -55,14 +59,15 @@ alignment to the one exclusion genome they were mapped to, which reads as a summ
 `=` match, `X` mismatch, `I` bases the contig has and the exclusion genome does not, `D` the other way
 round, `S` soft-clipped ends. A contig that did not map at all is described as `<length>I`.
 
-Mismatched and inserted bases are in lower case here too. Deleted bases cannot be marked — they are not in
-the contig — so they only show in the cigar string.
+Mismatched, inserted and clipped bases are in lower case here too. Deleted bases cannot be marked — they are
+not in the contig — so they only show in the cigar string.
 
 ## inclusion_blast_hits.tsv
 
 Which inclusion genome holds which candidate: `1` present (a blast hit at 1e-10 or better), `0` absent. The
 candidates with a `0` are the ones dropped at this step; the table is the place to look when a region you
-expected disappeared.
+expected disappeared. A column is named after the genome's path inside the inclusion folder, so genomes with
+the same file name in different subfolders (`sampleA/contigs.fasta`, `sampleB/contigs.fasta`) stay apart.
 
 ```
 contig	inclusion_1.fasta	inclusion_2.fasta	inclusion_3.fasta

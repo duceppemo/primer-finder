@@ -33,6 +33,18 @@ mapped to one exclusion genome (minimap2) and checked against every genome (blas
   instead of the blast alignments, and the inclusion and exclusion genomes are searched in parallel.
 - The results are in subfolders (`1_kmers/`, `2_assembly/`, `3_candidates/`, `4_blast/`), with
   `final_kmers.fasta` at the top. `inclusion_blast_hits.tsv` holds 1 and 0 instead of `True` and `False`.
+- Every hit of a contig in an exclusion genome is examined, not only the best one, and a position counts as
+  different in that genome only if every copy of the region differs there: one matching copy is enough for
+  an assay to amplify it. A genome whose hits do not reach a position no longer counts towards the 90%
+  either, since it does not hold that region at all.
+- SPAdes is called with `--only-assembler` (kmers carry no quality values to correct) and `--memory`, which
+  the previous version did not pass.
+- The blast databases are built in a folder of their own per genome, named after the genome's position in
+  the list, and blast runs in that folder with relative paths. Two genomes with the same file name in
+  different subfolders (`sampleA/contigs.fasta`, `sampleB/contigs.fasta`) therefore no longer collide, and
+  the columns of `inclusion_blast_hits.tsv` are named after the path inside the input folder.
+- An output folder that overlaps an input folder, or whose path contains a space (which BLAST cannot use in
+  a database path), is refused before any work is done. The input folders may contain spaces.
 - Python 3.10 or later (was 3.6).
 
 ### Fixed
@@ -52,3 +64,28 @@ mapped to one exclusion genome (minimap2) and checked against every genome (blas
 - A genome listed in both groups, an output folder holding the input genomes, a file that is not a fasta and
   an unreadable kmer size are reported as errors instead of running anyway.
 - A missing program is reported once, with the conda package that provides it, instead of failing midway.
+- All the exclusion kmers are now subtracted. The old `-cx1e9` was read by KMC as `1`, so only kmers seen
+  exactly once in the whole exclusion group were removed, and candidates in repeated exclusion regions
+  survived. This changes the result of every run.
+- With more than 255 inclusion genomes, `-ci <N>` could not match anything, because KMC counts to 255
+  unless `-cs` says otherwise: such a run reported that no inclusion-specific kmer existed. The ceiling is
+  now raised when the group needs it.
+- Two differences that touch each other (a mismatch next to an inserted base, or two mismatches on either
+  side of a deletion) count as two differences; the rule used to need a run of matching bases between them.
+  A clipped end of at least 21 bases — a whole primer's worth of sequence the exclusion genome does not hold
+  — now keeps the contig too.
+- Two shared variant positions are enough to keep a contig, as documented; an off-by-three in the previous
+  loop meant four were needed.
+- `best_kmers.fasta` lists the contigs with the most differing bases first, so a contig the exclusion genome
+  does not hold at all comes first instead of last.
+- Fasta files whose headers are not UTF-8 (an accented strain name) are read instead of ending the run with
+  a `UnicodeDecodeError` traceback; duplicate record names in an assembly are reported.
+- An unreadable input, a read-only output folder or an `-o` that names an existing file is reported as an
+  error instead of a traceback.
+- The memory limit of a control group (Slurm, systemd, a container) is found wherever the job's cgroup sits,
+  not only at the root of the cgroup filesystem, so the default `-m` is 85% of what the job may use rather
+  than of the whole machine.
+- `primer-finder idt` reads every format Excel saves: "CSV UTF-8" (with its byte-order mark), the legacy
+  Windows CSV, "Unicode Text" (UTF-16) and the semicolon-separated CSV of comma-decimal locales. It no
+  longer takes a styled but empty first row as the header, nor glues a phonetic run onto a cell value, and
+  it says which sheet it read when a workbook holds several.

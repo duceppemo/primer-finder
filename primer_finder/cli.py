@@ -127,6 +127,9 @@ def main(argv: list[str] | None = None) -> int:
     except PrimerFinderError as exc:
         log.error("%s", exc)
         return 1
+    except OSError as exc:  # An unreadable input, a read-only or missing output folder, a full disk
+        log.error("%s", exc)
+        return 1
     except KeyboardInterrupt:  # pragma: no cover
         log.error("Interrupted")
         return 130

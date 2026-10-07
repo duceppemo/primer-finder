@@ -48,7 +48,7 @@ while read -r genome; do ln -sf "$genome" exclusion/; done < exclusion.list
 |---|---|---|
 | `-i`, `--inclusion` | required | Folder of genomes the assay should amplify. |
 | `-e`, `--exclusion` | required | Folder of genomes the assay must not amplify. |
-| `-o`, `--output` | required | Folder for the results; it is created if needed. |
+| `-o`, `--output` | required | Folder for the results; it is created if needed. It must be outside both input folders, and its path must not contain a space (a BLAST limitation). |
 | `-t`, `--threads` | every CPU | CPUs for KMC, the assembler, minimap2, and how many genomes are blasted at a time. |
 | `-m`, `--memory` | 85% of the memory | Memory in GB, passed to KMC and the assembler. |
 | `-k`, `--kmer_size` | 99 | Kmer size for KMC, 1-256. Shorter kmers find shorter specific regions, and more of them; longer kmers are more specific. |
@@ -109,9 +109,13 @@ fasta file of oligos:
 primer-finder idt order.xlsx assays.fasta my_target
 ```
 
-It reads `.xlsx` (no Excel or extra library needed), `.csv` and `.tsv` files with a `Type` column
-(`Forward Primer`, `Probe`, `Reverse Primer`), a `Sequence` column and, optionally, an `Amplicon` column;
-the columns may be in any order and any case. Each assay becomes up to three records:
+It reads `.xlsx` and `.xlsm` (no Excel or extra library needed) and `.csv`, `.tsv` and `.txt` files with a
+`Type` column (`Forward Primer`, `Probe`, `Reverse Primer`), a `Sequence` column and, optionally, an
+`Amplicon` column; the columns may be in any order and any case, and rows that are not oligos are ignored.
+Every format Excel saves is accepted: "CSV UTF-8" (with its byte-order mark), the legacy Windows "CSV",
+"Unicode Text" (UTF-16), and the semicolon-separated CSV of locales where the comma is the decimal
+separator. Of a workbook, the **first sheet** is read; if there are several, the run says which one it took.
+Each assay becomes up to three records:
 
 ```
 >my_target_0_120bp-F

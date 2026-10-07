@@ -87,3 +87,34 @@ def test_base_name():
     assert base_name(Path("/a/b/genome.fasta")) == "genome"
     assert base_name(Path("genome.fna.gz")) == "genome"
     assert base_name(Path("genome.v2.fasta")) == "genome.v2"
+
+
+def test_a_header_that_is_not_utf8_is_read_anyway(tmp_path, caplog):
+    """Older pipelines wrote accented strain names; a header is only a label here."""
+    path = tmp_path / "latin1.fasta"
+    path.write_bytes(b">Mycobacterium bovis caf\xe9 strain\nACGT\n")
+    assert is_fasta(path)
+    record = next(iter(iter_records(path)))
+    assert record.name == "Mycobacterium"
+    assert record.seq == "ACGT"
+
+
+def test_gzip_data_in_a_file_that_is_not_named_gz_is_not_a_fasta(tmp_path):
+    import gzip as gziplib
+
+    path = tmp_path / "mislabelled.fasta"
+    with gziplib.open(path, "wt") as fh:
+        fh.write(">chr\nACGT\n")
+    assert not is_fasta(path)
+    with pytest.raises(PrimerFinderError, match="Not a fasta file"):
+        require_genomes(tmp_path, "inclusion")
+
+
+def test_duplicate_record_names_are_reported(tmp_path, caplog):
+    path = tmp_path / "dup.fasta"
+    path.write_text(">ctg1\nAAAA\n>ctg1\nTTTT\n>ctg2\nGG\n")
+    records = read_fasta(path)
+    assert set(records) == {"ctg1", "ctg2"}
+    assert records["ctg1"].seq == "TTTT"
+    assert "name is not unique (ctg1)" in caplog.text
+    assert count_records(path) == 3

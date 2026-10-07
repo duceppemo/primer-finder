@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import codecs
 import csv
 import logging
 import re
@@ -99,17 +100,35 @@ def read_table(path: Path) -> list[dict[str, str]]:
         )
     if not grid:
         raise PrimerFinderError(f"{path} is empty")
-    header = [cell.strip().lower() for cell in grid[0]]
-    return [dict(zip(header, row, strict=False)) for row in grid[1:] if any(cell.strip() for cell in row)]
+    # The header is the first row that holds anything: Excel writes empty rows that carry only formatting.
+    rows = [row for row in grid if any(cell.strip() for cell in row)]
+    if not rows:
+        raise PrimerFinderError(f"{path} is empty")
+    header = [cell.strip().lower() for cell in rows[0]]
+    return [dict(zip(header, row, strict=False)) for row in rows[1:]]
+
+
+def decode(data: bytes) -> str:
+    """Text out of whatever Excel saved: UTF-8 with or without a byte-order mark ("CSV UTF-8"), UTF-16
+    ("Unicode Text"), or the legacy Windows code page."""
+    for mark, encoding in ((codecs.BOM_UTF16_LE, "utf-16"), (codecs.BOM_UTF16_BE, "utf-16")):
+        if data.startswith(mark):
+            return data.decode(encoding)
+    for encoding in ("utf-8-sig", "cp1252"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")  # pragma: no cover - cp1252 decodes any byte
 
 
 def read_delimited(path: Path) -> list[list[str]]:
-    """Read a csv or tab-separated file, guessing which of the two it is from the first line."""
-    with path.open(newline="") as fh:
-        first = fh.readline()
-        fh.seek(0)
-        delimiter = "\t" if first.count("\t") > first.count(",") else ","
-        return [list(row) for row in csv.reader(fh, delimiter=delimiter)]
+    """Read a delimited text file, guessing the delimiter from the first line: a tab, a comma, or the
+    semicolon that Excel writes where the comma is the decimal separator."""
+    text = decode(path.read_bytes())
+    first = text.splitlines()[0] if text else ""
+    delimiter = max(("\t", ",", ";"), key=first.count)
+    return [list(row) for row in csv.reader(text.splitlines(), delimiter=delimiter)]
 
 
 def read_xlsx(path: Path, sheet: str | None = None) -> list[list[str]]:
@@ -133,7 +152,20 @@ def _shared_strings(archive: zipfile.ZipFile) -> list[str]:
         return []
     with archive.open("xl/sharedStrings.xml") as fh:
         root = ElementTree.parse(fh).getroot()
-    return ["".join(text.text or "" for text in item.iterfind(".//{*}t")) for item in root.iterfind(".//{*}si")]
+    return [_shared_string(item) for item in root.iterfind(".//{*}si")]
+
+
+def _shared_string(item: ElementTree.Element) -> str:
+    """One shared string: its text, or the text of its rich-text runs. The phonetic runs (`rPh`) that East
+    Asian versions of Excel add alongside are not part of the value."""
+    parts: list[str] = []
+    for child in item:
+        tag = child.tag.rsplit("}", 1)[-1]
+        if tag == "t":
+            parts.append(child.text or "")
+        elif tag == "r":  # A run of rich text: <r><rPr/><t>...</t></r>
+            parts.extend(text.text or "" for text in child.iterfind("{*}t"))
+    return "".join(parts)
 
 
 def _sheet_part(archive: zipfile.ZipFile, sheet: str | None) -> str:
@@ -142,6 +174,10 @@ def _sheet_part(archive: zipfile.ZipFile, sheet: str | None) -> str:
         workbook = ElementTree.parse(fh).getroot()
     relations = _relations(archive)
     sheets = list(workbook.iterfind(".//{*}sheet"))
+    if sheet is None and len(sheets) > 1:
+        names = [element.get("name", "") for element in sheets]
+        log.warning("The file holds several sheets (%s); reading the first one, %s",
+                    ", ".join(names), names[0])
     for element in sheets:
         name = element.get("name", "")
         if sheet is None or name == sheet:

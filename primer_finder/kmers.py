@@ -12,6 +12,9 @@ log = logging.getLogger(__name__)
 
 MIN_KMER_SIZE, MAX_KMER_SIZE = 1, 256  # What KMC accepts
 MIN_MEMORY_GB, MAX_MEMORY_GB = 1, 1024  # What KMC accepts (-m)
+# KMC counts up to 255 unless -cs says otherwise, so with more than 255 inclusion genomes -ci<N> would
+# match nothing at all.
+DEFAULT_COUNTER_MAX = 255
 # KMC's largest accepted kmer count: enough to mean "no upper limit" for the exclusion group.
 NO_MAX_COUNT = 1_000_000_000
 
@@ -40,18 +43,20 @@ def count(
     """Count the kmers of the fasta files listed in `list_file`, keeping those seen `min_count`..`max_count`
     times. Returns the prefix of the KMC database (its `.kmc_pre` and `.kmc_suf` files)."""
     work_dir.mkdir(parents=True, exist_ok=True)
-    tools.run([
+    command = [
         "kmc",
         f"-k{kmer_size}",
         f"-t{threads}",
         f"-m{kmc_memory(memory_gb)}",
         "-fm",  # multi-fasta input
-        f"-ci{min_count}",
-        f"-cx{max_count}",
-        f"@{list_file}",
-        db_prefix,
-        work_dir,
-    ])
+    ]
+    if DEFAULT_COUNTER_MAX < max_count < NO_MAX_COUNT:
+        # Count beyond 255, or no kmer would reach min_count and repeated kmers would slip past max_count.
+        # When nothing is filtered out by max_count (the exclusion group) the default ceiling is harmless,
+        # and leaving it alone keeps KMC's counters one byte wide.
+        command.append(f"-cs{max_count}")
+    command += [f"-ci{min_count}", f"-cx{max_count}", f"@{list_file}", str(db_prefix), str(work_dir)]
+    tools.run(command)
     return require_db(db_prefix, "KMC counted no kmers")
 
 
@@ -98,12 +103,3 @@ def dump_to_fasta(dump_file: Path, fasta_file: Path) -> int:
     if count == 0:  # pragma: no cover - dump() already refuses an empty dump
         raise PrimerFinderError("The KMC dump holds no kmer")
     return count
-
-
-def count_lines(path: Path, block_size: int = 1 << 20) -> int:
-    """Count the lines of a (possibly very large) text file."""
-    total = 0
-    with path.open("rb") as fh:
-        while block := fh.read(block_size):
-            total += block.count(b"\n")
-    return total

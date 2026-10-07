@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run primer-finder on the example dataset and check the results.
 #
-#   bash example/run_example.sh [output_folder] [threads]
+#   bash example/run_example.sh [output_folder] [threads] [memory_GB]
 #
 # It needs primer-finder and its programs (kmc, skesa, minimap2, blast) on PATH; see the wiki's
 # Installation page. It takes a few seconds.
@@ -12,12 +12,19 @@ out="${1:-${here}/example_output}"
 threads="${2:-4}"
 memory="${3:-8}"
 
-python "${here}/make_example.py" "${out}/data"
+# `python` does not exist on every system (Debian and Ubuntu ship python3 only); $PYTHON wins if set.
+python_bin="${PYTHON:-$(command -v python || command -v python3 || true)}"
+if [ -z "${python_bin}" ]; then
+    echo "No python interpreter found on PATH" >&2
+    exit 1
+fi
+
+"${python_bin}" "${here}/make_example.py" "${out}/data"
 
 if command -v primer-finder > /dev/null; then
     finder=(primer-finder)
 else  # Running from a clone, without installing
-    finder=(python "${here}/../primer_finder.py")
+    finder=("${python_bin}" "${here}/../primer_finder.py")
 fi
 
 "${finder[@]}" \
@@ -27,4 +34,4 @@ fi
     -t "${threads}" \
     -m "${memory}"
 
-python "${here}/check_example.py" "${out}/results" "${out}/data"
+"${python_bin}" "${here}/check_example.py" "${out}/results" "${out}/data"
