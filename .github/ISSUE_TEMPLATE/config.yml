@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/duceppemo/primer-finder/wiki
+    about: Installation, usage, outputs and the filtering rules are documented in the wiki.

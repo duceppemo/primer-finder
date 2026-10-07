@@ -1,0 +1,33 @@
+name: Publish wiki
+
+on:
+  push:
+    branches: [master]
+    paths: ["docs/wiki/**", ".github/workflows/wiki.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check out the wiki repository
+        # The wiki repository exists only once a first page was created in the web UI.
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository }}.wiki
+          path: wiki
+      - name: Copy pages
+        run: rsync -a --delete --exclude .git docs/wiki/ wiki/
+      - name: Commit and push
+        working-directory: wiki
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "Wiki already up to date"; exit 0; fi
+          git commit -m "Sync from docs/wiki @ ${{ github.sha }}"
+          git push

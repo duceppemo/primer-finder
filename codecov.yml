@@ -1,0 +1,13 @@
+# Codecov status checks on commits and pull requests.
+coverage:
+  status:
+    project:
+      default:
+        target: auto  # The coverage of the base commit
+        threshold: 1%  # Do not fail on small variations
+    patch:
+      default:
+        target: 80%  # Lines added or changed by a commit or pull request
+comment:
+  layout: "diff, files"
+  require_changes: true

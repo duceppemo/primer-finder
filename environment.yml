@@ -1,0 +1,13 @@
+# conda env create -f environment.yml && conda activate primer-finder && pip install .
+name: primer-finder
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python>=3.10
+  - kmc>=3.2          # counting and subtracting kmers
+  - skesa>=2.4        # assembling the inclusion-specific kmers (-a skesa, the default)
+  - spades>=3.15      # assembling the inclusion-specific kmers (-a spades)
+  - minimap2>=2.24    # mapping the assembled kmers to an exclusion genome
+  - blast>=2.14       # checking the contigs against every inclusion and exclusion genome
+  - pip

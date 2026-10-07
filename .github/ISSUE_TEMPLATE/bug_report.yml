@@ -1,0 +1,33 @@
+name: Bug report
+description: Something did not work as documented
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you run, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command and output
+      description: The exact command, and `primer_finder.log` (add `--debug`). Paste as text, not a screenshot.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versions
+      description: Output of `primer-finder --version`, and your OS. The program versions are in `run_info.json`.
+      placeholder: primer-finder 1.0.0, Ubuntu 24.04
+    validations:
+      required: true
+  - type: input
+    id: genomes
+    attributes:
+      label: Input
+      description: How many inclusion and exclusion genomes, and what organism.
+      placeholder: 12 inclusion / 40 exclusion Salmonella assemblies

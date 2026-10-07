@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use primer-finder, please cite it as below, together with the programs it runs (see the wiki)."
+type: software
+title: "primer-finder: group-specific kmers for selective qPCR assays"
+authors:
+  - family-names: Duceppe
+    given-names: Marc-Olivier
+version: 1.0.0
+date-released: "2026-10-07"
+license: MIT
+repository-code: "https://github.com/duceppemo/primer-finder"
+url: "https://github.com/duceppemo/primer-finder"
+keywords:
+  - bioinformatics
+  - qPCR
+  - primer design
+  - kmer
+  - diagnostics

@@ -1,0 +1,126 @@
+# Usage
+
+```bash
+primer-finder -i inclusion/ -e exclusion/ -o results/
+```
+
+`primer-finder find ...` is the same command written in full; `primer-finder idt ...` is the
+[order-sheet converter](#converting-an-idt-order-sheet).
+
+## Input
+
+Two folders of **assembled** genomes, one file per genome:
+
+- accepted extensions: `.fasta`, `.fa`, `.fna`, and the gzipped `.fasta.gz`, `.fa.gz`, `.fna.gz`;
+- subfolders are searched too, and symbolic links are followed, so the folders can hold links to a central
+  collection of genomes;
+- anything else in the folders is ignored, but a file with an accepted extension that is not a fasta stops
+  the run;
+- the same genome cannot be in both groups (primer-finder compares the resolved paths, so a link to it
+  counts).
+
+The two groups must be curated. primer-finder keeps only perfect matches, so a contaminated assembly, a
+misassembly or a genome put in the wrong group is enough to lose every candidate region. A tool such as
+[genome_comparator](https://github.com/duceppemo/genome_comparator) helps to check that the inclusion
+genomes really belong together.
+
+### Splitting a collection into the two groups
+
+With a folder of genomes and a list of the ones that belong to the inclusion group:
+
+```bash
+# Every genome, and the inclusion ones, both sorted
+find -L /all_genomes -type f -name "*.fasta" | sort > all.list   # -L also follows symbolic links
+sort inclusion.list -o inclusion.list
+
+# The rest is the exclusion group
+comm -3 all.list inclusion.list | sort > exclusion.list
+
+# Folders of symbolic links, which is what primer-finder reads
+mkdir -p inclusion exclusion
+while read -r genome; do ln -sf "$genome" inclusion/; done < inclusion.list
+while read -r genome; do ln -sf "$genome" exclusion/; done < exclusion.list
+```
+
+## Options
+
+| Option | Default | What it does |
+|---|---|---|
+| `-i`, `--inclusion` | required | Folder of genomes the assay should amplify. |
+| `-e`, `--exclusion` | required | Folder of genomes the assay must not amplify. |
+| `-o`, `--output` | required | Folder for the results; it is created if needed. |
+| `-t`, `--threads` | every CPU | CPUs for KMC, the assembler, minimap2, and how many genomes are blasted at a time. |
+| `-m`, `--memory` | 85% of the memory | Memory in GB, passed to KMC and the assembler. |
+| `-k`, `--kmer_size` | 99 | Kmer size for KMC, 1-256. Shorter kmers find shorter specific regions, and more of them; longer kmers are more specific. |
+| `-d`, `--duplication` | 1 | How many times a kmer may occur in each inclusion genome. 1 discards repeated regions, which make poor assays. |
+| `-r`, `--reference` | the first exclusion genome, alphabetically | Which exclusion genome the contigs are mapped to, to find their differences. It must be one of the genomes in the exclusion folder. |
+| `-a`, `--assembler` | `skesa` | `skesa` or `spades`, to assemble the inclusion-specific kmers. |
+| `--keep-intermediate` | off | Keep the KMC databases, the kmer dump, the SAM file and the blast databases. |
+| `--debug` | off | Log every command line and the output of every program. |
+| `-v`, `--version` | | Print the version. |
+
+`-t` and `-m` are capped at what the machine (or the control group a job scheduler put the run in) actually
+offers, with a warning.
+
+## What to expect
+
+A run prints what it is doing and ends with the number of candidate regions:
+
+```
+10:21:33 [INFO] primer-finder 1.0.0
+10:21:33 [INFO] 12 inclusion genome(s), 40 exclusion genome(s)
+10:21:33 [INFO] Counting the 99-mers shared by the 12 inclusion genomes...
+10:22:04 [INFO] Counting the 99-mers of the 40 exclusion genomes...
+10:23:41 [INFO] Subtracting the exclusion kmers from the inclusion ones...
+10:23:48 [INFO] Found 18422 inclusion-specific 99-mers
+10:23:48 [INFO] Assembling the kmers with skesa...
+10:23:55 [INFO] Assembled 34 contig(s)
+10:23:55 [INFO] Mapping the contigs to the exclusion genome exclusion_01.fasta...
+10:23:56 [INFO] Keeping the contigs with at least two differences within 21 bases...
+10:23:56 [INFO] 21 contig(s) could carry a selective assay
+10:23:56 [INFO] Checking the candidates against the 12 inclusion genomes...
+10:24:09 [INFO] 17 contig(s) are present in all inclusion genomes
+10:24:09 [INFO] Checking the differences against the 40 exclusion genomes...
+10:24:38 [INFO] Final number of contigs: 9
+10:24:38 [INFO] Results: results/final_kmers.fasta
+```
+
+The same log is written to `results/primer_finder.log`, and the parameters, the genomes, the version of every
+program and the counts of each step to `results/run_info.json`. See [Outputs](Outputs).
+
+A run that finds nothing is not a failure of the program: it means there is no region that every inclusion
+genome shares and no exclusion genome has. [FAQ](FAQ) lists what to try.
+
+## Performance
+
+The slow steps are KMC on the exclusion group and the two blast rounds. As a rough guide, 50 bacterial
+genomes with `-t 16` take a few minutes. Memory is KMC's main need: `-m` is what it is allowed to use before
+it starts writing temporary files to the output folder.
+
+Runs are not resumable: a repeated command starts again from the kmers. The intermediate files of a finished
+run are deleted unless `--keep-intermediate` is given.
+
+## Converting an IDT order sheet
+
+Once an assay has been designed on a candidate region and ordered, the IDT order sheet can be turned into a
+fasta file of oligos:
+
+```bash
+primer-finder idt order.xlsx assays.fasta my_target
+```
+
+It reads `.xlsx` (no Excel or extra library needed), `.csv` and `.tsv` files with a `Type` column
+(`Forward Primer`, `Probe`, `Reverse Primer`), a `Sequence` column and, optionally, an `Amplicon` column;
+the columns may be in any order and any case. Each assay becomes up to three records:
+
+```
+>my_target_0_120bp-F
+AAAACCCC...
+>my_target_0_120bp-P
+TTTTGGGG...
+>my_target_0_120bp-R
+CCCCAAAA...
+```
+
+The prefix is optional. `python IDT_results_converter.py sheet.xlsx out.fasta prefix` still works and does
+the same thing.
