@@ -6,8 +6,8 @@
 
 - `-p/--min-inclusion`: the fraction of the inclusion genomes a region has to be in, instead of all of them.
   The fraction is rounded up to a whole number of genomes, and both the kmer counting and the blast check
-  use it. Below 1, each record in `best_kmers.fasta`, `all_inclusion_contigs.fasta` and `final_kmers.fasta`
-  carries `inclusion=<holding>/<total>`, and the regions that cover the most inclusion genomes come first.
+  use it. Below 1, each record in `all_inclusion_contigs.fasta` and `final_kmers.fasta` carries
+  `inclusion=<holding>/<total>`, and the regions that cover the most inclusion genomes come first.
   The exclusion side is unchanged: a region must still be absent from every exclusion genome. This was the
   first of the two things the 2022 README listed as wanted.
 

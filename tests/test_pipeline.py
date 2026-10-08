@@ -10,6 +10,7 @@ import pytest
 
 from primer_finder import PrimerFinderError
 from primer_finder.pipeline import (
+    HITS_NAME,
     Settings,
     lower_positions,
     required_genomes,
@@ -397,3 +398,120 @@ def test_the_error_names_the_threshold_that_was_asked_for(stubs, four_inclusion)
 def test_a_threshold_outside_the_range_is_refused(stubs, settings, fraction):
     with pytest.raises(PrimerFinderError, match="must be a fraction greater than 0 and at most 1"):
         run(settings(min_inclusion=fraction))
+
+
+@pytest.mark.parametrize(
+    ("fraction", "genomes_given", "expected"),
+    [
+        # A fraction is a little more than itself in binary: 0.14 * 50 is 7.000000000000001, and asking
+        # for 8 of 50 genomes instead of 7 would be wrong.
+        (0.14, 50, 7),
+        (0.07, 100, 7),
+        (0.29, 100, 29),
+        (0.1, 10, 1),
+        (1 / 3, 3, 1),
+        (0.999, 1000, 999),
+    ],
+)
+def test_required_genomes_is_not_thrown_off_by_floating_point(tmp_path, fraction, genomes_given, expected):
+    settings = Settings(inclusion=tmp_path, exclusion=tmp_path, output=tmp_path, threads=1, memory_gb=2,
+                        min_inclusion=fraction)
+    assert required_genomes(settings, [tmp_path] * genomes_given) == expected
+
+
+def test_required_genomes_matches_exact_arithmetic(tmp_path):
+    """Every two-decimal fraction, against the same sum done without binary floating point."""
+    import math
+    from fractions import Fraction
+
+    for cents in range(1, 101):
+        settings = Settings(inclusion=tmp_path, exclusion=tmp_path, output=tmp_path, threads=1,
+                            memory_gb=2, min_inclusion=cents / 100)
+        for number in (1, 3, 7, 8, 12, 50, 97, 100, 250):
+            expected = max(1, math.ceil(Fraction(cents, 100) * number))
+            assert required_genomes(settings, [tmp_path] * number) == expected, (cents, number)
+
+
+def test_a_fraction_too_small_to_round_still_asks_for_one_genome(tmp_path):
+    """-p 1e-12 of 4 genomes rounds to nothing; one genome is the floor, or a region in none of them
+    would pass."""
+    settings = Settings(inclusion=tmp_path, exclusion=tmp_path, output=tmp_path, threads=1, memory_gb=2,
+                        min_inclusion=1e-12)
+    assert required_genomes(settings, [tmp_path] * 4) == 1
+    assert required_genomes(settings, [tmp_path]) == 1
+
+
+def test_a_contig_no_inclusion_genome_holds_is_dropped_whatever_the_threshold(stubs, four_inclusion):
+    """At least one genome has to hold it: a region in none of them is not a region of this group."""
+    stubs(contigs={"ctg1": "ACGT" * 25}, sam=[["ctg1", 0, "40=1X7=1X50="]],
+          presence={f"g{number}": [] for number in range(1, 5)})
+    with pytest.raises(PrimerFinderError, match="at least 1 of the inclusion genomes"):
+        run(four_inclusion(min_inclusion=1e-12))
+
+
+def test_no_inclusion_tag_at_the_default(stubs, four_inclusion):
+    """With every genome required, the records are equal and nothing is added to their description."""
+    stubs(contigs={"ctg1": "ACGT" * 25}, sam=[["ctg1", 0, "40=1X7=1X50="]],
+          presence={f"g{number}": ["ctg1"] for number in range(1, 5)})
+    scenario = four_inclusion()
+    assert run(scenario) == 0
+    for name in ("4_blast/all_inclusion_contigs.fasta", "final_kmers.fasta"):
+        assert "inclusion=" not in (scenario.output / name).read_text()
+    parameters = json.loads((scenario.output / "run_info.json").read_text())["parameters"]
+    assert parameters["min_inclusion"] == 1.0
+    assert parameters["inclusion_genomes_required"] == 4
+
+
+def test_one_inclusion_genome_and_a_low_threshold(stubs, genomes, tmp_path):
+    """Half of one genome is still one genome, so nothing is partial and no tag is written."""
+    _, exclusion = genomes
+    inclusion = tmp_path / "one"
+    inclusion.mkdir()
+    (inclusion / "only.fasta").write_text(">chr\n" + "ACGT" * 50 + "\n")
+    stubs(contigs={"ctg1": "ACGT" * 25}, sam=[["ctg1", 0, "40=1X7=1X50="]], presence={"only": ["ctg1"]})
+    output = tmp_path / "out"
+    assert run(Settings(inclusion=inclusion, exclusion=exclusion, output=output, threads=1, memory_gb=2,
+                        min_inclusion=0.5)) == 0
+    assert "inclusion=" not in (output / "final_kmers.fasta").read_text()
+
+
+def test_contigs_in_the_same_number_of_genomes_keep_the_order_of_the_mapping_step(stubs, four_inclusion):
+    """The sort is stable: contigs that cover as much as each other are not shuffled."""
+    stubs(contigs={"ctg_a": "ACGT" * 25, "ctg_b": "TTGG" * 25, "ctg_c": "GGAA" * 25},
+          sam=[["ctg_a", 0, "40=1X7=1X50="], ["ctg_b", 0, "40=1X7=1X50="], ["ctg_c", 0, "40=1X7=1X50="]],
+          presence={"g1": ["ctg_a", "ctg_b", "ctg_c"], "g2": ["ctg_a", "ctg_b", "ctg_c"],
+                    "g3": ["ctg_a", "ctg_c"], "g4": []})
+    scenario = four_inclusion(min_inclusion=0.5)
+    assert run(scenario) == 0
+    records = list(iter_records(scenario.output / "final_kmers.fasta"))
+    # ctg_a and ctg_c are in three genomes, ctg_b in two; a and c keep their relative order
+    assert [record.name for record in records] == ["ctg_a", "ctg_c", "ctg_b"]
+
+
+def test_the_tag_survives_on_a_contig_no_exclusion_genome_hits(stubs, four_inclusion):
+    """That contig keeps its own description instead of a list of positions; the tag must still be there."""
+    stubs(contigs={"ctg1": "ACGT" * 25}, sam=[["ctg1", 4, "*"]],
+          presence={"g1": ["ctg1"], "g2": ["ctg1"], "g3": ["ctg1"], "g4": []},
+          exclusion_hits={"exclusion_1": [], "exclusion_2": []})
+    scenario = four_inclusion(min_inclusion=0.75)
+    assert run(scenario) == 0
+    record = next(iter_records(scenario.output / "final_kmers.fasta"))
+    assert "inclusion=3/4" in record.desc
+    assert "100I" in record.desc  # And what the mapping step said about it
+
+
+def test_the_presence_table_lists_the_candidates_that_were_dropped(stubs, four_inclusion):
+    """The table is the place to look when a region disappears, so it is written before the filtering."""
+    scenario = four_inclusion(min_inclusion=0.75)
+    run(scenario)
+    rows = (scenario.output / "4_blast" / HITS_NAME).read_text().splitlines()
+    assert rows[0].split("\t") == ["contig", "g1.fasta", "g2.fasta", "g3.fasta", "g4.fasta"]
+    assert rows[1:] == ["ctg1\t1\t1\t1\t0", "ctg2\t1\t1\t0\t0"]  # ctg2 was dropped, and is still here
+    assert "ctg2" not in (scenario.output / "final_kmers.fasta").read_text()
+
+
+def test_the_threshold_and_the_duplication_limit_together(stubs, four_inclusion):
+    calls = stubs(contigs={"ctg1": "ACGT" * 25}, sam=[["ctg1", 0, "40=1X7=1X50="]],
+                  presence={f"g{number}": ["ctg1"] for number in range(1, 5)})
+    run(four_inclusion(min_inclusion=0.5, duplication=2))
+    assert "-ci2 -cx8" in calls.read_text()  # Two of four genomes, up to twice in each of the four

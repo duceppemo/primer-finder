@@ -34,8 +34,12 @@ BASE_PROGRAMS = ("kmc", "kmc_tools", "minimap2", "makeblastdb", "blastn")
 
 def required_genomes(settings: Settings, inclusion: list[Path]) -> int:
     """How many of the inclusion genomes a kmer, and later a contig, has to be in: every one of them by
-    default, or the fraction -p/--min-inclusion asks for, rounded up."""
-    return max(1, math.ceil(settings.min_inclusion * len(inclusion)))
+    default, or the fraction -p/--min-inclusion asks for, rounded up.
+
+    The product is rounded to nine decimals before rounding up, because a fraction such as 0.14 is a little
+    more than 0.14 in binary: 0.14 * 50 is 7.000000000000001, which would ask for 8 genomes out of 50.
+    """
+    return max(1, math.ceil(round(settings.min_inclusion * len(inclusion), 9)))
 
 
 @dataclass
@@ -193,8 +197,8 @@ def find_specific_kmers(settings: Settings, inclusion: list[Path], exclusion: li
 
     required = required_genomes(settings, inclusion)
     if required < len(inclusion):
-        log.info("Counting the %d-mers shared by at least %d of the %d inclusion genomes (%.0f%%)...",
-                 settings.kmer_size, required, len(inclusion), 100 * settings.min_inclusion)
+        log.info("Counting the %d-mers shared by at least %d of the %d inclusion genomes (-p %g)...",
+                 settings.kmer_size, required, len(inclusion), settings.min_inclusion)
     else:
         log.info("Counting the %d-mers shared by the %d inclusion genomes...",
                  settings.kmer_size, len(inclusion))
@@ -286,10 +290,12 @@ def keep_shared_by_inclusion(settings: Settings, best: Path, inclusion: list[Pat
         log.info("%d contig(s) are present in all inclusion genomes", count)
     if count == 0:
         how_many = f"at least {required} of the inclusion genomes" if partial else "all the inclusion genomes"
+        hint = (f" A -p/--min-inclusion below {settings.min_inclusion:g} would ask for fewer than {required}."
+                if partial else
+                " A lower -p/--min-inclusion would accept a contig that some of them lack.")
         raise PrimerFinderError(
             f"No candidate contig is present in {how_many}. The presence of each one in each genome is in "
-            f"{folder / HITS_NAME}."
-            + ("" if partial else " A lower -p/--min-inclusion would accept a contig that some of them lack.")
+            f"{folder / HITS_NAME}." + hint
         )
     return all_inclusion, count
 

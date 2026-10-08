@@ -145,3 +145,32 @@ def test_the_old_scripts_still_work(stubs, genomes, tmp_path):
     assert result.returncode == 0, result.stderr
     assert "Deprecated" in result.stderr
     assert (tmp_path / "a.fasta").read_text().startswith(">0_95bp-F")
+
+
+@pytest.mark.parametrize("given,expected", [("0.75", 0.75), ("1", 1.0), ("1.0", 1.0), (".9", 0.9),
+                                            ("1e-3", 0.001)])
+def test_the_threshold_is_read_as_a_fraction(stubs, genomes, tmp_path, given, expected):
+    inclusion, exclusion = genomes
+    out = tmp_path / f"out{given}"
+    assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(out), "-p", given,
+                 "-t", "1", "-m", "2"]) == 0
+    parameters = json.loads((out / "run_info.json").read_text())["parameters"]
+    assert parameters["min_inclusion"] == expected
+
+
+@pytest.mark.parametrize("given", ["0", "-0.5", "1.5", "2", "abc", "", "nan", "inf"])
+def test_a_threshold_the_option_cannot_take(stubs, genomes, tmp_path, given, capsys):
+    inclusion, exclusion = genomes
+    with pytest.raises(SystemExit):
+        main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(tmp_path / "out"), "-p", given])
+    error = capsys.readouterr().err
+    assert "--min-inclusion" in error or "min_inclusion" in error
+
+
+def test_the_long_and_short_threshold_options_agree(stubs, genomes, tmp_path):
+    inclusion, exclusion = genomes
+    for number, option in enumerate(("-p", "--min-inclusion")):
+        out = tmp_path / f"out{number}"
+        assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(out), option, "0.5",
+                     "-t", "1", "-m", "2"]) == 0
+        assert json.loads((out / "run_info.json").read_text())["parameters"]["min_inclusion"] == 0.5
