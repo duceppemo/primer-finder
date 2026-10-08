@@ -177,29 +177,36 @@ primer-finder design <work>/multiplex/results -o <work>/multiplex/assays -t 32 -
     --insilico-pcr /path/to/insilicoPCR-linux-x64
 ```
 
-2 min 25 s for 20 regions on 32 threads, including all four in silico PCR runs over the 25 genomes. It
+2 min 24 s for 20 regions on 32 threads, including all four in silico PCR runs over the 25 genomes. It
 reported 311 of 465 selective in qPCR mode and 220 of 465 in PCR mode — the same two numbers the sweep
 above computed independently from the reports, which is the check that the default is wired through.
 
-### What the `no` verdicts are made of
+### What the non-selective verdicts are made of
 
-The same run, split by what insilicoPCR itself reported for each exclusion amplification. A genome counts as
-terminal when every amplicon reported for it needed a base trimmed off a primer's 3' end:
+The same run, split by what insilicoPCR itself reported for each exclusion amplification. An amplification
+counts as terminal when every amplicon reported for it that needed **no counted mismatch** had a base
+trimmed off a primer's 3' end, and none of those was an exact match:
 
 | | qPCR mode | PCR mode |
 |---|---|---|
-| selective | 311 | 220 |
-| `no`, every exclusion amplification terminal | 105 | 155 |
-| `no`, some of them terminal | 2 | 7 |
-| `no`, on amplifications the model can defend | 47 | 83 |
+| selective (`yes`) | 311 | 220 |
+| every exclusion amplification terminal (`undecided (3' end)`) | 53 | 96 |
+| some of them terminal (`no`) | 4 | 16 |
+| none of them terminal (`no`) | 97 | 133 |
 
-So in PCR mode the check refuses 90 of 465 assays, and only 83 of those on amplifications with no terminal
-component at all; the 155 fully terminal ones it cannot judge, because every amplification it reported for
-them rests on bases it does not count. Of those 155, **121** carry a run of differences at a 3' end — 96 of
-one base, 22 of two, 3 of three, which is the shape the ranking prefers — and 34 carry none. Cut by what
-makes them selective instead, 127 are difference-based and 28 specific by absence, where the off-target
-amplicon elsewhere in the exclusion genome itself only binds through an ignored terminal mismatch. The two
-cuts cross: of the 127 difference-based, 102 have a terminal run; of the 28 absence-based, 19 do.
+So in PCR mode the check refuses 149 of 465 assays and cannot judge 96: for those, every amplification it
+reported rests on bases it does not count. Of the 96, **73** carry a run of differences at a 3' end — 63 of
+one base and 10 of two, which is the shape the ranking prefers — and 23 carry none. Cut by what makes them
+selective instead, 80 are difference-based and 16 specific by absence, where the off-target amplicon
+elsewhere in the exclusion genome itself only binds through an ignored terminal mismatch.
+
+**Why only the amplicons with no counted mismatch count.** The question is which amplifications insilicoPCR
+*could not have refused*, so the answer cannot depend on what the user allowed it to bind through — if it
+did, it would be measuring the tolerance again rather than the blind spot. Leaving out the amplicons that
+needed a counted mismatch makes it invariant, and that is checkable: the same **256** exclusion
+amplifications (pcr mode) and **140** (qpcr mode, where the probe has to match as well) are unrefusable at
+`-m` 0, 1, 2 and 3. Counting any trimmed amplicon instead would give 256 → 378 → 584 → 583 as the tolerance
+rose, which is the tolerance's own footprint.
 
 On the inclusion side the question does not arise: of 3,720 assay-and-genome amplifications, none depended
 on a trimmed primer end. Every inclusion genome that counted had at least one clean amplicon.
@@ -212,8 +219,8 @@ the run's own `assays.tsv` (`design_info.json` records the first two rows; the t
 | `*_selective` | qPCR mode | PCR mode |
 |---|---|---|
 | `yes` | 311 | 220 |
-| `undecided (3' end)` | 105 | 155 |
-| `no` | 49 | 90 |
+| `undecided (3' end)` | 53 | 96 |
+| `no` | 101 | 149 |
 
 ## What this does and does not show
 
@@ -221,8 +228,8 @@ the run's own `assays.tsv` (`design_info.json` records the first two rows; the t
   of a primer and cannot be made to.
 - It shows the ranking's order is stable across tolerances, and that the absence-based assays — the ones
   the ranking puts first — are the ones that hold up.
-- It shows that most of what this check does not clear, it does not clear for a reason it cannot defend:
-  of 245 non-selective assays in PCR mode, 155 rest entirely on bases it does not count and only 90 are
+- It shows that a good part of what this check does not clear, it does not clear for a reason it cannot
+  defend: of 245 non-selective assays in PCR mode, 96 rest entirely on bases it does not count, so 149 are
   refusals it can stand behind.
 - It does **not** show that any of these assays works. No assay here has been near a bench, and the
   gradient with the number of differences remains close to a restatement of the model's own rule.

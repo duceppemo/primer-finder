@@ -143,7 +143,7 @@ primer-finder design results/ -o assays/ -t 16 --insilico-pcr /path/to/insilicoP
 | `-t`, `--threads` | every CPU | For Primer3's blast checks and for insilicoPCR. |
 | `--product-size` | `70-150` | Amplicon size range for Primer3. |
 | `--assays-per-region` | 3 | How many assays Primer3 proposes per request. |
-| `--gc-clamp` | 1 | G or C bases required at a primer's 3' end. 0 for none. Never applied to a primer whose 3' end is pinned on a differing base. |
+| `--gc-clamp` | 1 | G or C bases required at a primer's 3' end. 0 for none. Primer3 takes one clamp per request, so this does not reach the requests that pin a 3' end on a differing base. |
 | `--max-hairpin-tm` | 47 °C | Reject an oligo whose hairpin melts at or above this. |
 | `--max-dimer-tm` | 47 °C | Reject an oligo that pairs with itself, or with its partner, at or above this. |
 | `--monovalent` | 50 mM | Monovalent cations in the reaction, for the melting temperatures. |

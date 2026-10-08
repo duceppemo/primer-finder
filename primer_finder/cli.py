@@ -94,9 +94,10 @@ def build_parser(max_cpu: int, max_mem: int) -> argparse.ArgumentParser:
     design_parser.add_argument("--gc-clamp", metavar=str(design.DEFAULT_GC_CLAMP), type=int,
                                default=design.DEFAULT_GC_CLAMP,
                                help="How many G or C bases Primer3 must put at the 3' end of each primer. "
-                                    f"Default {design.DEFAULT_GC_CLAMP}; 0 for none. It is never applied to "
-                                    "the primers whose 3' end is pinned on a differing base, which is "
-                                    "whatever the genomes made it.")
+                                    f"Default {design.DEFAULT_GC_CLAMP}; 0 for none. Primer3 takes one "
+                                    "clamp per request, so it is dropped from the requests that pin a 3' "
+                                    "end on a differing base -- that base is whatever the genomes made it "
+                                    "-- and this does not reach them.")
     design_parser.add_argument("--max-hairpin-tm", metavar=str(design.DEFAULT_MAX_HAIRPIN_TM), type=float,
                                default=design.DEFAULT_MAX_HAIRPIN_TM,
                                help="Reject an oligo whose hairpin melts at or above this temperature, in "

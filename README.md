@@ -58,8 +58,8 @@ separate program: given it, the designed assays are amplified in silico against 
 marked with whether it amplifies every inclusion genome and no exclusion genome.
 
 Every oligo proposed satisfies Primer3's length, melting temperature and GC limits and folds or dimerises —
-with itself and with its partner — below 47 °C; every primer whose 3' end Primer3 was free to choose also
-carries a G or a C there. All of it is predicted for an ordinary TaqMan reaction whose salt, dNTP and oligo
+with itself and with its partner — below 47 °C; and unless the request pinned a 3' end on a differing base,
+each primer carries a G or a C at that end. All of it is predicted for an ordinary TaqMan reaction whose salt, dNTP and oligo
 concentrations are options.
 So a doomed assay is never proposed. See
 [Designing assays](https://github.com/duceppemo/primer-finder/wiki/Designing-assays).

@@ -153,33 +153,93 @@ def test_a_failing_run_is_reported(stubs, tmp_path, insilico_pcr):
         run(resolve(insilico_pcr), genomes, primers, tmp_path / "out", threads=1)
 
 
-def write_hits(folder: Path, rows: list[tuple[str, str, int, int]]) -> Path:
-    """A report with the mismatch columns: (sample, gene, counted mismatches, bases trimmed off a 3' end)."""
+def write_hits(folder: Path, rows: list[tuple[str, str, int, int, int]], probe: bool = False) -> Path:
+    """A report with the mismatch columns, one row per amplicon:
+    (sample, gene, counted mismatches, bases trimmed off the forward 3' end, off the reverse)."""
     report = folder / REPORT
     report.parent.mkdir(parents=True, exist_ok=True)
+    columns = ["Sample", "Gene", "ForwardMismatches", "ReverseMismatches",
+               "ForwardEndMismatch", "ReverseEndMismatch"]
     with report.open("w") as fh:
-        fh.write("Sample\tGene\tForwardMismatches\tReverseMismatches"
-                 "\tForwardEndMismatch\tReverseEndMismatch\n")
-        for sample, gene, mismatches, trimmed in rows:
-            fh.write(f"{sample}\t{gene}\t{mismatches}\t0\t{-trimmed if trimmed else 0}\t0\n")
+        fh.write("\t".join(columns + (["ProbeMismatches"] if probe else [])) + "\n")
+        for sample, gene, mismatches, forward, reverse in rows:
+            fields = [sample, gene, str(mismatches), "0", str(-forward), str(-reverse)]
+            fh.write("\t".join(fields + (["0"] if probe else [])) + "\n")
     return report
 
 
 def test_an_amplicon_that_needed_a_trimmed_primer_end_is_recognised(tmp_path):
     """insilicoPCR does not count the last two bases of a primer: blast trims an unmatched one off and the
     primer is called bound. An amplification that needed that is one it could not have refused."""
-    write_hits(tmp_path, [("g0", "a_assay0", 0, 1),      # only there because a base was trimmed
-                          ("g1", "a_assay0", 0, 0),      # a clean match: a real amplification
-                          ("g2", "b_assay0", 1, 2)])     # trimmed as well, and a counted mismatch too
-    found = read_terminal_only(tmp_path)
-    assert found == {"a_assay0": {"g0"}, "b_assay0": {"g2"}}
+    write_hits(tmp_path, [("g0", "a_assay0", 0, 1, 0),   # the forward primer's last base
+                          ("g1", "a_assay0", 0, 0, 2),   # the reverse primer's last two
+                          ("g2", "a_assay0", 0, 0, 0)])  # a clean match: a real amplification
+    assert read_terminal_only(tmp_path) == {"a_assay0": {"g0", "g1"}}
+
+
+def test_an_amplicon_that_needed_a_counted_mismatch_is_not_the_blind_spot(tmp_path):
+    """It bound through a mismatch `-m` allowed, so at `-m 0` it would not amplify at all: that is the
+    tolerance the user chose talking, not the bases this check cannot see. The answer has to be the same
+    at every tolerance, which is only true if those amplicons are left out."""
+    write_hits(tmp_path, [("g0", "a_assay0", 1, 1, 0),   # trimmed, but it also needed a mismatch
+                          ("g1", "b_assay0", 2, 0, 0)])  # and this one needed two
+    assert read_terminal_only(tmp_path) == {}
 
 
 def test_a_genome_with_one_clean_amplicon_does_not_count_as_terminal(tmp_path):
     """One assay can place several amplicons in the same genome. It only amplifies it through an ignored
-    difference if every one of them needed the trim."""
-    write_hits(tmp_path, [("g0", "a_assay0", 0, 1), ("g0", "a_assay0", 0, 0)])
+    difference if none of the amplicons that need no mismatch is an exact match."""
+    write_hits(tmp_path, [("g0", "a_assay0", 0, 1, 0), ("g0", "a_assay0", 0, 0, 0)])
     assert read_terminal_only(tmp_path) == {}
+
+
+def test_a_trimmed_amplicon_still_counts_beside_one_that_needed_a_mismatch(tmp_path):
+    """The mismatch-bound amplicon is ignored rather than treated as a clean one, so it does not cancel
+    the trimmed amplicon sitting beside it."""
+    write_hits(tmp_path, [("g0", "a_assay0", 0, 2, 0), ("g0", "a_assay0", 1, 0, 0)])
+    assert read_terminal_only(tmp_path) == {"a_assay0": {"g0"}}
+
+
+def test_a_probe_bound_through_a_mismatch_is_not_the_blind_spot_either(tmp_path):
+    """In qPCR mode a positive needs the probe too, so a probe that only matched because of the tolerance
+    makes the amplification refusable in just the same way."""
+    report = write_hits(tmp_path, [("g0", "a_assay0", 0, 1, 0)], probe=True)
+    report.write_text(report.read_text().replace("\t0\n", "\t2\n"))  # ProbeMismatches=2
+    assert read_terminal_only(tmp_path) == {}
+
+
+def test_a_report_without_the_end_columns_says_so_rather_than_finding_nothing(tmp_path, caplog):
+    """An insilicoPCR that stopped reporting the trim would otherwise turn every blind spot into a
+    confident `no`, with nothing in the output to say the check had degraded."""
+    report = tmp_path / REPORT
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text("Sample\tGene\tForwardMismatches\n" + "g0\ta_assay0\t0\n")
+    with caplog.at_level("WARNING"):
+        assert read_terminal_only(tmp_path) == {}
+    assert "ForwardEndMismatch" in caplog.text
+
+
+def test_a_mismatch_count_that_is_not_a_number_is_left_out_and_reported(tmp_path, caplog):
+    """One malformed cell must not lose a whole design: both in silico PCR runs are already done by the
+    time this is read."""
+    write_hits(tmp_path, [("g0", "a_assay0", 0, 1, 0), ("g1", "a_assay0", 0, 1, 0)])
+    report = tmp_path / REPORT
+    report.write_text(report.read_text().replace("g1\ta_assay0\t0", "g1\ta_assay0\tNA"))
+    with caplog.at_level("WARNING"):
+        assert read_terminal_only(tmp_path) == {"a_assay0": {"g0"}}
+    assert "not a whole number" in caplog.text
+
+
+def test_the_blind_spot_is_the_same_at_every_tolerance(tmp_path):
+    """The set of amplifications insilicoPCR could not have refused cannot depend on what the user allowed
+    it to bind through -- that is what makes it the blind spot and not the tolerance."""
+    for tolerance in (0, 1, 2, 3):
+        folder = tmp_path / f"m{tolerance}"
+        # What a higher tolerance adds is rows with counted mismatches; the trimmed ones are always there
+        rows = [("g0", "a_assay0", 0, 1, 0), ("g1", "a_assay0", 0, 0, 0)]
+        rows += [(f"x{n}", "a_assay0", n, 1, 0) for n in range(1, tolerance + 1)]
+        write_hits(folder, rows)
+        assert read_terminal_only(folder) == {"a_assay0": {"g0"}}, tolerance
 
 
 def test_a_verdict_whose_only_exclusion_hits_are_terminal_is_the_models_blind_spot():
@@ -229,6 +289,14 @@ def test_a_verdict_is_selective_only_when_everything_lines_up():
     assert Verdict(8, 8, 0, 17).selective
     assert not Verdict(7, 8, 0, 17).selective
     assert not Verdict(8, 8, 1, 17).selective
+
+
+def test_a_verdict_on_no_inclusion_genome_at_all_is_not_a_pass():
+    """0 of 0 is not every one of them. `fraction` guards the division; `complete` has to guard the
+    comparison, or an empty group would read as `yes`."""
+    nothing = Verdict(0, 0, 0, 17)
+    assert not nothing.complete and not nothing.selective
+    assert nothing.label == "no" and nothing.support == 0
 
 
 def test_the_label_of_a_verdict_this_check_cannot_make():

@@ -137,14 +137,18 @@ def blastn(argv: list[str]) -> int:
         copies = value("amplicon_hits", {}).get(genome, 0)
         mismatches = {int(position): base
                       for position, base in value("amplicon_mismatch", {}).items()}
+        # `amplicon_qstart` makes the alignment start partway into the amplicon, as a real hit may: the
+        # design step has to shift every reported position by it to land on the region's coordinates.
+        qstart = int(value("amplicon_qstart", 1))
         for query in queries:
-            sequence = sequences.get(query, "A" * 100)
+            sequence = sequences.get(query, "A" * 100)[qstart - 1:]
             subject = list(sequence)
             for position, base in mismatches.items():
                 if position < len(subject):
                     subject[position] = base
             row = {
-                "qseqid": query, "qstart": "1", "qend": str(len(sequence)), "evalue": "1e-30",
+                "qseqid": query, "qstart": str(qstart), "qend": str(qstart + len(sequence) - 1),
+                "evalue": "1e-30",
                 "length": str(len(sequence)), "pident": "100.0",
                 "qseq": sequence, "sseq": "".join(subject),
             }
@@ -222,6 +226,19 @@ def primer3_core(argv: list[str]) -> int:
                 f"PRIMER_PAIR_{number}_PRODUCT_SIZE={right_end - left + 1}",
                 f"PRIMER_PAIR_{number}_PENALTY={0.5 + number}",
             ]
+            if value_of("primer3_structures", True):
+                # Real Primer3 reports these whenever it does the thermodynamic alignment, which is its
+                # default. Distinct values, so that a column fed from the wrong one is visible.
+                fields += [
+                    f"PRIMER_LEFT_{number}_HAIRPIN_TH=35.70",
+                    f"PRIMER_LEFT_{number}_SELF_ANY_TH=13.60",
+                    f"PRIMER_LEFT_{number}_SELF_END_TH=2.10",
+                    f"PRIMER_RIGHT_{number}_HAIRPIN_TH=24.30",
+                    f"PRIMER_RIGHT_{number}_SELF_ANY_TH=11.20",
+                    f"PRIMER_RIGHT_{number}_SELF_END_TH=1.40",
+                    f"PRIMER_PAIR_{number}_COMPL_ANY_TH=8.70",
+                    f"PRIMER_PAIR_{number}_COMPL_END_TH=4.10",
+                ]
             if value_of("primer3_probe", True):
                 fields += [
                     f"PRIMER_INTERNAL_{number}={probe_start},{size}",
@@ -229,6 +246,12 @@ def primer3_core(argv: list[str]) -> int:
                     f"PRIMER_INTERNAL_{number}_TM=68.0",
                     f"PRIMER_INTERNAL_{number}_GC_PERCENT=55.0",
                 ]
+                if value_of("primer3_structures", True):
+                    fields += [
+                        f"PRIMER_INTERNAL_{number}_HAIRPIN_TH=33.30",
+                        f"PRIMER_INTERNAL_{number}_SELF_ANY_TH=19.60",
+                        f"PRIMER_INTERNAL_{number}_SELF_END_TH=3.20",
+                    ]
         out.append("\n".join(fields) + "\n=\n")
     print("".join(out), end="")
     return 0

@@ -194,9 +194,8 @@ def test_the_design_command(stubs, genomes, tmp_path):
     assert info["parameters"]["product_size"] == "70-150"
 
 
-def test_the_reaction_conditions_reach_the_design_run(stubs, genomes, tmp_path):
-    """They change both the melting temperatures Primer3 predicts and which oligos it will return, so a
-    run records the reaction it was asked for."""
+def a_finished_run(tmp_path, genomes) -> Path:
+    """A results folder the design command will accept, with one region holding two differences."""
     import json
 
     inclusion, exclusion = genomes
@@ -205,6 +204,22 @@ def test_the_reaction_conditions_reach_the_design_run(stubs, genomes, tmp_path):
     (results / "final_kmers.fasta").write_text(">ctg1 [100, 101]\n" + "A" * 100 + "cg" + "A" * 100 + "\n")
     (results / "run_info.json").write_text(json.dumps(
         {"parameters": {"inclusion": str(inclusion), "exclusion": str(exclusion)}}))
+    return results
+
+
+def primer3_inputs(output: Path) -> list[str]:
+    """Exactly what was sent to Primer3, which the command keeps."""
+    sent = sorted((output / "primer3").glob("*_input.txt"))
+    assert sent, "the design command wrote no Primer3 input"
+    return [path.read_text() for path in sent]
+
+
+def test_the_reaction_conditions_reach_the_design_run(stubs, genomes, tmp_path):
+    """They change both the melting temperatures Primer3 predicts and which oligos it will return, so what
+    matters is that they arrive in the request -- not only that the run recorded them."""
+    import json
+
+    results = a_finished_run(tmp_path, genomes)
     out = tmp_path / "assays"
     assert main(["design", str(results), "-o", str(out), "-t", "1", "--max-hairpin-tm", "40",
                  "--max-dimer-tm", "35", "--monovalent", "60", "--divalent", "5", "--dntp", "1.2",
@@ -212,6 +227,42 @@ def test_the_reaction_conditions_reach_the_design_run(stubs, genomes, tmp_path):
     conditions = json.loads((out / "design_info.json").read_text())["parameters"]["conditions"]
     assert conditions == {"max_hairpin_tm": 40.0, "max_dimer_tm": 35.0, "monovalent_mm": 60.0,
                           "divalent_mm": 5.0, "dntp_mm": 1.2, "primer_nm": 500.0, "probe_nm": 100.0}
+    asked = {"PRIMER_MAX_HAIRPIN_TH=40.0", "PRIMER_MAX_SELF_ANY_TH=35.0", "PRIMER_SALT_MONOVALENT=60.0",
+             "PRIMER_SALT_DIVALENT=5.0", "PRIMER_DNTP_CONC=1.2", "PRIMER_DNA_CONC=500.0",
+             "PRIMER_INTERNAL_DNA_CONC=100.0"}
+    sent = primer3_inputs(out)
+    for request in sent:   # every request, the ones pinned on a difference included
+        assert asked <= set(request.splitlines()), request[:80]
+    assert any("SEQUENCE_FORCE_LEFT_END" in request for request in sent), "no forced request was made"
+
+
+def test_the_gc_clamp_reaches_the_design_run_except_where_an_end_is_pinned(stubs, genomes, tmp_path):
+    """PRIMER_GC_CLAMP is one tag for the whole request, so a request that pins a primer's 3' end on a
+    differing base cannot ask for a G or a C there as well: the clamp is dropped for it."""
+    results = a_finished_run(tmp_path, genomes)
+    out = tmp_path / "assays"
+    assert main(["design", str(results), "-o", str(out), "-t", "1", "--gc-clamp", "2"]) == 0
+    pinned, free = [], []
+    for request in primer3_inputs(out):
+        lines = request.splitlines()
+        clamp = next(line for line in lines if line.startswith("PRIMER_GC_CLAMP="))
+        (pinned if any(line.startswith("SEQUENCE_FORCE_") for line in lines) else free).append(clamp)
+    assert pinned and free
+    assert set(free) == {"PRIMER_GC_CLAMP=2"}
+    assert set(pinned) == {"PRIMER_GC_CLAMP=0"}
+
+
+def test_another_mismatch_tolerance_reaches_insilico_pcr(stubs, genomes, tmp_path, insilico_pcr):
+    import json
+
+    calls = stubs()
+    results = a_finished_run(tmp_path, genomes)
+    out = tmp_path / "assays"
+    assert main(["design", str(results), "-o", str(out), "-t", "1", "--mismatches", "2",
+                 "--insilico-pcr", str(insilico_pcr)]) == 0
+    assert json.loads((out / "design_info.json").read_text())["parameters"]["mismatches"] == 2
+    asked = [line for line in calls.read_text().splitlines() if line.startswith("insilico_pcr")]
+    assert asked and all(" -m 2" in line for line in asked), asked
 
 
 def test_the_design_command_reports_a_folder_that_is_not_a_run(stubs, tmp_path, caplog):

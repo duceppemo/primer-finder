@@ -39,21 +39,22 @@ DEFAULT_ASSAYS_PER_REGION = 3
 # a G or a C there would throw away every allele-specific primer whose target is an A or a T.
 DEFAULT_GC_CLAMP = 1
 
-# Primer3 models hairpins and dimers thermodynamically and refuses an oligo whose structure melts above
-# these temperatures, so the worst candidates never reach the ranking. These are its own defaults, set
-# here so that they are visible and can be tightened rather than left implicit.
 # How many mismatches insilicoPCR should let a primer bind through. It does not count the last two bases
 # of a primer -- blast trims a terminal mismatch off the alignment -- so this governs the mismatches five
 # or more bases from the 3' end; one of those is often not enough to stop a real reaction either, so
 # assuming it does would flatter an assay. See docs/wiki/Designing-assays.md.
 DEFAULT_MISMATCHES = 1
 
+# Primer3 models hairpins and dimers thermodynamically and refuses an oligo whose structure melts above
+# these temperatures, so the worst candidates never reach the ranking. These are its own defaults, set
+# here so that they are visible and can be tightened rather than left implicit.
 DEFAULT_MAX_HAIRPIN_TM = 47.0
 DEFAULT_MAX_DIMER_TM = 47.0
 
-# The reaction a melting temperature is predicted for. Primer3's own defaults assume no magnesium and no
-# dNTPs, which is not a PCR; these are ordinary qPCR conditions. They change which oligos come back, not
-# only the numbers reported, so they should be set to match the master mix actually used.
+# The reaction a melting temperature is predicted for. Primer3's defaults are a thin PCR for the primers
+# (1.5 mM magnesium, 0.6 mM dNTPs) and no magnesium at all for the internal oligo, so the probe is the one
+# these move most. They change which oligos come back, not only the numbers reported, so they should be set
+# to match the master mix actually used.
 DEFAULT_MONOVALENT_MM = 50.0   # KCl
 DEFAULT_DIVALENT_MM = 3.0      # MgCl2
 DEFAULT_DNTP_MM = 0.8          # 0.2 mM of each
@@ -228,8 +229,9 @@ class Assay:
 
     @property
     def best_terminal_run(self) -> int:
-        """The longest run of differences ending at the 3' end of either primer. This is the number that
-        matters most: a single 3'-terminal mismatch is often not enough to stop amplification."""
+        """The longest run of differences ending at the 3' end of either primer, where a mismatch most
+        hinders extension. It breaks the ties of the count and the weight rather than leading them: a
+        single 3'-terminal mismatch is often not enough to stop amplification on its own."""
         return max(self.forward.terminal_run, self.reverse.terminal_run)
 
     @property
@@ -245,10 +247,6 @@ class Assay:
     def primer_variant_weight(self) -> float:
         """The differences under the primers, weighted by which base each one replaces."""
         return self.forward.variant_weight + self.reverse.variant_weight
-
-    @property
-    def primer_strong_variants(self) -> int:
-        return self.forward.strong_variants + self.reverse.strong_variants
 
     @property
     def penalty_band(self) -> int:
@@ -462,7 +460,8 @@ def forced_requests(record: seqio.Record, product_size: str, how_many: int,
             }, gc_clamp=0, conditions=conditions))
         # And one with the probe pinned over the middle of the run, so that it covers as many differences
         # as it can: a probe that cannot bind the exclusion template is what a qPCR assay relies on. It
-        # needs a primer and half a probe on either side of it.
+        # needs room for a primer and a whole probe on either side, which is stricter than it has to be
+        # and so skips a few runs close to a region's ends.
         middle = start + run // 2
         margin = MIN_PRIMER_SIZE + MIN_PROBE_SIZE
         if margin <= middle <= length - margin:
@@ -677,6 +676,8 @@ def rank(assays: Iterable[Assay]) -> list[Assay]:
     - how many differences the primers cover in total. A single mismatch, even at the 3' end, is often not
       enough on its own; adding a second one is the basis of double-mismatch allele-specific qPCR
       (Lefever et al. 2019, doi:10.1038/s41598-019-38581-z);
+    - then what those differences replace, weighted: a G or a C counts for more than an A or a T, since
+      G:C holds with three hydrogen bonds and A:T with two;
     - then the longest run of them ending at a 3' end, and how many sit near one, since position changes
       how much a mismatch costs (Sharma et al. 2022, doi:10.1016/j.jmoldx.2022.08.005);
     - then Primer3's penalty by band, so a probe covering more differences never beats an assay that is
@@ -808,10 +809,15 @@ def threshold_of(settings: DesignSettings) -> float:
     if not info_file.is_file():
         return 1.0
     try:
-        recorded = json.loads(info_file.read_text()).get("parameters", {}).get("min_inclusion", 1.0)
-        return float(recorded)
+        recorded = float(json.loads(info_file.read_text())
+                         .get("parameters", {}).get("min_inclusion", 1.0))
     except (ValueError, TypeError, json.JSONDecodeError):  # pragma: no cover - a hand-edited file
         return 1.0
+    if not 0 < recorded <= 1:  # pragma: no cover - the find command cannot record this
+        log.warning("The run recorded a -p of %g, which is not a fraction of the inclusion genomes; "
+                    "judging the assays against all of them instead", recorded)
+        return 1.0
+    return recorded
 
 
 def genome_folders(settings: DesignSettings) -> tuple[Path, Path]:
@@ -867,8 +873,8 @@ def run(settings: DesignSettings) -> int:
              len({assay.region for assay in assays}))
     if not assays:
         raise PrimerFinderError(
-            "Primer3 found no assay in any region. A wider --product-size may help; "
-            f"its own explanation is in {settings.output / 'primer3' / 'primer3_output.txt'}."
+            "Primer3 found no assay in any region. A wider --product-size may help; its own "
+            f"explanation is in the *_output.txt files in {settings.output / 'primer3'}."
         )
 
     exclusion_genomes = seqio.require_genomes(exclusion, "exclusion")
@@ -918,9 +924,7 @@ def run(settings: DesignSettings) -> int:
         verdicts = run_insilico_pcr(settings, usable, primer_files, inclusion, exclusion, threshold)
         # Amplifying every inclusion genome comes before merely meeting the threshold, and an assay this
         # check could not refuse comes before one it refused on evidence it can defend
-        usable = sorted(usable, key=lambda assay: (
-            -sum(verdict.support for verdict in verdicts[assay.name].values()),
-            rank_key(assay)))
+        usable = sorted(usable, key=lambda assay: (-support_of(verdicts[assay.name]), rank_key(assay)))
     else:
         insilico.write_script(settings.output / insilico.SCRIPT_NAME, None, list(primer_files.values()),
                               inclusion, exclusion, settings.threads, settings.mismatches)
@@ -985,6 +989,16 @@ def rank_key(assay: Assay) -> tuple:
     )
 
 
+def support_of(modes: dict[str, object]) -> float:
+    """How far in silico PCR backs taking an assay to a bench, averaged over the modes it was run in.
+
+    Averaged rather than summed: an assay without a probe is not in the qPCR run at all, and summing would
+    make the mode it was never in count against it.
+    """
+    backing = [verdict.support for verdict in modes.values()]
+    return sum(backing) / len(backing) if backing else 0.0
+
+
 def run_insilico_pcr(settings: DesignSettings, assays: Sequence[Assay], primer_files: dict[str, Path],
                      inclusion: Path, exclusion: Path,
                      threshold: float = 1.0) -> dict[str, dict[str, object]]:
@@ -995,6 +1009,9 @@ def run_insilico_pcr(settings: DesignSettings, assays: Sequence[Assay], primer_f
                           inclusion, exclusion, settings.threads, settings.mismatches)
     verdicts: dict[str, dict[str, object]] = {assay.name: {} for assay in assays}
     for kind, primer_file in primer_files.items():
+        # Only the assays that are in this mode's primer file: a probe-less assay is not in the qPCR run,
+        # and giving it a verdict there would read as a failure rather than as a question never asked
+        tested = [assay for assay in assays if kind == "pcr" or assay.probe is not None]
         reports: dict[str, dict[str, set[str]]] = {}
         terminal: dict[str, set[str]] = {}
         for group, folder in (("inclusion", inclusion), ("exclusion", exclusion)):
@@ -1004,13 +1021,13 @@ def run_insilico_pcr(settings: DesignSettings, assays: Sequence[Assay], primer_f
             reports[group] = insilico.read_report(output)
             if group == "exclusion":
                 terminal = insilico.read_terminal_only(output)
-        mode = insilico.verdicts(assays, inclusion, exclusion, reports["inclusion"], reports["exclusion"],
+        mode = insilico.verdicts(tested, inclusion, exclusion, reports["inclusion"], reports["exclusion"],
                                  threshold, terminal)
         for name, verdict in mode.items():
             verdicts[name][kind] = verdict
         complete = sum(1 for verdict in mode.values() if verdict.complete)
         partial = sum(1 for verdict in mode.values() if verdict.selective and not verdict.complete)
-        counted = sum(1 for assay in assays if kind == "pcr" or assay.probe is not None)
+        counted = len(tested)
         log.info("In silico PCR (%s): %d of %d assay(s) amplify every inclusion genome and no exclusion "
                  "genome%s", kind, complete, counted,
                  f", and {partial} more reach the -p threshold" if partial else "")
@@ -1018,5 +1035,5 @@ def run_insilico_pcr(settings: DesignSettings, assays: Sequence[Assay], primer_f
         if blind:
             log.info("In silico PCR (%s): %d of the rest amplify the exclusion genomes only where a "
                      "difference sits in the last two bases of a primer, which insilicoPCR does not count "
-                     "(%s_exclusion_terminal_only)", kind, blind, kind)
+                     "(%s_selective is \"undecided (3' end)\")", kind, blind, kind)
     return verdicts

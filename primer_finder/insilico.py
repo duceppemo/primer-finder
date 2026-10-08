@@ -33,11 +33,12 @@ log = logging.getLogger(__name__)
 # Where insilicoPCR puts the table that says which assay amplified which sample.
 REPORT = Path("consolidated_report") / "report.tsv"
 SAMPLE_COLUMN, ASSAY_COLUMN = "Sample", "Gene"
-# insilicoPCR reports, per primer, how many mismatches it bound through and how many bases blast had to
-# trim off its 3' end to place it. The trim is the interesting one: those bases are not counted as
-# mismatches at any tolerance, so an amplification that rests on one is an amplification insilicoPCR could
-# not have refused. See docs/wiki/Designing-assays.md.
-MISMATCH_COLUMNS = ("ForwardMismatches", "ReverseMismatches")
+# insilicoPCR reports, per oligo, how many mismatches it bound through and -- for the primers -- how many
+# bases blast had to trim off the 3' end to place it. The trim is the interesting one: those bases are not
+# counted as mismatches at any tolerance, so an amplicon that needed only the trim is one insilicoPCR could
+# not have refused. An amplicon that also needed a counted mismatch is a different thing: at `-m 0` it is
+# refused, so it is the tolerance talking and not the blind spot. See docs/wiki/Designing-assays.md.
+MISMATCH_COLUMNS = ("ForwardMismatches", "ReverseMismatches", "ProbeMismatches")
 END_COLUMNS = ("ForwardEndMismatch", "ReverseEndMismatch")
 
 QPCR_NAME = "assays_qpcr.fasta"
@@ -75,7 +76,8 @@ class Verdict:
     @property
     def complete(self) -> bool:
         """Amplifies every inclusion genome and no exclusion genome."""
-        return self.inclusion_amplified == self.inclusion_total and self.exclusion_amplified == 0
+        return (self.inclusion_total > 0 and self.inclusion_amplified == self.inclusion_total
+                and self.exclusion_amplified == 0)
 
     @property
     def selective(self) -> bool:
@@ -207,31 +209,65 @@ def read_report(output: Path) -> dict[str, set[str]]:
     return amplified
 
 
-def _ends(row: dict[str, str]) -> bool:
-    """Whether blast had to trim a base off the 3' end of either primer to place this amplicon."""
-    return any(int((row.get(column) or "0").strip() or 0) != 0 for column in END_COLUMNS)
+def _count(row: dict[str, str], column: str) -> int | None:
+    """One of insilicoPCR's mismatch counts. A column it does not write, or leaves blank, is nothing
+    reported and so a zero; anything that is not a whole number is None, which the caller must not read as
+    one more than it says."""
+    value = (row.get(column) or "").strip()
+    if not value:
+        return 0
+    try:
+        return int(value)
+    except ValueError:
+        return None
 
 
 def read_terminal_only(output: Path) -> dict[str, set[str]]:
     """Which samples each assay amplified *only* through a difference in the last two bases of a primer.
 
     insilicoPCR does not count those bases: blast trims an unmatched base off the end of its alignment and
-    the primer is called bound, at every `-m`. So an amplification whose every reported amplicon needed
-    that trim is one the tool could not have refused, and a `no` verdict that rests entirely on them is the
-    model's blind spot rather than a cross-reaction. A sample only counts when *all* of its amplicons needed
-    it: one clean amplicon is a real one.
+    the primer is called bound. That happens at every `-m`, so such an amplicon is one the tool could not
+    have refused, and a verdict that rests entirely on them is the model's blind spot rather than a
+    cross-reaction.
+
+    Only the amplicons with no counted mismatch anywhere decide this, which is what makes the answer the
+    same at every `-m`:
+
+    - one of those with a trimmed primer end, and none without, is the blind spot;
+    - one of those with nothing trimmed is an exact match, so the amplification is real and the sample does
+      not count however many trimmed amplicons sit beside it;
+    - an amplicon that needed a counted mismatch is the `-m` the user chose talking, not these bases, and is
+      ignored here. A sample with nothing but those does not count: at `-m 0` it would not amplify at all.
     """
-    hits: dict[tuple[str, str], list[bool]] = {}
+    terminal: set[tuple[str, str]] = set()
+    exact: set[tuple[str, str]] = set()
+    unreadable = 0
     with (output / REPORT).open(newline="") as fh:
-        for row in csv.DictReader(fh, delimiter="\t"):
+        rows = csv.DictReader(fh, delimiter="\t")
+        if rows.fieldnames is not None and not any(name in rows.fieldnames for name in END_COLUMNS):
+            log.warning("insilicoPCR's report has no %s column, so which exclusion amplifications rest on "
+                        "an ignored 3'-end difference cannot be told: %s",
+                        " or ".join(END_COLUMNS), output / REPORT)
+            return {}
+        for row in rows:
             assay, sample = (row.get(ASSAY_COLUMN) or "").strip(), (row.get(SAMPLE_COLUMN) or "").strip()
-            if assay and sample:
-                hits.setdefault((assay, sample), []).append(_ends(row))
-    terminal: dict[str, set[str]] = {}
-    for (assay, sample), ends in hits.items():
-        if all(ends):
-            terminal.setdefault(assay, set()).add(sample)
-    return terminal
+            if not assay or not sample:
+                continue
+            counted = [_count(row, name) for name in MISMATCH_COLUMNS]
+            ends = [_count(row, name) for name in END_COLUMNS]
+            if None in counted or None in ends:
+                unreadable += 1
+                continue
+            if any(counted):  # it bound through a mismatch this check does count
+                continue
+            (terminal if any(end < 0 for end in ends) else exact).add((assay, sample))
+    if unreadable:
+        log.warning("%d row(s) of %s give a mismatch count that is not a whole number and were left out of "
+                    "the 3'-end difference tally", unreadable, output / REPORT)
+    found: dict[str, set[str]] = {}
+    for assay, sample in terminal - exact:
+        found.setdefault(assay, set()).add(sample)
+    return found
 
 
 def count_genomes(folder: Path) -> int:

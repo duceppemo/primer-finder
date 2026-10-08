@@ -56,7 +56,7 @@ that already satisfy all of this.
 | Melting temperature | 58–63 °C, 60 optimal | 62–72 °C, 68 optimal |
 | GC | 30–70% | 30–80% |
 | Ambiguous bases | none | none |
-| G or C at the 3' end | `--gc-clamp`, 1 by default | — |
+| G or C at the 3' end | `--gc-clamp`, 1 by default, except in a request that pins an end | — (Primer3 has no clamp for the probe) |
 | Hairpin | melts below `--max-hairpin-tm`, 47 °C by default | same |
 | Self-dimer, whole oligo and 3' end | below `--max-dimer-tm`, 47 °C by default | same |
 | Dimer with the other primer, whole oligo and 3' end | below `--max-dimer-tm` | — |
@@ -66,12 +66,17 @@ that already satisfy all of this.
 A G or a C at the 3'-most base holds the primer down where extension starts, so one is asked for by default
 (`PRIMER_GC_CLAMP=1`); `--gc-clamp 2` asks for two, `--gc-clamp 0` for none.
 
-**The clamp is not applied to a primer whose 3' end is pinned on a differing base.** Those are the
+**The clamp is dropped from the requests that pin a primer's 3' end on a differing base.** Those are the
 `SEQUENCE_FORCE_LEFT_END` / `SEQUENCE_FORCE_RIGHT_END` requests, where the 3' base is whatever the genomes
 made it — asking for a G or a C there is asking for a difference that may not exist. On an A/T-rich target
 the two requirements are almost never satisfiable at once: with the clamp left on, seven of eight forced-end
-requests on the *Xylella* set returned nothing. So the clamp applies to every request that lets Primer3
-choose the end, and is dropped for the ones that pin it.
+requests on the *Xylella* set returned nothing.
+
+`PRIMER_GC_CLAMP` is a single tag for a whole request, with no per-side or per-oligo variant, so dropping it
+drops it from **both** primers of such a request — the partner, whose end Primer3 was free to choose, loses
+it too — and `--gc-clamp` therefore reaches only the requests that pin nothing and the one that pins the
+probe. There is no way to ask Primer3 for "a clamp on the partner but not on the pinned primer". The clamp
+never applies to the probe either: Primer3 has no `PRIMER_INTERNAL_GC_CLAMP`.
 
 ### Hairpins and dimers
 
@@ -271,27 +276,36 @@ tolerance only ever finds more exclusion amplification, never less, so it can on
 Because the last two bases are free, an assay can be reported non-selective for a reason that is about the
 alignment rather than about the assay. `assays.tsv` therefore carries **`qpcr_exclusion_terminal_only`** and
 **`pcr_exclusion_terminal_only`**: of the exclusion genomes an assay amplified, how many did so *only* where
-a difference sits in the last two bases of a primer. A genome counts only when every amplicon reported for
-it needed the trim — one clean amplicon is a real amplification.
+a difference sits in the last two bases of a primer.
 
-When that number equals `*_exclusion_amplified`, **every** exclusion amplification behind the verdict is one
+Two rules decide that, and between them they make the count mean one thing:
+
+- **only the amplicons that needed no counted mismatch are looked at.** Those are reported at every
+  tolerance, so they are the ones the check could not have refused. An amplicon that bound through a
+  mismatch `--mismatches` allowed is the tolerance talking, not these bases, and is left out. This is what
+  makes the answer the same whatever tolerance was used: on the *Xylella* set the same 256 exclusion
+  amplifications are unrefusable at `--mismatches` 0, 1, 2 and 3;
+- **a genome counts only when none of those amplicons is an exact match.** One exact match is a real
+  amplification, and no number of trimmed ones beside it changes that.
+
+When the count equals `*_exclusion_amplified`, **every** exclusion amplification behind the verdict is one
 insilicoPCR could not have refused, and the design is one in silico PCR cannot judge in either direction.
 That gets its own label rather than being lumped in with a cross-reaction: `*_selective` reads
 **`undecided (3' end)`**, and those assays are ranked above the ones this check refused on evidence it can
-defend and below the ones it cleared. On the *Xylella* set it is most of them:
+defend and below the ones it cleared. On the *Xylella* set:
 
 | PCR mode, 465 usable assays | `pcr_selective` | |
 |---|---|---|
 | amplifies every inclusion genome, no exclusion genome | `yes` | 220 |
-| every exclusion amplification rests on an uncounted 3'-end difference | `undecided (3' end)` | **155** |
-| some of them do | `no` | 7 |
-| amplifies exclusion genomes on evidence the check can defend | `no` | 83 |
+| every exclusion amplification rests on an uncounted 3'-end difference | `undecided (3' end)` | **96** |
+| some of them do | `no` | 16 |
+| amplifies exclusion genomes on evidence the check can defend | `no` | 133 |
 
-Of those 155, **121** rest on a difference the ranking deliberately put at a 3' end: 96 of one base, 22 of
-two, 3 of three. Cut the other way, 127 are specific by a difference and 28 by absence — in the second case
-the amplification is an off-target amplicon somewhere else in an exclusion genome, which itself only binds
+Of those 96, **73** rest on a difference the ranking deliberately put at a 3' end: 63 of one base and 10 of
+two. Cut the other way, 80 are specific by a difference and 16 by absence — in the second case the
+amplification is an off-target amplicon somewhere else in an exclusion genome, which itself only binds
 through an ignored terminal mismatch, so a weak off-target rather than a clean one. Either way: the column
-tells you which verdict to argue with, and 90 rather than 245 is the number of assays this check rejects on
+tells you which verdict to argue with, and 149 rather than 245 is the number of assays this check rejects on
 its own evidence.
 
 The inclusion side needs no such column. Of 3,720 assay-and-genome amplifications in the inclusion group,

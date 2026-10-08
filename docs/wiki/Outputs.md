@@ -153,8 +153,8 @@ two bases of a primer, and `no` otherwise.
 **`undecided (3' end)` is not a near miss, it is the absence of a verdict.** insilicoPCR calls a primer
 bound when blast trims an unmatched base off its 3' end, at every `--mismatches`, so an amplification that
 needed that trim is one the tool could not have refused — and the 3' end is exactly where a selective assay
-puts its differences. A genome counts only when *every* amplicon reported for it needed the trim; one clean
-amplicon makes it a real amplification, and the verdict is `no`. On the *Xylella* set, 155 of the 245
-non-selective assays in PCR mode were `undecided`; the other 90 are `no`, 83 of them with no terminal
-amplification at all and 7 with a mixture. Those 155 are the assays a bench would have to settle, and they
-are ranked above the 90.
+puts its differences. Only the amplicons that needed no counted mismatch are weighed, so the count means the
+same at every tolerance, and a genome counts only when none of them is an exact match: one exact match makes
+it a real amplification and the verdict `no`. On the *Xylella* set, 96 of the 245 non-selective assays in
+PCR mode were `undecided`; the other 149 are `no`, 133 of them with no terminal amplification at all and 16
+with a mixture. Those 96 are the assays a bench would have to settle, and they are ranked above the 149.

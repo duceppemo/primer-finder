@@ -22,6 +22,7 @@ from primer_finder.blast import (
     parse_hits,
     presence_in_genomes,
     shared_variants,
+    variant_bases,
     variant_positions,
 )
 
@@ -63,6 +64,30 @@ def test_parse_hits_without_the_alignment_fields(tmp_path):
     path.write_text("ctg1\t1e-30\n")
     hits = parse_hits(path, PRESENCE_FIELDS)
     assert (hits[0].query, hits[0].qseq, hits[0].qstart) == ("ctg1", "", 0)
+
+
+def test_variant_bases_give_what_the_exclusion_genome_has_there():
+    """How much a mismatch costs depends on which bases are involved, so the base is carried, not only the
+    position. The hit starts at base 5 of the contig (1-based), so the first aligned base is position 4."""
+    assert variant_bases(hit(5, 12, "ACGTACGT", "ACCTACGA")) == {6: "C", 11: "A"}
+
+
+def test_variant_bases_of_an_insertion_in_the_contig():
+    """The contig has bases the exclusion genome does not: there is nothing to pair with, which is a
+    difference of its own and is marked as such."""
+    assert variant_bases(hit(1, 8, "ACGTTTACGT", "ACGT--ACGT")) == {4: "-", 5: "-"}
+
+
+def test_variant_bases_of_a_deletion_in_the_contig_take_the_first_of_them():
+    """The exclusion genome has two bases the contig lacks, and they both fall at the same contig
+    position. The first is the one an oligo would run into, so it is the one kept."""
+    assert variant_bases(hit(1, 8, "ACGT--ACGT", "ACGTTTACGT")) == {4: "T"}
+    assert variant_bases(hit(1, 8, "ACGT--ACGT", "ACGTGCACGT")) == {4: "G"}  # not the C
+
+
+def test_variant_bases_are_upper_case_whatever_the_alignment_says():
+    """blast lower-cases what it masks, and a difference is a difference whatever the case."""
+    assert variant_bases(hit(1, 4, "ACGT", "acga")) == {3: "A"}
 
 
 def test_variant_positions_are_contig_coordinates():

@@ -17,9 +17,10 @@
   `--probe-conc`) and all of them are recorded in `design_info.json`. They change both the temperatures
   reported and which oligos come back, so a run can be matched to the master mix it is for.
 - `--gc-clamp`: how many G or C bases a primer must carry at its 3' end, where extension starts. One by
-  default. It is never applied to a primer whose 3' end is pinned on a differing base, since that base is
-  whatever the genomes made it — with the clamp left on there, seven of eight forced-end requests on the
-  *Xylella* set returned nothing.
+  default. Primer3 takes one clamp per request, so it is dropped from the requests that pin a 3' end on a
+  differing base — that base is whatever the genomes made it, and with the clamp left on there, seven of
+  eight forced-end requests on the *Xylella* set returned nothing. Those requests therefore ignore this
+  option, and no clamp applies to the probe, which Primer3 has no tag for.
 - A verdict of its own, `undecided (3' end)`, for an assay that covers the inclusion group but amplifies
   exclusion genomes only where a difference sits in the last two bases of a primer. `no` would claim the
   check had refused it on evidence worth believing, and it has not: those bases are not counted at any
@@ -29,9 +30,10 @@
   an assay amplified, how many did so only where a difference sits in the last two bases of a primer — the
   bases insilicoPCR does not count. When it equals `*_exclusion_amplified`, every amplification behind the
   verdict is one the tool could not have refused, so it is the model's blind spot rather than a
-  cross-reaction. A genome counts only when every amplicon reported for it needed the trim. On the *Xylella*
-  set this separates 155 unjudgeable assays from the 90 the check refuses on its own evidence, and the run
-  says so as it goes.
+  cross-reaction. Only the amplicons that needed no counted mismatch are weighed, which makes the count the
+  same at any `--mismatches`, and a genome counts only when none of those is an exact match. On the
+  *Xylella* set this separates 96 unjudgeable assays from the 149 the check refuses on its own evidence, and
+  the run says so as it goes.
 
 ### Changed
 

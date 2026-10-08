@@ -97,7 +97,8 @@ def test_the_gc_clamp_is_asked_for_where_primer3_picks_the_3_prime_end():
     """A G or C at the 3' end holds the primer where extension starts, so it is asked for -- except where
     the 3' end is pinned on a differing base, which is whatever the genomes made it."""
     region = Record("ctg1", "", "A" * 700 + "acg" + "A" * 700)
-    requests = dict(requests_for(region, DEFAULT_PRODUCT_SIZE, 1, force_ends=True))
+    requests = [request for request, _ in requests_for(region, DEFAULT_PRODUCT_SIZE, 1, force_ends=True)]
+    assert len(requests) > 1
     for request in requests:
         pins_a_primer = "SEQUENCE_FORCE_LEFT_END" in request or "SEQUENCE_FORCE_RIGHT_END" in request
         clamp = next(line for line in request.splitlines() if line.startswith("PRIMER_GC_CLAMP="))
@@ -119,42 +120,87 @@ def test_in_silico_pcr_allows_one_mismatch_by_default():
     assert DesignSettings(results=Path("r"), output=Path("o"), threads=1).mismatches == 1
 
 
-def test_the_structures_primer3_must_not_leave_in_are_asked_for():
-    """An oligo that folds on itself, or pairs with itself or its partner, is spent before it ever reaches
-    the template. Primer3 rejects those itself, so the limits have to be in every request."""
-    request = build_request(Record("ctg1", "", "ACGT" * 50), DEFAULT_PRODUCT_SIZE, 1)
-    for tag in ("PRIMER_MAX_HAIRPIN_TH", "PRIMER_INTERNAL_MAX_HAIRPIN_TH"):
-        assert f"{tag}=47.0" in request
-    for tag in ("PRIMER_MAX_SELF_ANY_TH", "PRIMER_MAX_SELF_END_TH",
-                "PRIMER_PAIR_MAX_COMPL_ANY_TH", "PRIMER_PAIR_MAX_COMPL_END_TH",
-                "PRIMER_INTERNAL_MAX_SELF_ANY_TH", "PRIMER_INTERNAL_MAX_SELF_END_TH"):
-        assert f"{tag}=47.0" in request
+def test_the_default_tolerance_reaches_insilico_pcr(stubs, finished_run, tmp_path, genomes, insilico_pcr):
+    """`insilico.run` defaults to 0 of its own, so a settings value that never arrives would quietly
+    tighten the check instead of failing."""
+    calls = stubs()
+    assert run(design_settings(finished_run, tmp_path / "assays", insilico_pcr=insilico_pcr)) == 0
+    asked = [line for line in calls.read_text().splitlines() if line.startswith("insilico_pcr")]
+    assert len(asked) == 4  # two modes, two groups
+    assert all(" -m 1" in line for line in asked), asked
 
 
-def test_the_reaction_the_temperatures_are_predicted_for_is_asked_for():
-    """A melting temperature is only meaningful for a given reaction, so the salt, the dNTPs and the
-    oligo concentrations go in the request -- the probe at its own concentration, not the primers'."""
-    request = build_request(Record("ctg1", "", "ACGT" * 50), DEFAULT_PRODUCT_SIZE, 1)
+def test_another_tolerance_reaches_insilico_pcr(stubs, finished_run, tmp_path, genomes, insilico_pcr):
+    calls = stubs()
+    settings = design_settings(finished_run, tmp_path / "assays", insilico_pcr=insilico_pcr, mismatches=2)
+    assert run(settings) == 0
+    asked = [line for line in calls.read_text().splitlines() if line.startswith("insilico_pcr")]
+    assert all(" -m 2" in line for line in asked), asked
+
+
+# Every field distinct, so that a tag fed from the wrong one cannot pass. The dimer limit covers six tags
+# and the hairpin limit two, which is why they are kept apart here: at the defaults both are 47 °C, and a
+# test written against the defaults cannot tell them apart.
+DISTINCT = Conditions(max_hairpin_tm=41.0, max_dimer_tm=35.0, monovalent_mm=62.0, divalent_mm=5.0,
+                      dntp_mm=1.2, primer_nm=500.0, probe_nm=100.0)
+DISTINCT_TAGS = {
+    "PRIMER_GC_CLAMP": "2",
+    "PRIMER_MAX_HAIRPIN_TH": "41.0",
+    "PRIMER_INTERNAL_MAX_HAIRPIN_TH": "41.0",
+    "PRIMER_MAX_SELF_ANY_TH": "35.0",
+    "PRIMER_MAX_SELF_END_TH": "35.0",
+    "PRIMER_PAIR_MAX_COMPL_ANY_TH": "35.0",
+    "PRIMER_PAIR_MAX_COMPL_END_TH": "35.0",
+    "PRIMER_INTERNAL_MAX_SELF_ANY_TH": "35.0",
+    "PRIMER_INTERNAL_MAX_SELF_END_TH": "35.0",
+    "PRIMER_SALT_MONOVALENT": "62.0",
+    "PRIMER_INTERNAL_SALT_MONOVALENT": "62.0",
+    "PRIMER_SALT_DIVALENT": "5.0",
+    "PRIMER_INTERNAL_SALT_DIVALENT": "5.0",
+    "PRIMER_DNTP_CONC": "1.2",
+    "PRIMER_INTERNAL_DNTP_CONC": "1.2",
+    "PRIMER_DNA_CONC": "500.0",
+    "PRIMER_INTERNAL_DNA_CONC": "100.0",   # the probe's own concentration, not the primers'
+}
+
+
+def test_every_tag_the_reaction_decides_carries_the_right_field():
+    """An oligo that folds on itself, or pairs with itself or its partner, is spent before it reaches the
+    template, and a melting temperature only means anything for a given reaction. Primer3 is told all of
+    it, and each tag has to carry the field it belongs to -- a probe fed the primers' concentration, or a
+    hairpin limit fed the dimer limit, would be silently wrong."""
+    request = build_request(Record("ctg1", "", "ACGT" * 50), DEFAULT_PRODUCT_SIZE, 1,
+                            gc_clamp=2, conditions=DISTINCT)
+    lines = request.splitlines()
+    for tag, value in DISTINCT_TAGS.items():
+        assert f"{tag}={value}" in lines, tag
+
+
+def test_the_defaults_are_primer3s_own_structure_limits_and_a_taqman_reaction():
+    request = build_request(Record("ctg1", "", "ACGT" * 50), DEFAULT_PRODUCT_SIZE, 1).splitlines()
+    assert "PRIMER_MAX_HAIRPIN_TH=47.0" in request
+    assert "PRIMER_MAX_SELF_ANY_TH=47.0" in request
     assert "PRIMER_SALT_MONOVALENT=50.0" in request
     assert "PRIMER_SALT_DIVALENT=3.0" in request
     assert "PRIMER_DNTP_CONC=0.8" in request
     assert "PRIMER_DNA_CONC=250.0" in request
-    assert "PRIMER_INTERNAL_SALT_MONOVALENT=50.0" in request
     assert "PRIMER_INTERNAL_DNA_CONC=200.0" in request
 
 
-def test_the_reaction_can_be_described_differently():
-    conditions = Conditions(max_hairpin_tm=40.0, max_dimer_tm=35.0, monovalent_mm=60.0, divalent_mm=5.0,
-                            dntp_mm=1.2, primer_nm=500.0, probe_nm=100.0)
-    request = build_request(Record("ctg1", "", "ACGT" * 50), DEFAULT_PRODUCT_SIZE, 1,
-                            conditions=conditions)
-    assert "PRIMER_MAX_HAIRPIN_TH=40.0" in request
-    assert "PRIMER_MAX_SELF_ANY_TH=35.0" in request
-    assert "PRIMER_SALT_MONOVALENT=60.0" in request
-    assert "PRIMER_SALT_DIVALENT=5.0" in request
-    assert "PRIMER_DNTP_CONC=1.2" in request
-    assert "PRIMER_DNA_CONC=500.0" in request
-    assert "PRIMER_INTERNAL_DNA_CONC=100.0" in request
+def test_every_request_of_a_region_carries_the_whole_reaction():
+    """Including the ones aimed at a run of differences, which are the most likely to return a marginal
+    oligo and so the ones that most need the same limits as the rest. Only the GC clamp differs."""
+    region = Record("ctg1", "", "A" * 300 + "cgt" + "A" * 300)
+    requests = [request for request, _ in
+                requests_for(region, DEFAULT_PRODUCT_SIZE, 1, force_ends=True,
+                             gc_clamp=2, conditions=DISTINCT)]
+    assert len(requests) > 1
+    for request in requests:
+        lines = request.splitlines()
+        for tag, value in DISTINCT_TAGS.items():
+            if tag == "PRIMER_GC_CLAMP":
+                continue
+            assert f"{tag}={value}" in lines, (tag, request[:60])
 
 
 def test_the_reaction_reaches_the_forced_requests_too():
@@ -332,6 +378,7 @@ def test_the_number_of_differences_still_comes_first():
 def test_a_difference_whose_base_is_unknown_weighs_in_between():
     unknown = oligo(variants=[119])
     assert unknown.variant_weight == 0.75
+    assert WEAK_BASE_WEIGHT < unknown.variant_weight < STRONG_BASE_WEIGHT
 
 
 def test_the_bases_come_from_the_exclusion_alignments(stubs, tmp_path, fasta):
@@ -346,6 +393,31 @@ def test_the_bases_come_from_the_exclusion_alignments(stubs, tmp_path, fasta):
     assert one.primer_variant_weight == STRONG_BASE_WEIGHT + WEAK_BASE_WEIGHT
 
 
+def test_a_base_is_put_where_it_sits_in_the_region_not_in_the_amplicon(stubs, tmp_path, fasta):
+    """blast reports a position in the amplicon, and the alignment need not start at the amplicon's first
+    base. Both shifts have to be applied or every base lands under the wrong oligo -- or under none."""
+    # The hit starts at base 3 of the amplicon, and the amplicon starts at base 40 of the region, so a
+    # difference at offset 1 of the alignment is region position 40 + 2 + 1 = 43
+    stubs(amplicon_hits={"g1": 1}, amplicon_qstart=3, amplicon_mismatch={"1": "G", "25": "G"})
+    genomes = [fasta("g1.fasta", {"chr": "ACGT" * 50})]
+    one = assay(amplicon="ACGTACGT" * 10, forward=oligo(start=40, length=20, variants=[43]),
+                reverse=oligo(start=100, length=20, reverse=True))
+    check_against_exclusion([one], genomes, tmp_path / "work", threads=1)
+    assert one.forward.variant_bases == {43: "G"}
+    # 40 + 2 + 25 = 67 is inside the amplicon but under neither oligo, so neither of them carries it
+    assert one.reverse.variant_bases == {}
+
+
+def test_a_base_outside_an_oligo_is_not_given_to_it(stubs, tmp_path, fasta):
+    """A difference in the middle of the amplicon is real, but it is not something an oligo has to
+    mismatch: only the bases under the oligo itself count."""
+    stubs(amplicon_hits={"g1": 1}, amplicon_mismatch={"2": "T", "60": "C"})
+    genomes = [fasta("g1.fasta", {"chr": "ACGT" * 50})]
+    one = assay(amplicon="ACGTACGT" * 10, forward=oligo(start=0, length=20, variants=[2]))
+    check_against_exclusion([one], genomes, tmp_path / "work", threads=1)
+    assert one.forward.variant_bases == {2: "T"}   # and nothing from position 60, in neither oligo
+
+
 def test_the_inclusion_group_is_not_asked_for_the_aligned_sequences(stubs, tmp_path, fasta):
     """Only the exclusion genomes' bases are weighed, so counting copies in the inclusion group does not
     ask blast for the alignments or read them."""
@@ -354,12 +426,10 @@ def test_the_inclusion_group_is_not_asked_for_the_aligned_sequences(stubs, tmp_p
     one = assay(amplicon="ACGT" * 10)
     count_inclusion_copies([one], genomes, tmp_path / "incl", threads=1)
     assert one.inclusion_copies == [2]
-    blastn = [line for line in calls.read_text().splitlines() if line.startswith("blastn")]
-    assert blastn and all("qseq sseq" not in line for line in blastn)  # "qseqid" is not "qseq"
+    assert all(not (asked_fields(line) & {"qseq", "sseq"}) for line in blast_calls(calls))
 
     check_against_exclusion([one], genomes, tmp_path / "excl", threads=1)
-    blastn = [line for line in calls.read_text().splitlines() if line.startswith("blastn")]
-    assert any("qseq sseq" in line for line in blastn)  # the exclusion group is
+    assert any({"qseq", "sseq"} <= asked_fields(line) for line in blast_calls(calls))  # the exclusion group is
 
 
 def test_check_against_exclusion_and_inclusion_copies(stubs, tmp_path, fasta):
@@ -561,6 +631,28 @@ def test_an_assay_that_amplifies_an_exclusion_genome_is_not_selective(stubs, fin
     assert rows[0]["assay"] != "ctg1_assay0"
 
 
+def test_the_structure_temperatures_survive_a_whole_run(stubs, finished_run, tmp_path, genomes):
+    """Primer3 reports these whenever it does its thermodynamic alignment, so a real run fills them. They
+    are all zero if anything between the output and the table drops them."""
+    output = tmp_path / "assays"
+    assert run(design_settings(finished_run, output)) == 0
+    row = next(iter_rows(output / "assays.tsv"))
+    assert row["forward_hairpin_tm"] == "35.7" and row["forward_self_dimer_tm"] == "13.6"
+    assert row["reverse_hairpin_tm"] == "24.3" and row["reverse_self_dimer_tm"] == "11.2"
+    assert row["probe_hairpin_tm"] == "33.3" and row["probe_self_dimer_tm"] == "19.6"
+    assert row["pair_dimer_tm"] == "8.7" and row["pair_dimer_end_tm"] == "4.1"
+
+
+def test_a_primer3_that_reports_no_structures_still_runs(stubs, finished_run, tmp_path, genomes):
+    """Those fields need Primer3's thermodynamic alignment. Without them an assay still has primers, and
+    the columns say zero rather than stopping the run."""
+    stubs(primer3_structures=False)
+    output = tmp_path / "assays"
+    assert run(design_settings(finished_run, output)) == 0
+    row = next(iter_rows(output / "assays.tsv"))
+    assert row["forward_hairpin_tm"] == "0.0" and row["pair_dimer_tm"] == "0.0"
+
+
 def test_an_exclusion_amplification_that_rests_on_a_trimmed_primer_end_is_reported(stubs, finished_run,
                                                                                    tmp_path, genomes,
                                                                                    insilico_pcr):
@@ -572,9 +664,15 @@ def test_an_exclusion_amplification_that_rests_on_a_trimmed_primer_end_is_report
     stubs(insilico_extra={"ctg1_assay0": [sample]}, insilico_terminal={"ctg1_assay0": [sample]})
     output = tmp_path / "assays"
     assert run(design_settings(finished_run, output, insilico_pcr=insilico_pcr)) == 0
-    row = next(r for r in iter_rows(output / "assays.tsv") if r["assay"] == "ctg1_assay0")
-    assert row["pcr_selective"] == "undecided (3' end)"
-    assert row["pcr_exclusion_amplified"] == "1" and row["pcr_exclusion_terminal_only"] == "1"
+    rows = list(iter_rows(output / "assays.tsv"))
+    row = next(r for r in rows if r["assay"] == "ctg1_assay0")
+    for kind in ("pcr", "qpcr"):
+        assert row[f"{kind}_selective"] == "undecided (3' end)", kind
+        assert row[f"{kind}_exclusion_amplified"] == "1", kind
+        assert row[f"{kind}_exclusion_terminal_only"] == "1", kind
+    # below the assays nothing was found against, and above any the check refused on its own evidence
+    assert rows[0]["assay"] != "ctg1_assay0"
+    assert rows[0]["pcr_selective"] == "yes"
 
 
 def test_a_real_exclusion_amplification_is_not_counted_as_terminal(stubs, finished_run, tmp_path, genomes,
@@ -597,6 +695,23 @@ def test_an_assay_that_misses_an_inclusion_genome_is_not_selective(stubs, finish
     run(design_settings(finished_run, output, insilico_pcr=insilico_pcr))
     bad = next(row for row in iter_rows(output / "assays.tsv") if row["assay"] == "ctg1_assay0")
     assert bad["qpcr_inclusion_amplified"] == "1" and bad["qpcr_selective"] == "no"
+
+
+def blast_calls(calls: Path) -> list[str]:
+    lines = [line for line in calls.read_text().splitlines() if line.startswith("blastn")]
+    assert lines, "no blastn call was made"
+    return lines
+
+
+def asked_fields(call: str) -> set[str]:
+    """The fields of a `-outfmt "6 ..."` argument, as a set: looking for a substring would make `qseqid`
+    answer for `qseq`, and would depend on the order they happen to be written in."""
+    import shlex
+
+    words = shlex.split(call)
+    outfmt = words[words.index("-outfmt") + 1].split()
+    assert outfmt and outfmt[0] == "6", call
+    return set(outfmt[1:])
 
 
 def iter_rows(path: Path):
@@ -660,6 +775,21 @@ def test_an_old_primer3_that_reports_no_structures_is_not_an_error():
     }
     one, = assays_of(Record("ctg1", "", "ACGT" * 50), fields)
     assert one.forward.hairpin_tm == 0.0 and one.pair_dimer_tm == 0.0
+
+
+def test_the_weighting_columns_are_written_from_their_own_numbers(tmp_path):
+    """Three columns of the same row come from three different properties, and all three are small
+    integers: a column fed from the wrong one would look plausible."""
+    one = assay(forward=oligo(start=100, length=20, variants=[105, 117, 118, 119]))
+    one.forward.variant_bases = {105: "G", 117: "A", 118: "A", 119: "A"}
+    path = tmp_path / "assays.tsv"
+    write_assays(path, [one])
+    row = next(iter_rows(path))
+    assert row["forward_variants"] == "4"
+    assert row["forward_strong_variants"] == "1"        # only the G, and it is the one furthest from the end
+    assert row["forward_near_3prime"] == "3"            # 117, 118 and 119, within five bases of the end
+    assert row["forward_terminal_run"] == "3"           # and all three in a row, ending at it
+    assert row["primer_variant_weight"] == "2.5"        # 1.0 for the G and 0.5 for each A
 
 
 def test_write_assays_without_a_verdict(tmp_path):
