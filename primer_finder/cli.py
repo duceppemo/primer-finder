@@ -90,6 +90,41 @@ def build_parser(max_cpu: int, max_mem: int) -> argparse.ArgumentParser:
                                type=int, default=design.DEFAULT_ASSAYS_PER_REGION,
                                help="How many assays Primer3 should propose per region. Default "
                                     f"{design.DEFAULT_ASSAYS_PER_REGION}.")
+    design_parser.add_argument("--gc-clamp", metavar=str(design.DEFAULT_GC_CLAMP), type=int,
+                               default=design.DEFAULT_GC_CLAMP,
+                               help="How many G or C bases Primer3 must put at the 3' end of each primer. "
+                                    f"Default {design.DEFAULT_GC_CLAMP}; 0 for none. It is never applied to "
+                                    "the primers whose 3' end is pinned on a differing base, which is "
+                                    "whatever the genomes made it.")
+    design_parser.add_argument("--max-hairpin-tm", metavar=str(design.DEFAULT_MAX_HAIRPIN_TM), type=float,
+                               default=design.DEFAULT_MAX_HAIRPIN_TM,
+                               help="Reject an oligo whose hairpin melts at or above this temperature, in "
+                                    f"degrees Celsius. Default {design.DEFAULT_MAX_HAIRPIN_TM:g}.")
+    design_parser.add_argument("--max-dimer-tm", metavar=str(design.DEFAULT_MAX_DIMER_TM), type=float,
+                               default=design.DEFAULT_MAX_DIMER_TM,
+                               help="Reject an oligo that pairs with itself, or with its partner, at or "
+                                    "above this temperature, in degrees Celsius. Default "
+                                    f"{design.DEFAULT_MAX_DIMER_TM:g}.")
+    design_parser.add_argument("--monovalent", metavar=str(design.DEFAULT_MONOVALENT_MM), type=float,
+                               default=design.DEFAULT_MONOVALENT_MM,
+                               help="Monovalent cation concentration of the reaction, in mM, used to "
+                                    f"predict melting temperatures. Default {design.DEFAULT_MONOVALENT_MM:g}.")
+    design_parser.add_argument("--divalent", metavar=str(design.DEFAULT_DIVALENT_MM), type=float,
+                               default=design.DEFAULT_DIVALENT_MM,
+                               help="Magnesium concentration of the reaction, in mM. Default "
+                                    f"{design.DEFAULT_DIVALENT_MM:g}.")
+    design_parser.add_argument("--dntp", metavar=str(design.DEFAULT_DNTP_MM), type=float,
+                               default=design.DEFAULT_DNTP_MM,
+                               help="Total dNTP concentration of the reaction, in mM. Default "
+                                    f"{design.DEFAULT_DNTP_MM:g}, which is 0.2 mM of each.")
+    design_parser.add_argument("--primer-conc", metavar=str(design.DEFAULT_PRIMER_NM), type=float,
+                               default=design.DEFAULT_PRIMER_NM,
+                               help="Primer concentration of the reaction, in nM. Default "
+                                    f"{design.DEFAULT_PRIMER_NM:g}.")
+    design_parser.add_argument("--probe-conc", metavar=str(design.DEFAULT_PROBE_NM), type=float,
+                               default=design.DEFAULT_PROBE_NM,
+                               help="Probe concentration of the reaction, in nM. Default "
+                                    f"{design.DEFAULT_PROBE_NM:g}.")
     design_parser.add_argument("--max-regions", metavar=str(design.DEFAULT_MAX_REGIONS), type=int,
                                default=design.DEFAULT_MAX_REGIONS,
                                help="Design on this many regions, the most promising first. 0 for every "
@@ -155,6 +190,16 @@ def main(argv: list[str] | None = None) -> int:
                 exclusion=args.exclusion,
                 product_size=args.product_size,
                 assays_per_region=args.assays_per_region,
+                gc_clamp=args.gc_clamp,
+                conditions=design.Conditions(
+                    max_hairpin_tm=args.max_hairpin_tm,
+                    max_dimer_tm=args.max_dimer_tm,
+                    monovalent_mm=args.monovalent,
+                    divalent_mm=args.divalent,
+                    dntp_mm=args.dntp,
+                    primer_nm=args.primer_conc,
+                    probe_nm=args.probe_conc,
+                ),
                 max_regions=args.max_regions,
                 insilico_pcr=args.insilico_pcr,
                 mismatches=args.mismatches,

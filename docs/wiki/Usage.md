@@ -143,12 +143,24 @@ primer-finder design results/ -o assays/ -t 16 --insilico-pcr /path/to/insilicoP
 | `-t`, `--threads` | every CPU | For Primer3's blast checks and for insilicoPCR. |
 | `--product-size` | `70-150` | Amplicon size range for Primer3. |
 | `--assays-per-region` | 3 | How many assays Primer3 proposes per request. |
+| `--gc-clamp` | 1 | G or C bases required at a primer's 3' end. 0 for none. Never applied to a primer whose 3' end is pinned on a differing base. |
+| `--max-hairpin-tm` | 47 °C | Reject an oligo whose hairpin melts at or above this. |
+| `--max-dimer-tm` | 47 °C | Reject an oligo that pairs with itself, or with its partner, at or above this. |
+| `--monovalent` | 50 mM | Monovalent cations in the reaction, for the melting temperatures. |
+| `--divalent` | 3 mM | Magnesium in the reaction. |
+| `--dntp` | 0.8 mM | Total dNTPs (0.2 mM of each). |
+| `--primer-conc` | 250 nM | Primer concentration. |
+| `--probe-conc` | 200 nM | Probe concentration. |
 | `--max-regions` | 50 | Design on this many regions, most promising first. 0 for all of them. |
 | `--insilico-pcr` | off | Run in silico PCR of the assays against both groups. Takes the folder of an extracted portable release, its jar, or a launcher script. |
 | `--mismatches` | 0 | Primer mismatches insilicoPCR should allow (`-m`). |
 
+The defaults of the last six are an ordinary TaqMan qPCR; set them to your own master mix if it differs,
+since they change both the melting temperatures Primer3 predicts and which oligos it returns.
+
 The answer is `assays/assays.tsv`, the most promising assays first. [Designing assays](Designing-assays)
-explains what the order means and how an assay is judged; [Outputs](Outputs) lists the columns.
+explains what an oligo has to satisfy, what the order means and how an assay is judged;
+[Outputs](Outputs) lists the columns.
 
 ## Converting an IDT order sheet
 

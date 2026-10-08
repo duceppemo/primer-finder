@@ -194,6 +194,26 @@ def test_the_design_command(stubs, genomes, tmp_path):
     assert info["parameters"]["product_size"] == "70-150"
 
 
+def test_the_reaction_conditions_reach_the_design_run(stubs, genomes, tmp_path):
+    """They change both the melting temperatures Primer3 predicts and which oligos it will return, so a
+    run records the reaction it was asked for."""
+    import json
+
+    inclusion, exclusion = genomes
+    results = tmp_path / "results"
+    results.mkdir()
+    (results / "final_kmers.fasta").write_text(">ctg1 [100, 101]\n" + "A" * 100 + "cg" + "A" * 100 + "\n")
+    (results / "run_info.json").write_text(json.dumps(
+        {"parameters": {"inclusion": str(inclusion), "exclusion": str(exclusion)}}))
+    out = tmp_path / "assays"
+    assert main(["design", str(results), "-o", str(out), "-t", "1", "--max-hairpin-tm", "40",
+                 "--max-dimer-tm", "35", "--monovalent", "60", "--divalent", "5", "--dntp", "1.2",
+                 "--primer-conc", "500", "--probe-conc", "100"]) == 0
+    conditions = json.loads((out / "design_info.json").read_text())["parameters"]["conditions"]
+    assert conditions == {"max_hairpin_tm": 40.0, "max_dimer_tm": 35.0, "monovalent_mm": 60.0,
+                          "divalent_mm": 5.0, "dntp_mm": 1.2, "primer_nm": 500.0, "probe_nm": 100.0}
+
+
 def test_the_design_command_reports_a_folder_that_is_not_a_run(stubs, tmp_path, caplog):
     assert main(["design", str(tmp_path / "nothing"), "-o", str(tmp_path / "out")]) == 1
     assert "finished primer-finder run" in caplog.text

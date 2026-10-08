@@ -13,6 +13,7 @@ from primer_finder.design import (
     STRONG_BASE_WEIGHT,
     WEAK_BASE_WEIGHT,
     Assay,
+    Conditions,
     DesignSettings,
     Oligo,
     amplicon_copies,
@@ -25,6 +26,7 @@ from primer_finder.design import (
     genome_folders,
     parse_records,
     rank,
+    requests_for,
     run,
     specific_by,
     variant_runs,
@@ -88,6 +90,74 @@ def test_build_request_asks_for_a_probe_and_ends_the_record():
     assert f"PRIMER_PRODUCT_SIZE_RANGE={DEFAULT_PRODUCT_SIZE}" in request
     assert "PRIMER_INTERNAL_MIN_TM=62.0" in request  # A probe has to be a usable probe
     assert request.endswith("=\n")
+
+
+def test_the_gc_clamp_is_asked_for_where_primer3_picks_the_3_prime_end():
+    """A G or C at the 3' end holds the primer where extension starts, so it is asked for -- except where
+    the 3' end is pinned on a differing base, which is whatever the genomes made it."""
+    region = Record("ctg1", "", "A" * 700 + "acg" + "A" * 700)
+    requests = dict(requests_for(region, DEFAULT_PRODUCT_SIZE, 1, force_ends=True))
+    for request in requests:
+        pins_a_primer = "SEQUENCE_FORCE_LEFT_END" in request or "SEQUENCE_FORCE_RIGHT_END" in request
+        clamp = next(line for line in request.splitlines() if line.startswith("PRIMER_GC_CLAMP="))
+        assert clamp == ("PRIMER_GC_CLAMP=0" if pins_a_primer else "PRIMER_GC_CLAMP=1"), request[:80]
+
+
+def test_the_gc_clamp_can_be_turned_off():
+    plain = build_request(Record("ctg1", "", "ACGT" * 50), DEFAULT_PRODUCT_SIZE, 1, gc_clamp=0)
+    assert "PRIMER_GC_CLAMP=0" in plain
+    assert "PRIMER_GC_CLAMP=2" in build_request(Record("c", "", "ACGT" * 50), DEFAULT_PRODUCT_SIZE, 1,
+                                                gc_clamp=2)
+
+
+def test_the_structures_primer3_must_not_leave_in_are_asked_for():
+    """An oligo that folds on itself, or pairs with itself or its partner, is spent before it ever reaches
+    the template. Primer3 rejects those itself, so the limits have to be in every request."""
+    request = build_request(Record("ctg1", "", "ACGT" * 50), DEFAULT_PRODUCT_SIZE, 1)
+    for tag in ("PRIMER_MAX_HAIRPIN_TH", "PRIMER_INTERNAL_MAX_HAIRPIN_TH"):
+        assert f"{tag}=47.0" in request
+    for tag in ("PRIMER_MAX_SELF_ANY_TH", "PRIMER_MAX_SELF_END_TH",
+                "PRIMER_PAIR_MAX_COMPL_ANY_TH", "PRIMER_PAIR_MAX_COMPL_END_TH",
+                "PRIMER_INTERNAL_MAX_SELF_ANY_TH", "PRIMER_INTERNAL_MAX_SELF_END_TH"):
+        assert f"{tag}=47.0" in request
+
+
+def test_the_reaction_the_temperatures_are_predicted_for_is_asked_for():
+    """A melting temperature is only meaningful for a given reaction, so the salt, the dNTPs and the
+    oligo concentrations go in the request -- the probe at its own concentration, not the primers'."""
+    request = build_request(Record("ctg1", "", "ACGT" * 50), DEFAULT_PRODUCT_SIZE, 1)
+    assert "PRIMER_SALT_MONOVALENT=50.0" in request
+    assert "PRIMER_SALT_DIVALENT=3.0" in request
+    assert "PRIMER_DNTP_CONC=0.8" in request
+    assert "PRIMER_DNA_CONC=250.0" in request
+    assert "PRIMER_INTERNAL_SALT_MONOVALENT=50.0" in request
+    assert "PRIMER_INTERNAL_DNA_CONC=200.0" in request
+
+
+def test_the_reaction_can_be_described_differently():
+    conditions = Conditions(max_hairpin_tm=40.0, max_dimer_tm=35.0, monovalent_mm=60.0, divalent_mm=5.0,
+                            dntp_mm=1.2, primer_nm=500.0, probe_nm=100.0)
+    request = build_request(Record("ctg1", "", "ACGT" * 50), DEFAULT_PRODUCT_SIZE, 1,
+                            conditions=conditions)
+    assert "PRIMER_MAX_HAIRPIN_TH=40.0" in request
+    assert "PRIMER_MAX_SELF_ANY_TH=35.0" in request
+    assert "PRIMER_SALT_MONOVALENT=60.0" in request
+    assert "PRIMER_SALT_DIVALENT=5.0" in request
+    assert "PRIMER_DNTP_CONC=1.2" in request
+    assert "PRIMER_DNA_CONC=500.0" in request
+    assert "PRIMER_INTERNAL_DNA_CONC=100.0" in request
+
+
+def test_the_reaction_reaches_the_forced_requests_too():
+    """The requests aimed at a run of differences are the ones most likely to return a marginal oligo, so
+    they are the ones that most need the same limits as the rest."""
+    region = Record("ctg1", "", "A" * 200 + "cgt" + "A" * 200)
+    conditions = Conditions(max_hairpin_tm=42.0, monovalent_mm=70.0)
+    requests = forced_requests(region, DEFAULT_PRODUCT_SIZE, 1, conditions=conditions)
+    assert requests
+    for request in requests:
+        assert "PRIMER_MAX_HAIRPIN_TH=42.0" in request
+        assert "PRIMER_SALT_MONOVALENT=70.0" in request
 
 
 def test_forced_requests_aim_at_the_runs_of_differences():
@@ -498,6 +568,62 @@ def iter_rows(path: Path):
 
     with path.open() as fh:
         yield from csv.DictReader(fh, delimiter="\t")
+
+
+def test_the_structures_of_each_oligo_are_reported(tmp_path):
+    """What Primer3 predicted is written out, so that a user who runs a reaction under other conditions
+    can see how much room an assay had."""
+    one = assay(probe=oligo(140, 22), pair_dimer_tm=8.7, pair_dimer_end_tm=4.1)
+    one.forward.hairpin_tm = 35.7
+    one.forward.self_dimer_tm = 13.6
+    one.probe.hairpin_tm = 33.3
+    path = tmp_path / "assays.tsv"
+    write_assays(path, [one])
+    row = next(iter_rows(path))
+    assert row["pair_dimer_tm"] == "8.7" and row["pair_dimer_end_tm"] == "4.1"
+    assert row["forward_hairpin_tm"] == "35.7" and row["forward_self_dimer_tm"] == "13.6"
+    assert row["probe_hairpin_tm"] == "33.3"
+    assert row["reverse_hairpin_tm"] == "0.0"
+
+
+def test_an_assay_without_a_probe_reports_no_probe_structures(tmp_path):
+    path = tmp_path / "assays.tsv"
+    write_assays(path, [assay()])
+    row = next(iter_rows(path))
+    assert row["probe_hairpin_tm"] == "" and row["probe_self_dimer_tm"] == ""
+
+
+def test_the_structures_primer3_returned_are_read_back():
+    fields = {
+        "PRIMER_PAIR_NUM_RETURNED": "1",
+        "PRIMER_LEFT_0_SEQUENCE": "A" * 20, "PRIMER_LEFT_0": "0,20",
+        "PRIMER_LEFT_0_TM": "60.0", "PRIMER_LEFT_0_GC_PERCENT": "50.0",
+        "PRIMER_LEFT_0_HAIRPIN_TH": "35.7", "PRIMER_LEFT_0_SELF_ANY_TH": "13.6",
+        "PRIMER_RIGHT_0_SEQUENCE": "T" * 20, "PRIMER_RIGHT_0": "119,20",
+        "PRIMER_RIGHT_0_TM": "60.0", "PRIMER_RIGHT_0_GC_PERCENT": "50.0",
+        "PRIMER_RIGHT_0_HAIRPIN_TH": "0.00", "PRIMER_RIGHT_0_SELF_ANY_TH": "0.00",
+        "PRIMER_PAIR_0_PRODUCT_SIZE": "120",
+        "PRIMER_PAIR_0_COMPL_ANY_TH": "8.70", "PRIMER_PAIR_0_COMPL_END_TH": "4.10",
+    }
+    one, = assays_of(Record("ctg1", "", "ACGT" * 50), fields)
+    assert one.forward.hairpin_tm == 35.7 and one.forward.self_dimer_tm == 13.6
+    assert one.reverse.hairpin_tm == 0.0
+    assert one.pair_dimer_tm == 8.7 and one.pair_dimer_end_tm == 4.1
+
+
+def test_an_old_primer3_that_reports_no_structures_is_not_an_error():
+    """Those fields are only there when Primer3 does the thermodynamic alignment; without them an assay
+    still has primers, and a zero means nothing was predicted rather than nothing was checked."""
+    fields = {
+        "PRIMER_PAIR_NUM_RETURNED": "1",
+        "PRIMER_LEFT_0_SEQUENCE": "A" * 20, "PRIMER_LEFT_0": "0,20",
+        "PRIMER_LEFT_0_TM": "60.0", "PRIMER_LEFT_0_GC_PERCENT": "50.0",
+        "PRIMER_RIGHT_0_SEQUENCE": "T" * 20, "PRIMER_RIGHT_0": "119,20",
+        "PRIMER_RIGHT_0_TM": "60.0", "PRIMER_RIGHT_0_GC_PERCENT": "50.0",
+        "PRIMER_PAIR_0_PRODUCT_SIZE": "120",
+    }
+    one, = assays_of(Record("ctg1", "", "ACGT" * 50), fields)
+    assert one.forward.hairpin_tm == 0.0 and one.pair_dimer_tm == 0.0
 
 
 def test_write_assays_without_a_verdict(tmp_path):

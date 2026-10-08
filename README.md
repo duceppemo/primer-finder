@@ -55,7 +55,12 @@ primer-finder design results/ -o assays/ --insilico-pcr /path/to/insilicoPCR-lin
 
 `--insilico-pcr` is optional and points at [insilicoPCR](https://github.com/duceppemo/insilicoPCR), a
 separate program: given it, the designed assays are amplified in silico against both groups and each one is
-marked with whether it amplifies every inclusion genome and no exclusion genome. See
+marked with whether it amplifies every inclusion genome and no exclusion genome.
+
+Every oligo proposed satisfies Primer3's length, melting temperature and GC limits, carries a G or a C at its
+3' end where Primer3 chooses that end, and folds or dimerises — with itself and with its partner — below
+47 °C, all predicted for an ordinary TaqMan reaction whose salt, dNTP and oligo concentrations are options.
+So a doomed assay is never proposed. See
 [Designing assays](https://github.com/duceppemo/primer-finder/wiki/Designing-assays).
 
 To install from the source code instead, see

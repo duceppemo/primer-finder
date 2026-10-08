@@ -133,11 +133,16 @@ the ones that would amplify both groups are kept at the end for the record.
 | `inclusion_copies_min`, `inclusion_copies_max` | copies of the amplicon per inclusion genome; above 1 only for a run made with `-d 2` or more |
 | `product_size`, `penalty`, `penalty_band` | the amplicon length and Primer3's pair penalty, with the band the ranking uses |
 | `forward`, `reverse`, `probe` | the sequences, with `_start`, `_tm`, `_gc` and `_variants` (differences covered) for each |
+| `forward_hairpin_tm`, `forward_self_dimer_tm` | and the same for `reverse` and `probe`: where Primer3 predicts the oligo folds on itself, and where it pairs with a copy of itself, in °C. `0.0` means no structure was predicted; both are below `--max-dimer-tm` / `--max-hairpin-tm` or the oligo was never proposed |
+| `pair_dimer_tm`, `pair_dimer_end_tm` | where the two primers pair with each other, over the whole oligo and at their 3' ends, in °C |
 | `primer_variant_weight` | the differences under the primers, weighted by the base each replaces: 1 for a G or C, 0.5 for an A or T, 0.75 when unknown |
 | `forward_strong_variants`, `forward_terminal_run`, `forward_near_3prime` | and the same for `reverse`: how many of its differences replace a G or a C, and where they sit relative to the 3' end |
 | `inclusion_total`, `exclusion_total` | how many genomes were tested, when in silico PCR was run |
 | `qpcr_inclusion_amplified`, `qpcr_inclusion_percent`, `qpcr_exclusion_amplified`, `qpcr_selective` | what insilicoPCR said in qPCR mode, with the probe |
 | `pcr_inclusion_amplified`, `pcr_inclusion_percent`, `pcr_exclusion_amplified`, `pcr_selective` | and in standard PCR mode, primers only |
+
+The structure temperatures are predicted for the reaction the run was given (`--monovalent`, `--divalent`,
+`--dntp`, `--primer-conc`, `--probe-conc`), which `design_info.json` records under `parameters.conditions`.
 
 `selective` is `yes` when the assay amplified every inclusion genome and no exclusion genome, `partial
 (88%)` when it reached the `-p/--min-inclusion` the regions were found with but not all of them, and `no`

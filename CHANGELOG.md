@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Added
+
+- The `design` command rejects the oligos that cannot work, rather than proposing them: a hairpin or a dimer
+  — with itself or with the other primer, over the whole oligo and at the 3' end where a polymerase could
+  extend it — that melts at or above 47 °C now disqualifies a candidate, for the probe as well as the
+  primers. The limits are Primer3's own thermodynamic model, so nothing extra has to be installed, and they
+  are adjustable with `--max-hairpin-tm` and `--max-dimer-tm`. What was predicted is reported in
+  `assays.tsv` as `pair_dimer_tm`, `pair_dimer_end_tm` and the per-oligo `*_hairpin_tm` and
+  `*_self_dimer_tm`.
+- The reaction those temperatures are predicted for is now stated instead of left at Primer3's bare
+  defaults: 50 mM monovalent cations, 3 mM Mg²⁺, 0.8 mM dNTPs, 250 nM primers and 200 nM probe, which is an
+  ordinary TaqMan qPCR. Each is an option (`--monovalent`, `--divalent`, `--dntp`, `--primer-conc`,
+  `--probe-conc`) and all of them are recorded in `design_info.json`. They change both the temperatures
+  reported and which oligos come back, so a run can be matched to the master mix it is for.
+- `--gc-clamp`: how many G or C bases a primer must carry at its 3' end, where extension starts. One by
+  default. It is never applied to a primer whose 3' end is pinned on a differing base, since that base is
+  whatever the genomes made it — with the clamp left on there, seven of eight forced-end requests on the
+  *Xylella* set returned nothing.
+
 ### Changed
 
 - A difference is weighed by the base it replaces as well as by where it is: a position where the exclusion

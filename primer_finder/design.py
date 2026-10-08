@@ -33,6 +33,26 @@ PROGRAM = "primer3_core"
 # What Primer3 is asked for, unless the command line says otherwise.
 DEFAULT_PRODUCT_SIZE = "70-150"
 DEFAULT_ASSAYS_PER_REGION = 3
+# G and C at the 3' end of a primer hold it where extension starts, which is why a "GC clamp" is usual
+# practice. Primer3 enforces it rather than preferring it (PRIMER_GC_CLAMP), so it is left off the requests
+# that pin a primer's 3' end on a differing base: that base is whatever the genomes made it, and requiring
+# a G or a C there would throw away every allele-specific primer whose target is an A or a T.
+DEFAULT_GC_CLAMP = 1
+
+# Primer3 models hairpins and dimers thermodynamically and refuses an oligo whose structure melts above
+# these temperatures, so the worst candidates never reach the ranking. These are its own defaults, set
+# here so that they are visible and can be tightened rather than left implicit.
+DEFAULT_MAX_HAIRPIN_TM = 47.0
+DEFAULT_MAX_DIMER_TM = 47.0
+
+# The reaction a melting temperature is predicted for. Primer3's own defaults assume no magnesium and no
+# dNTPs, which is not a PCR; these are ordinary qPCR conditions. They change which oligos come back, not
+# only the numbers reported, so they should be set to match the master mix actually used.
+DEFAULT_MONOVALENT_MM = 50.0   # KCl
+DEFAULT_DIVALENT_MM = 3.0      # MgCl2
+DEFAULT_DNTP_MM = 0.8          # 0.2 mM of each
+DEFAULT_PRIMER_NM = 250.0
+DEFAULT_PROBE_NM = 200.0
 # A hit covering at least this much of an amplicon, at this identity, counts as "the exclusion genome has it".
 MIN_AMPLICON_COVERAGE = 0.9
 MIN_AMPLICON_IDENTITY = 90.0
@@ -78,6 +98,19 @@ UNKNOWN_BASE_WEIGHT = 0.75
 
 
 @dataclass
+class Conditions:
+    """The reaction a melting temperature is predicted for, and what structures are tolerated in it."""
+
+    max_hairpin_tm: float = DEFAULT_MAX_HAIRPIN_TM
+    max_dimer_tm: float = DEFAULT_MAX_DIMER_TM
+    monovalent_mm: float = DEFAULT_MONOVALENT_MM
+    divalent_mm: float = DEFAULT_DIVALENT_MM
+    dntp_mm: float = DEFAULT_DNTP_MM
+    primer_nm: float = DEFAULT_PRIMER_NM
+    probe_nm: float = DEFAULT_PROBE_NM
+
+
+@dataclass
 class Oligo:
     """One designed oligo, placed on the region it was designed in.
 
@@ -94,6 +127,8 @@ class Oligo:
     gc: float
     variants: list[int] = field(default_factory=list)  # Positions in the region it covers that differ
     reverse: bool = False
+    hairpin_tm: float = 0.0     # Where it folds on itself, as a melting temperature
+    self_dimer_tm: float = 0.0  # Where it pairs with a copy of itself
     # What the exclusion genomes have at those positions, when it is known
     variant_bases: dict[int, str] = field(default_factory=dict)
 
@@ -162,6 +197,8 @@ class Assay:
     probe: Oligo | None
     product_size: int
     penalty: float
+    pair_dimer_tm: float = 0.0      # Where the two primers pair with each other
+    pair_dimer_end_tm: float = 0.0  # ... at their 3' ends, where it costs most
     exclusion_genomes_with_amplicon: int | None = None  # None until it has been checked
     inclusion_copies: list[int] | None = None  # Copies of the amplicon in each inclusion genome
     amplicon: str = ""
@@ -239,8 +276,10 @@ class Assay:
 
 
 def build_request(record: seqio.Record, product_size: str, how_many: int,
-                  extra: dict[str, object] | None = None) -> str:
+                  extra: dict[str, object] | None = None, gc_clamp: int = DEFAULT_GC_CLAMP,
+                  conditions: Conditions | None = None) -> str:
     """One Primer3 boulder-IO record for a candidate region, asking for a probe as well as primers."""
+    conditions = conditions or Conditions()
     settings: dict[str, object] = {
         "SEQUENCE_ID": record.name,
         "SEQUENCE_TEMPLATE": record.seq.upper(),
@@ -259,6 +298,25 @@ def build_request(record: seqio.Record, product_size: str, how_many: int,
         "PRIMER_MIN_GC": 30.0,
         "PRIMER_MAX_GC": 70.0,
         "PRIMER_MAX_NS_ACCEPTED": 0,
+        "PRIMER_GC_CLAMP": gc_clamp,
+        # An oligo that folds on itself, or pairs with itself or its partner, wastes the reaction
+        "PRIMER_MAX_HAIRPIN_TH": conditions.max_hairpin_tm,
+        "PRIMER_MAX_SELF_ANY_TH": conditions.max_dimer_tm,
+        "PRIMER_MAX_SELF_END_TH": conditions.max_dimer_tm,
+        "PRIMER_PAIR_MAX_COMPL_ANY_TH": conditions.max_dimer_tm,
+        "PRIMER_PAIR_MAX_COMPL_END_TH": conditions.max_dimer_tm,
+        "PRIMER_INTERNAL_MAX_HAIRPIN_TH": conditions.max_hairpin_tm,
+        "PRIMER_INTERNAL_MAX_SELF_ANY_TH": conditions.max_dimer_tm,
+        "PRIMER_INTERNAL_MAX_SELF_END_TH": conditions.max_dimer_tm,
+        # The reaction those temperatures are predicted for
+        "PRIMER_SALT_MONOVALENT": conditions.monovalent_mm,
+        "PRIMER_SALT_DIVALENT": conditions.divalent_mm,
+        "PRIMER_DNTP_CONC": conditions.dntp_mm,
+        "PRIMER_DNA_CONC": conditions.primer_nm,
+        "PRIMER_INTERNAL_SALT_MONOVALENT": conditions.monovalent_mm,
+        "PRIMER_INTERNAL_SALT_DIVALENT": conditions.divalent_mm,
+        "PRIMER_INTERNAL_DNTP_CONC": conditions.dntp_mm,
+        "PRIMER_INTERNAL_DNA_CONC": conditions.probe_nm,
         # What an acceptable probe is. Primer3 returns nothing outside these, so a probe pushed onto a run
         # of differences is still a usable probe or there is no assay from that request at all.
         "PRIMER_INTERNAL_MIN_SIZE": 18,
@@ -311,6 +369,8 @@ def _oligo(fields: dict[str, str], kind: str, number: int, name: str, variants: 
         gc=float(fields.get(f"PRIMER_{kind}_{number}_GC_PERCENT", "nan")),
         variants=covered,
         reverse=kind == "RIGHT",
+        hairpin_tm=float(fields.get(f"PRIMER_{kind}_{number}_HAIRPIN_TH") or 0),
+        self_dimer_tm=float(fields.get(f"PRIMER_{kind}_{number}_SELF_ANY_TH") or 0),
     )
 
 
@@ -332,6 +392,8 @@ def assays_of(record: seqio.Record, fields: dict[str, str]) -> list[Assay]:
             probe=probe,
             product_size=int(fields[f"PRIMER_PAIR_{number}_PRODUCT_SIZE"]),
             penalty=float(fields.get(f"PRIMER_PAIR_{number}_PENALTY", "nan")),
+            pair_dimer_tm=float(fields.get(f"PRIMER_PAIR_{number}_COMPL_ANY_TH") or 0),
+            pair_dimer_end_tm=float(fields.get(f"PRIMER_PAIR_{number}_COMPL_END_TH") or 0),
             amplicon=record.seq[forward.start:reverse.end].upper(),
         ))
     return assays
@@ -356,7 +418,9 @@ def variant_runs(seq: str) -> list[tuple[int, int]]:
     return sorted(runs, key=lambda run: (-run[1], run[0]))
 
 
-def forced_requests(record: seqio.Record, product_size: str, how_many: int) -> list[str]:
+def forced_requests(record: seqio.Record, product_size: str, how_many: int,
+                    gc_clamp: int = DEFAULT_GC_CLAMP,
+                    conditions: Conditions | None = None) -> list[str]:
     """Primer3 records aimed at a run of differences: up to three per run.
 
     `SEQUENCE_FORCE_LEFT_END` and `SEQUENCE_FORCE_RIGHT_END` name the position of a primer's 3'-most base.
@@ -382,14 +446,14 @@ def forced_requests(record: seqio.Record, product_size: str, how_many: int) -> l
                 "SEQUENCE_ID": f"{record.name}{FORCE_SEP}left{left_end}",
                 "SEQUENCE_FORCE_LEFT_END": left_end,
                 "SEQUENCE_INCLUDED_REGION": window(record, left_end, product_size),
-            }))
+            }, gc_clamp=0, conditions=conditions))
         # A right primer ending here needs room for an amplicon behind it and its own length ahead
         if start >= smallest_product - 1 and start + MIN_PRIMER_SIZE <= length:
             requests.append(build_request(record, product_size, how_many, {
                 "SEQUENCE_ID": f"{record.name}{FORCE_SEP}right{start}",
                 "SEQUENCE_FORCE_RIGHT_END": start,
                 "SEQUENCE_INCLUDED_REGION": window(record, start, product_size),
-            }))
+            }, gc_clamp=0, conditions=conditions))
         # And one with the probe pinned over the middle of the run, so that it covers as many differences
         # as it can: a probe that cannot bind the exclusion template is what a qPCR assay relies on. It
         # needs a primer and half a probe on either side of it.
@@ -402,7 +466,7 @@ def forced_requests(record: seqio.Record, product_size: str, how_many: int) -> l
                 "SEQUENCE_INCLUDED_REGION": window(record, middle, product_size),
                 "PRIMER_INTERNAL_MIN_3_PRIME_OVERLAP_OF_JUNCTION": 3,
                 "PRIMER_INTERNAL_MIN_5_PRIME_OVERLAP_OF_JUNCTION": 3,
-            }))
+            }, gc_clamp=gc_clamp, conditions=conditions))
     return requests
 
 
@@ -434,12 +498,14 @@ def minimum_product(product_size: str) -> int:
         return 70
 
 
-def requests_for(record: seqio.Record, product_size: str, how_many: int,
-                 force_ends: bool) -> list[tuple[str, float]]:
+def requests_for(record: seqio.Record, product_size: str, how_many: int, force_ends: bool,
+                 gc_clamp: int = DEFAULT_GC_CLAMP,
+                 conditions: Conditions | None = None) -> list[tuple[str, float]]:
     """Every Primer3 request for one region, with how long each may take."""
-    requests = [(build_request(record, product_size, how_many), PRIMER3_TIMEOUT)]
+    requests = [(build_request(record, product_size, how_many, gc_clamp=gc_clamp, conditions=conditions),
+                 PRIMER3_TIMEOUT)]
     if force_ends:
-        for request in forced_requests(record, product_size, how_many):
+        for request in forced_requests(record, product_size, how_many, gc_clamp, conditions):
             slow = "SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST" in request
             requests.append((request, PROBE_TIMEOUT if slow else PRIMER3_TIMEOUT))
     return requests
@@ -447,7 +513,8 @@ def requests_for(record: seqio.Record, product_size: str, how_many: int,
 
 def design(regions: Iterable[seqio.Record], work_dir: Path, product_size: str = DEFAULT_PRODUCT_SIZE,
            how_many: int = DEFAULT_ASSAYS_PER_REGION, force_ends: bool = True,
-           threads: int = 1) -> list[Assay]:
+           threads: int = 1, gc_clamp: int = DEFAULT_GC_CLAMP,
+           conditions: Conditions | None = None) -> list[Assay]:
     """Run Primer3 over every region and return the assays it proposes.
 
     Two kinds of request go in: a plain one, which lets Primer3 pick the best chemistry anywhere in the
@@ -463,7 +530,7 @@ def design(regions: Iterable[seqio.Record], work_dir: Path, product_size: str = 
     work: list[tuple[int, seqio.Record, str, float]] = []
     for index, record in enumerate(regions):
         for number, (request, timeout) in enumerate(
-                requests_for(record, product_size, how_many, force_ends)):
+                requests_for(record, product_size, how_many, force_ends, gc_clamp, conditions)):
             work.append((f"{index:04d}_{number:02d}", record, request, timeout))
 
     def one(name: str, record: seqio.Record, request: str, timeout: float) -> list[Assay] | None:
@@ -632,12 +699,15 @@ DEFAULT_MAX_REGIONS = 50
 COLUMNS = (
     "assay", "region", "specific_by", "exclusion_genomes_with_amplicon", "best_terminal_run",
     "inclusion_copies_min", "inclusion_copies_max", "product_size", "penalty", "penalty_band",
-    "primer_variant_weight",
+    "primer_variant_weight", "pair_dimer_tm", "pair_dimer_end_tm",
     "forward", "forward_start", "forward_tm", "forward_gc", "forward_variants",
+    "forward_hairpin_tm", "forward_self_dimer_tm",
     "forward_strong_variants", "forward_terminal_run", "forward_near_3prime",
     "reverse", "reverse_start", "reverse_tm", "reverse_gc", "reverse_variants",
+    "reverse_hairpin_tm", "reverse_self_dimer_tm",
     "reverse_strong_variants", "reverse_terminal_run", "reverse_near_3prime",
     "probe", "probe_start", "probe_tm", "probe_gc", "probe_variants",
+    "probe_hairpin_tm", "probe_self_dimer_tm",
 )
 VERDICT_COLUMNS = ("inclusion_total", "exclusion_total",
                    "qpcr_inclusion_amplified", "qpcr_inclusion_percent", "qpcr_exclusion_amplified",
@@ -657,6 +727,8 @@ class DesignSettings:
     exclusion: Path | None = None
     product_size: str = DEFAULT_PRODUCT_SIZE
     assays_per_region: int = DEFAULT_ASSAYS_PER_REGION
+    gc_clamp: int = DEFAULT_GC_CLAMP
+    conditions: Conditions = field(default_factory=Conditions)
     max_regions: int = DEFAULT_MAX_REGIONS  # 0 for every region
     insilico_pcr: Path | None = None
     mismatches: int = 0
@@ -681,6 +753,8 @@ def assay_row(assay: Assay, verdict: dict[str, object] | None = None) -> dict[st
         "product_size": assay.product_size, "penalty": f"{assay.penalty:.4f}",
         "penalty_band": assay.penalty_band,
         "primer_variant_weight": f"{assay.primer_variant_weight:g}",
+        "pair_dimer_tm": f"{assay.pair_dimer_tm:.1f}",
+        "pair_dimer_end_tm": f"{assay.pair_dimer_end_tm:.1f}",
     }
     for part, oligo in (("forward", assay.forward), ("reverse", assay.reverse), ("probe", assay.probe)):
         row[part] = oligo.sequence if oligo else ""
@@ -688,6 +762,8 @@ def assay_row(assay: Assay, verdict: dict[str, object] | None = None) -> dict[st
         row[f"{part}_tm"] = f"{oligo.tm:.1f}" if oligo else ""
         row[f"{part}_gc"] = f"{oligo.gc:.1f}" if oligo else ""
         row[f"{part}_variants"] = len(oligo.variants) if oligo else ""
+        row[f"{part}_hairpin_tm"] = f"{oligo.hairpin_tm:.1f}" if oligo else ""
+        row[f"{part}_self_dimer_tm"] = f"{oligo.self_dimer_tm:.1f}" if oligo else ""
         if part != "probe":  # Where the differences sit matters only for the primers
             row[f"{part}_strong_variants"] = oligo.strong_variants if oligo else ""
             row[f"{part}_terminal_run"] = oligo.terminal_run if oligo else ""
@@ -778,7 +854,8 @@ def run(settings: DesignSettings) -> int:
     log.info("Running Primer3 on %d region(s), up to %d assay(s) each...", len(regions),
              settings.assays_per_region)
     assays = design(regions, settings.output / "primer3", settings.product_size,
-                    settings.assays_per_region, threads=settings.threads)
+                    settings.assays_per_region, threads=settings.threads, gc_clamp=settings.gc_clamp,
+                    conditions=settings.conditions)
     log.info("Primer3 proposed %d assay(s) on %d region(s)", len(assays),
              len({assay.region for assay in assays}))
     if not assays:
@@ -854,6 +931,8 @@ def run(settings: DesignSettings) -> int:
             "product_size": settings.product_size,
             "assays_per_region": settings.assays_per_region,
             "max_regions": settings.max_regions,
+            "gc_clamp": settings.gc_clamp,
+            "conditions": vars(settings.conditions),
             "mismatches": settings.mismatches,
             "threads": settings.threads,
             "min_inclusion": threshold_of(settings),

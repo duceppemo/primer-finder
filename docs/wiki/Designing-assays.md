@@ -39,9 +39,81 @@ Three kinds of request go in for each region, and the results are pooled and de-
 | `SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST` | a probe straddling the middle of a run of differences | a probe that cannot bind the exclusion template |
 
 The forced requests often come back empty, which is not an error: no oligo of the required length and
-melting temperature may fit there. **A forced request cannot produce a bad oligo** — the melting
-temperature, length and GC limits are part of every request, and Primer3 returns nothing rather than
-something outside them. The runs are taken longest-first, up to four per region.
+melting temperature may fit there. **A forced request cannot produce a bad oligo** — the constraints below
+are part of every request, forced or not, and Primer3 returns nothing rather than something outside them.
+The runs are taken longest-first, up to four per region.
+
+## What an oligo has to satisfy
+
+These are **hard constraints**, not score terms: Primer3 returns nothing rather than an oligo outside them,
+so a doomed assay is never proposed and never reaches the ranking. The ranking below only ever orders assays
+that already satisfy all of this.
+
+| | Primer | Probe |
+|---|---|---|
+| Length | 18–25 nt, 20 optimal | 18–27 nt, 22 optimal |
+| Melting temperature | 58–63 °C, 60 optimal | 62–72 °C, 68 optimal |
+| GC | 30–70% | 30–80% |
+| Ambiguous bases | none | none |
+| G or C at the 3' end | `--gc-clamp`, 1 by default | — |
+| Hairpin | melts below `--max-hairpin-tm`, 47 °C by default | same |
+| Self-dimer, whole oligo and 3' end | below `--max-dimer-tm`, 47 °C by default | same |
+| Dimer with the other primer, whole oligo and 3' end | below `--max-dimer-tm` | — |
+
+### The 3' end: `--gc-clamp`
+
+A G or a C at the 3'-most base holds the primer down where extension starts, so one is asked for by default
+(`PRIMER_GC_CLAMP=1`); `--gc-clamp 2` asks for two, `--gc-clamp 0` for none.
+
+**The clamp is not applied to a primer whose 3' end is pinned on a differing base.** Those are the
+`SEQUENCE_FORCE_LEFT_END` / `SEQUENCE_FORCE_RIGHT_END` requests, where the 3' base is whatever the genomes
+made it — asking for a G or a C there is asking for a difference that may not exist. On an A/T-rich target
+the two requirements are almost never satisfiable at once: with the clamp left on, seven of eight forced-end
+requests on the *Xylella* set returned nothing. So the clamp applies to every request that lets Primer3
+choose the end, and is dropped for the ones that pin it.
+
+### Hairpins and dimers
+
+An oligo that folds back on itself, pairs with a copy of itself, or pairs with its partner is spent before it
+ever reaches the template — and a 3'-end dimer is worse than an internal one, because the polymerase can
+extend it. Primer3 models all of these thermodynamically (`PRIMER_MAX_HAIRPIN_TH`, `PRIMER_MAX_SELF_ANY_TH`
+and `_SELF_END_TH`, `PRIMER_PAIR_MAX_COMPL_ANY_TH` and `_COMPL_END_TH`, and the `PRIMER_INTERNAL_*`
+equivalents for the probe), and the design step sets every one of them, for the probe as well as the primers.
+Nothing extra has to be installed: this is Primer3's own thermodynamic alignment, so there is one melting
+temperature model for the oligo and for the structures it might form.
+
+The default limit of 47 °C is Primer3's own, which is roughly 10 °C below the annealing temperature these
+oligos are designed for: a structure that has melted by the time the reaction anneals does not compete with
+the template. Lower it to be stricter (`--max-hairpin-tm 40`), raise it on a target where nothing else will
+fit — at the cost of candidates that may fold.
+
+What Primer3 predicted is **also reported**, so a reaction run under other conditions can be judged:
+`pair_dimer_tm` and `pair_dimer_end_tm` per assay, and `forward_hairpin_tm`, `forward_self_dimer_tm` and the
+`reverse_` and `probe_` equivalents per oligo. A `0.0` means no structure was predicted, not that none was
+looked for.
+
+### The reaction those temperatures are predicted for
+
+A melting temperature is only meaningful for a given reaction: salt stabilises a duplex, magnesium more so
+per mole, dNTPs chelate magnesium away, and oligo concentration shifts the equilibrium. Primer3 is therefore
+told what reaction to predict for, and the defaults are an ordinary TaqMan qPCR:
+
+| Option | Default | Primer3 tag |
+|---|---|---|
+| `--monovalent` | 50 mM | `PRIMER_SALT_MONOVALENT` |
+| `--divalent` | 3 mM Mg²⁺ | `PRIMER_SALT_DIVALENT` |
+| `--dntp` | 0.8 mM total (0.2 mM each) | `PRIMER_DNTP_CONC` |
+| `--primer-conc` | 250 nM | `PRIMER_DNA_CONC` |
+| `--probe-conc` | 200 nM | `PRIMER_INTERNAL_DNA_CONC` |
+
+The probe gets its own concentration, since it is normally used below the primers. These are not cosmetic:
+they change both the temperatures reported and which oligos come back at all — on one test region the same
+probe was 57.9 °C under Primer3's bare defaults and 60.0 °C under these, which is the difference between
+failing and passing a 58 °C floor.
+
+**Set them to your own master mix** if it differs; the values used are recorded in `design_info.json` under
+`parameters.conditions`, so a table of assays can always be traced back to the reaction it was designed for.
+Changing them does not change the oligos' behaviour at the bench, only which ones this step proposes.
 
 ## The scoring scheme
 
@@ -194,5 +266,8 @@ that occur several times inside a single genome, which is why it is not the defa
 - **Only the first 50 regions are designed on by default** (`--max-regions`), because the regions are already
   ordered most-promising-first and in silico PCR of thousands of assays takes a while. `--max-regions 0`
   does all of them.
-- **Nothing here checks the assay against anything but these genomes**: no secondary structure beyond what
-  Primer3 scores, no cross-reaction with what is not in the two folders.
+- **The structure predictions are predictions.** Primer3's thermodynamic model is the same one behind its
+  melting temperatures; it is good enough to throw out the obvious failures, not a substitute for looking at
+  a candidate before ordering it.
+- **Nothing here checks the assay against anything but these genomes**: no cross-reaction with what is not in
+  the two folders, and no check against a transcriptome or a host.
