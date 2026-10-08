@@ -11,7 +11,7 @@ runs them on every push. See [Development](Development) and [Example](Example).
 genomes, finds the regions that published diagnostic assays were actually designed on. Records of each run
 live in `validation/results/<date>_v<version>/` and are never rewritten.
 
-## Three published *Xylella fastidiosa* subspecies assays
+## Four published *Xylella fastidiosa* subspecies assays
 
 The answer key is:
 
@@ -23,24 +23,25 @@ Their primers and probes were designed with SkIf, a kmer-based signature tool, o
 split into an ingroup and an outgroup — the same question primer-finder answers, asked with different code.
 The paper publishes the oligo sequences and the regions they sit in.
 
-The test takes 22 complete RefSeq genomes covering five subspecies and, for each of three subspecies, runs
+The test takes 25 complete RefSeq genomes covering five subspecies and, for each of four subspecies, runs
 primer-finder with that subspecies as the inclusion group and every other subspecies as the exclusion group,
 with default options. An assay counts as recovered when both primers and the probe are found exactly, in one
 reported region, with the primers facing each other, the probe between them, and the amplicon the published
 length.
 
-### Result, primer-finder 1.0.0
+### Result, primer-finder 1.1.0
 
 | Assay | Inclusion group | Final regions | Recovered | Rank of its region |
 |---|---|---|---|---|
 | XFM | subsp. *multiplex* (8 genomes) | 711 | yes | 1 |
-| XFF | subsp. *fastidiosa* (6 genomes) | 370 | yes | 5 |
-| XFP | subsp. *pauca* (4 genomes) | 1,412 | yes | 105 |
+| XFF | subsp. *fastidiosa* (6 genomes) | 377 | yes | 5 |
+| XFP | subsp. *pauca* (4 genomes) | 1,413 | yes | 105 |
+| XFMO | subsp. *morus* (5 genomes) | 286 | yes | 5 |
 
 Every amplicon came out exactly the published length, and each recovered region aligned to the paper's
 reference genome at 100% identity. The full record, including how far each region overlaps the one the paper
 reports and what the comparison does and does not prove, is in
-[`validation/results/2026-10-08_v1.0.0/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/master/validation/results/2026-10-08_v1.0.0/SUMMARY.md).
+[`validation/results/2026-10-08_v1.1.0/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/master/validation/results/2026-10-08_v1.1.0/SUMMARY.md). Earlier records are kept beside it.
 
 What it does not show: that the other hundreds of regions in each run would make working assays, or anything
 about specificity outside those 22 genomes. Those regions are candidates to design on, which is what the
@@ -54,4 +55,4 @@ bash validation/xylella/run.sh /path/to/work 16 32
 
 It needs primer-finder and its programs, plus the NCBI datasets command line tool
 (`conda install -c conda-forge ncbi-datasets-cli`), downloads the genomes once, and exits non-zero if any of
-the three assays is not recovered. A few minutes, most of it downloading.
+the four assays is not recovered. A few minutes, most of it downloading.

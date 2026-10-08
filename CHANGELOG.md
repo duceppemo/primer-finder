@@ -12,7 +12,7 @@
   first of the two things the 2022 README listed as wanted.
 - The package is published to PyPI as well as bioconda (`pip install primer-finder` gives the command, not
   the programs it runs).
-- A validation suite (`validation/xylella/`) that recovers three published *Xylella fastidiosa* subspecies
+- A validation suite (`validation/xylella/`) that recovers four published *Xylella fastidiosa* subspecies
   qPCR assays from public genomes, with a dated record of the run.
 
 ### Changed

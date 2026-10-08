@@ -1,6 +1,6 @@
 # Genomes for the Xylella fastidiosa subsp. multiplex validation (see ../README.md).
-# Inclusion: subsp. multiplex, the group the XFM assay must amplify.
-# Exclusion: every other subspecies, which it must not amplify.
+# The `group` column describes the subsp. multiplex run; group_genomes.py builds the two folders of any
+# target out of the `subspecies` column, so every subspecies here serves as an inclusion group in turn.
 # Only complete RefSeq genomes, chosen by accession so that the set is reproducible; the strains the paper
 # used as references (M12 for the XFM coordinates, CFBP8416 as its test strain, M23, Temecula1, De Donno,
 # MUL0034) are included on purpose.
@@ -25,5 +25,8 @@ exclusion	GCF_029962045.1	AM2-Angelina	pauca
 exclusion	GCF_029962065.1	OLI17A	pauca
 exclusion	GCF_000698825.1	MUL0034	morus
 exclusion	GCF_021398655.1	Riv16	morus
+exclusion	GCF_021459805.1	Riv19	morus
+exclusion	GCF_021459825.1	Riv25	morus
+exclusion	GCF_021459865.1	Riv11	morus
 exclusion	GCF_000698805.1	Ann-1	sandyi
 exclusion	GCF_004016415.2	CFBP_8356	sandyi

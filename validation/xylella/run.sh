@@ -4,7 +4,7 @@
 #
 #   bash validation/xylella/run.sh <work_folder> [threads] [memory_GB]
 #
-# It downloads 22 complete RefSeq genomes (NCBI datasets), then for each of the three subspecies assays
+# It downloads 25 complete RefSeq genomes (NCBI datasets), then for each of the four subspecies assays
 # runs primer-finder with that subspecies as the inclusion group and the others as the exclusion group,
 # and checks that the published primers and probe fall inside one reported region.
 #
@@ -20,7 +20,7 @@ python_bin="${PYTHON:-$(command -v python || command -v python3 || true)}"
 "${python_bin}" "${here}/get_genomes.py" "${work}"
 
 status=0
-for target in multiplex fastidiosa pauca; do
+for target in multiplex fastidiosa pauca morus; do
     echo
     echo "=============== ${target}"
     "${python_bin}" "${here}/group_genomes.py" "${work}/genomes" "${work}/${target}" --target "${target}"
@@ -35,7 +35,7 @@ done
 
 echo
 if [ "${status}" -eq 0 ]; then
-    echo "All three published assays were recovered"
+    echo "All four published assays were recovered"
 else
     echo "At least one assay was not recovered" >&2
 fi

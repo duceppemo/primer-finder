@@ -1,5 +1,10 @@
 # 2026-10-08 — primer-finder 1.0.0, Xylella fastidiosa subspecies assays
 
+> Superseded by [`../2026-10-08_v1.1.0/SUMMARY.md`](../2026-10-08_v1.1.0/SUMMARY.md), which adds the subsp.
+> *morus* assay and three more *morus* genomes. Nothing below is wrong; it describes a 22-genome set, and
+> the accession list in the repository now holds 25, so the numbers here are no longer what a fresh run
+> produces.
+
 Ran `validation/xylella/run.sh` on primer-finder 1.0.0 (commit 371a455, tag v1.0.0). All three published
 assays were recovered.
 

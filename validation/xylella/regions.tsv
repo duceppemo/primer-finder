@@ -5,3 +5,4 @@ target	assay	reference	reference_accession	region_start	region_end	region_size
 multiplex	XFM	M12	GCF_000019325.1	1825046	1826705	1660
 fastidiosa	XFF	M23	GCF_000019765.1	2477123	2477638	516
 pauca	XFP	De Donno	GCF_002117875.1	337676	338551	876
+morus	XFMO	MUL0034	GCF_000698825.1	1908250	1908548	288

@@ -48,8 +48,8 @@ first. `results/run_info.json` records the parameters, the genomes and the versi
 To install from the source code instead, see
 [Installation](https://github.com/duceppemo/primer-finder/wiki/Installation).
 
-Given the genomes of five *Xylella fastidiosa* subspecies, it reports the regions that three independently
-published subspecies-specific qPCR assays were designed on, two of them in the top five candidates — see
+Given the genomes of five *Xylella fastidiosa* subspecies, it reports the regions that four independently
+published subspecies-specific qPCR assays were designed on, three of them in the top five candidates — see
 [Validation](https://github.com/duceppemo/primer-finder/wiki/Validation).
 
 primer-finder only keeps perfect matches: a kmer must be in **all** the inclusion genomes with no mismatch,
@@ -87,7 +87,7 @@ maintained in [`docs/wiki`](https://github.com/duceppemo/primer-finder/blob/mast
 | [Methods](https://github.com/duceppemo/primer-finder/wiki/Methods) | what each step does, the filtering rules, limits |
 | [Outputs](https://github.com/duceppemo/primer-finder/wiki/Outputs) | every file and field |
 | [Example](https://github.com/duceppemo/primer-finder/wiki/Example) | the simulated dataset and its expected result |
-| [Validation](https://github.com/duceppemo/primer-finder/wiki/Validation) | finding three published qPCR assays in public genomes |
+| [Validation](https://github.com/duceppemo/primer-finder/wiki/Validation) | finding four published qPCR assays in public genomes |
 | [FAQ](https://github.com/duceppemo/primer-finder/wiki/FAQ) | troubleshooting, "no contig passed" |
 | [Development](https://github.com/duceppemo/primer-finder/wiki/Development) | tests, continuous integration, releases |
 
