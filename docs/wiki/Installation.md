@@ -65,7 +65,7 @@ pipeline must find. It takes a few seconds.
 bash example/run_example.sh
 
 # Or, with primer-finder installed from conda
-curl -sL https://github.com/duceppemo/primer-finder/archive/refs/tags/v1.0.0.tar.gz | tar -xz --strip-components=1 primer-finder-1.0.0/example
+curl -sL https://github.com/duceppemo/primer-finder/archive/refs/tags/v1.1.0.tar.gz | tar -xz --strip-components=1 primer-finder-1.1.0/example
 bash example/run_example.sh
 ```
 

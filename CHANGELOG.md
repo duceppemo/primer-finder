@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0
 
 ### Added
 
@@ -10,6 +10,15 @@
   `inclusion=<holding>/<total>`, and the regions that cover the most inclusion genomes come first.
   The exclusion side is unchanged: a region must still be absent from every exclusion genome. This was the
   first of the two things the 2022 README listed as wanted.
+- The package is published to PyPI as well as bioconda (`pip install primer-finder` gives the command, not
+  the programs it runs).
+- A validation suite (`validation/xylella/`) that recovers three published *Xylella fastidiosa* subspecies
+  qPCR assays from public genomes, with a dated record of the run.
+
+### Changed
+
+- A file that is not a fasta is reported with the count and the first few names, instead of every path: a
+  `-i` pointing at the wrong folder could print thousands of them.
 
 ## 1.0.0
 
@@ -30,10 +39,6 @@ mapped to one exclusion genome (minimap2) and checked against every genome (blas
 - Gzipped genomes (`.fa.gz`, `.fasta.gz`, `.fna.gz`) work throughout: they are decompressed where blast
   needs plain fasta.
 - A bundled example with simulated genomes and a known answer (`example/run_example.sh`), run by the CI.
-- A validation suite (`validation/xylella/`) that recovers three published *Xylella fastidiosa*
-  subspecies qPCR assays from public genomes, with a dated record of the run.
-- The package is published to PyPI as well as bioconda (`pip install primer-finder` gives the command, not
-  the programs it runs).
 
 ### Changed
 
