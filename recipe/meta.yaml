@@ -10,7 +10,7 @@ package:
 
 source:
   url: https://github.com/duceppemo/primer-finder/archive/refs/tags/v{{ version }}.tar.gz
-  sha256: 98c4b07ffc010269a5c5691b1ab53b8be466baf94f6f57fcf9db8be934d25453
+  sha256: 6bf7bea28c2d0b1d844e35e55794a7fd6e47731669208dea351daeb403b55592
 
 build:
   number: 0
