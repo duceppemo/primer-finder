@@ -46,6 +46,11 @@ CACCAAAATCCTCCTGGCGAGAGGTTAGATCATCAGAGTCCGTGTACAGAAACGGCCATTGCGAACTACTGTcCCATGTG
 A contig that no exclusion genome matched at all keeps the description it had in `best_kmers.fasta` (see
 below) instead of a list of positions: all of it is specific.
 
+With `-p/--min-inclusion` below 1, the description also holds `inclusion=11/12`: how many of the inclusion
+genomes hold this region. The records are then ordered by that count first, so the regions that cover the
+most inclusion genomes come first. Without the option every region is in every inclusion genome and no tag
+is written.
+
 ## best_kmers.fasta
 
 The candidates after the mapping step, before blast, the ones with the most differing bases first. Their

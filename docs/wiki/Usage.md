@@ -53,6 +53,7 @@ while read -r genome; do ln -sf "$genome" exclusion/; done < exclusion.list
 | `-m`, `--memory` | 85% of the memory | Memory in GB, passed to KMC and the assembler. |
 | `-k`, `--kmer_size` | 99 | Kmer size for KMC, 1-256. Shorter kmers find shorter specific regions, and more of them; longer kmers are more specific. |
 | `-d`, `--duplication` | 1 | How many times a kmer may occur in each inclusion genome. 1 discards repeated regions, which make poor assays. |
+| `-p`, `--min-inclusion` | 1.0 | The fraction of the inclusion genomes a kmer has to be in, rounded up to a whole number of genomes. 1.0 means every one of them. |
 | `-r`, `--reference` | the first exclusion genome, alphabetically | Which exclusion genome the contigs are mapped to, to find their differences. It must be one of the genomes in the exclusion folder. |
 | `-a`, `--assembler` | `skesa` | `skesa` or `spades`, to assemble the inclusion-specific kmers. |
 | `--keep-intermediate` | off | Keep the KMC databases, the kmer dump, the SAM file and the blast databases. |
@@ -61,6 +62,30 @@ while read -r genome; do ln -sf "$genome" exclusion/; done < exclusion.list
 
 `-t` and `-m` are capped at what the machine (or the control group a job scheduler put the run in) actually
 offers, with a warning.
+
+### Accepting a region that some inclusion genomes lack
+
+By default a region has to be in **every** inclusion genome, which is what makes the assay amplify all of
+them — and which one incomplete assembly is enough to prevent. `-p/--min-inclusion` lowers that bar:
+
+```bash
+primer-finder -i inclusion/ -e exclusion/ -o results/ -p 0.9
+```
+
+With 12 inclusion genomes, `-p 0.9` asks for the regions that at least 11 of them share (0.9 × 12 = 10.8,
+rounded up); the run says which number it settled on. The exclusion side is untouched: a region must still
+be absent from every exclusion genome.
+
+What this buys and what it costs:
+
+- it recovers regions lost to a gap, a misassembly or genuine diversity in one or two genomes;
+- the assay designed on such a region **will not amplify the genomes that lack it**. Each record then says
+  how many hold it (`inclusion=11/12`), the widest come first, and `4_blast/inclusion_blast_hits.tsv` names
+  the genomes that are missing it.
+
+Use it to find out *why* a run came up empty before using it to design on: if a region appears at `-p 0.9`
+but not at 1.0, the table tells you which genome is responsible, and that genome may be the problem rather
+than the threshold.
 
 ## What to expect
 

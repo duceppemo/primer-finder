@@ -14,7 +14,10 @@ order:
 3. **Use shorter kmers** (`-k 51`, `-k 31`): a shorter kmer is less likely to be broken by a sequencing
    error or a small variant, and finds shorter specific regions.
 4. **Raise `-d`** (`-d 2`, `-d 3`): a kmer that occurs twice in some inclusion genome is kept.
-5. **Reduce the inclusion group** to the genomes you are most confident about, if a few of them are of
+5. **Lower `-p`** (`-p 0.9`): accept the regions that most, rather than all, of the inclusion genomes share.
+   The assay will not amplify the genomes that lack the region, and each record says how many hold it, so
+   this is also the quickest way to find out whether one bad assembly is behind an empty run.
+6. **Reduce the inclusion group** to the genomes you are most confident about, if a few of them are of
    poorer quality.
 
 ## "No contig differs enough from the exclusion genome"
@@ -29,7 +32,8 @@ or shorter kmers so that other regions come through.
 The candidates came from the kmers of only some of the inclusion genomes. `4_blast/inclusion_blast_hits.tsv`
 shows exactly which genome is missing which candidate; it is usually one or two genomes with incomplete
 assemblies. This can also happen when `-d` is higher than 1, since a kmer occurring several times in one
-genome then passes the counting step.
+genome then passes the counting step. `-p 0.9` keeps those candidates, marked with the number of genomes
+that hold them.
 
 ## "No contig passed every filter"
 

@@ -12,7 +12,9 @@ kmc_tools -t<threads> transform inclusion_specific dump kmers.txt
 ```
 
 KMC counts the kmers of all the files of a group together, so with `N` inclusion genomes a kmer that occurs
-at least `N` times (`-ci N`) is, in practice, a kmer every inclusion genome carries. With more than 255
+at least `N` times (`-ci N`) is, in practice, a kmer every inclusion genome carries. `-p/--min-inclusion`
+lowers that threshold to a fraction of `N`, rounded up, for the regions that most but not all of the
+inclusion genomes share. With more than 255
 inclusion genomes, `-cs` is added as well: KMC's counters stop at 255 by default, so without it `-ci 300`
 would match nothing at all. `-cx N × d` (`-d`,
 default 1) drops the kmers that occur more often than that, which are the repeated regions: they would give
@@ -82,7 +84,10 @@ blastn -db <genome> -query best_kmers.fasta -evalue 1e-10 -max_target_seqs 1 -ou
 
 Each inclusion genome is searched for each candidate; a hit with an e-value of 1e-10 or better counts as
 present. The presence of every candidate in every genome is written to `inclusion_blast_hits.tsv`, and a
-candidate missing from even one inclusion genome is dropped: an assay must amplify all of them. The genomes
+candidate missing from even one inclusion genome is dropped: an assay must amplify all of them. This is
+where the kmer counting of step 1 is checked properly, since "occurs at least `N` times" is not quite "is in
+`N` genomes". With `-p/--min-inclusion`, a candidate has to reach the same number of genomes as the kmers
+did; the ones that survive say how many hold them (`inclusion=11/12`) and the widest are listed first. The genomes
 are searched in parallel (`-t`), and the blast databases are built inside the output folder, never next to
 the input genomes.
 
@@ -125,7 +130,9 @@ primer-finder does not do them (yet).
 
 - **Perfect matches only.** A kmer must be in every inclusion genome without a single mismatch, and in no
   exclusion genome. One bad assembly in either group can remove every candidate. Draft assemblies with
-  missing regions are the usual reason a run finds nothing.
+  missing regions are the usual reason a run finds nothing. `-p/--min-inclusion` relaxes the inclusion side
+  of this, at the price of an assay that does not amplify every inclusion genome; nothing relaxes the
+  exclusion side, where a single matching genome makes an assay useless.
 - **Assembled genomes only.** Reads are not an input; assemble them first.
 - **One exclusion genome in step 3.** The candidate list depends on which genome that is (`-r`). The
   differences are then re-checked against the whole group, so this affects what gets looked at, not what

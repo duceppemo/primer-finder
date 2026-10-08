@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import shutil
 import time
 from dataclasses import dataclass, field
@@ -20,6 +21,8 @@ FINAL_NAME = "final_kmers.fasta"
 BEST_NAME = "best_kmers.fasta"
 ALL_INCLUSION_NAME = "all_inclusion_contigs.fasta"
 HITS_NAME = "inclusion_blast_hits.tsv"
+# What a record's description says, with -p/--min-inclusion, about how many inclusion genomes hold it.
+INCLUSION_TAG = "inclusion="
 
 KMER_FOLDER = "1_kmers"
 ASSEMBLY_FOLDER = "2_assembly"
@@ -27,6 +30,12 @@ CANDIDATE_FOLDER = "3_candidates"
 BLAST_FOLDER = "4_blast"
 
 BASE_PROGRAMS = ("kmc", "kmc_tools", "minimap2", "makeblastdb", "blastn")
+
+
+def required_genomes(settings: Settings, inclusion: list[Path]) -> int:
+    """How many of the inclusion genomes a kmer, and later a contig, has to be in: every one of them by
+    default, or the fraction -p/--min-inclusion asks for, rounded up."""
+    return max(1, math.ceil(settings.min_inclusion * len(inclusion)))
 
 
 @dataclass
@@ -40,6 +49,7 @@ class Settings:
     memory_gb: int
     kmer_size: int = 99
     duplication: int = 1
+    min_inclusion: float = 1.0  # The fraction of the inclusion genomes a kmer has to be in
     reference: Path | None = None
     assembler: str = "skesa"
     keep_intermediate: bool = False
@@ -64,6 +74,8 @@ def run(settings: Settings) -> int:
             "output": str(settings.output),
             "kmer_size": settings.kmer_size,
             "duplication": settings.duplication,
+            "min_inclusion": settings.min_inclusion,
+            "inclusion_genomes_required": required_genomes(settings, inclusion),
             "assembler": settings.assembler,
             "threads": settings.threads,
             "memory_gb": settings.memory_gb,
@@ -103,6 +115,10 @@ def check(settings: Settings) -> tuple[list[Path], list[Path], Path]:
         )
     if settings.duplication < 1:
         raise PrimerFinderError(f"-d/--duplication must be 1 or more, not {settings.duplication}")
+    if not 0 < settings.min_inclusion <= 1:
+        raise PrimerFinderError(
+            f"-p/--min-inclusion must be a fraction greater than 0 and at most 1, not {settings.min_inclusion}"
+        )
     if settings.assembler not in assemble.ASSEMBLERS:
         raise PrimerFinderError(
             f'Unknown assembler "{settings.assembler}". Choose one of: {", ".join(assemble.ASSEMBLERS)}'
@@ -175,11 +191,17 @@ def find_specific_kmers(settings: Settings, inclusion: list[Path], exclusion: li
     folder.mkdir(parents=True, exist_ok=True)
     work_dir.mkdir(parents=True, exist_ok=True)
 
-    log.info("Counting the %d-mers shared by the %d inclusion genomes...", settings.kmer_size, len(inclusion))
+    required = required_genomes(settings, inclusion)
+    if required < len(inclusion):
+        log.info("Counting the %d-mers shared by at least %d of the %d inclusion genomes (%.0f%%)...",
+                 settings.kmer_size, required, len(inclusion), 100 * settings.min_inclusion)
+    else:
+        log.info("Counting the %d-mers shared by the %d inclusion genomes...",
+                 settings.kmer_size, len(inclusion))
     inclusion_db = kmers.count(
         kmers.write_file_list(inclusion, folder / "inclusion_list.txt"),
         folder / "inclusion", work_dir, settings.kmer_size, settings.threads, settings.memory_gb,
-        min_count=len(inclusion), max_count=len(inclusion) * settings.duplication,
+        min_count=required, max_count=len(inclusion) * settings.duplication,
     )
     log.info("Counting the %d-mers of the %d exclusion genomes...", settings.kmer_size, len(exclusion))
     exclusion_db = kmers.count(
@@ -229,23 +251,45 @@ def find_candidates(settings: Settings, assembly: Path, reference: Path) -> tupl
 
 
 def keep_shared_by_inclusion(settings: Settings, best: Path, inclusion: list[Path]) -> tuple[Path, int]:
-    """Drop the candidates that are missing from any inclusion genome: the mapping step only compared them
-    with one exclusion genome, and the assembly may hold kmers from several genomes."""
+    """Drop the candidates that too few inclusion genomes hold: the mapping step only compared them with one
+    exclusion genome, and the assembly may hold kmers that come from some of the genomes only.
+
+    By default a candidate has to be in every inclusion genome. With -p/--min-inclusion below 1, it has to
+    be in that fraction of them, the ones that hold it come first, and each record says how many hold it.
+    """
     folder = settings.output / BLAST_FOLDER
     folder.mkdir(parents=True, exist_ok=True)
+    required = required_genomes(settings, inclusion)
     log.info("Checking the candidates against the %d inclusion genomes...", len(inclusion))
     presence = blast.presence_in_genomes(best, inclusion, folder / "inclusion_db", settings.threads)
     write_presence_table(folder / HITS_NAME, presence, genome_labels(inclusion, settings.inclusion))
 
+    partial = required < len(inclusion)
+    kept: list[tuple[int, seqio.Record]] = []
+    for record in seqio.iter_records(best):
+        found = sum(1 for present in presence[record.name].values() if present)
+        if found < required:
+            continue
+        if partial:  # The candidates are no longer equal: say what each one covers
+            record = seqio.Record(record.name, f"{record.desc} {INCLUSION_TAG}{found}/{len(inclusion)}".strip(),
+                                  record.seq)
+        kept.append((found, record))
+    if partial:  # Most inclusion genomes first, keeping the order of the mapping step within a count
+        kept.sort(key=lambda pair: -pair[0])
     all_inclusion = folder / ALL_INCLUSION_NAME
-    count = seqio.write_fasta(all_inclusion, (
-        record for record in seqio.iter_records(best) if all(presence[record.name].values())
-    ))
-    log.info("%d contig(s) are present in all inclusion genomes", count)
+    count = seqio.write_fasta(all_inclusion, (record for _, record in kept))
+
+    if partial:
+        log.info("%d contig(s) are present in at least %d of the %d inclusion genomes",
+                 count, required, len(inclusion))
+    else:
+        log.info("%d contig(s) are present in all inclusion genomes", count)
     if count == 0:
+        how_many = f"at least {required} of the inclusion genomes" if partial else "all the inclusion genomes"
         raise PrimerFinderError(
-            "No candidate contig is present in all the inclusion genomes. The presence of each one in each "
-            f"genome is in {folder / HITS_NAME}."
+            f"No candidate contig is present in {how_many}. The presence of each one in each genome is in "
+            f"{folder / HITS_NAME}."
+            + ("" if partial else " A lower -p/--min-inclusion would accept a contig that some of them lack.")
         )
     return all_inclusion, count
 
@@ -294,7 +338,9 @@ def keep_absent_from_exclusion(
             continue
         positions = blast.shared_variants(result)
         if len(positions) > 1 and blast.has_close_variants(positions):
-            records.append(seqio.Record(name, str(positions), lower_positions(record.seq, positions)))
+            tag = next((part for part in record.desc.split() if part.startswith(INCLUSION_TAG)), "")
+            desc = f"{positions} {tag}".strip()
+            records.append(seqio.Record(name, desc, lower_positions(record.seq, positions)))
     final = settings.output / FINAL_NAME
     count = seqio.write_fasta(final, records)
     return final, count

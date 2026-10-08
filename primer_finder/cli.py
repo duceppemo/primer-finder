@@ -20,6 +20,17 @@ DESCRIPTION = (
 )
 
 
+def _fraction(value: str) -> float:
+    """A fraction greater than 0 and at most 1, as -p/--min-inclusion takes."""
+    try:
+        number = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a number") from None
+    if not 0 < number <= 1:
+        raise argparse.ArgumentTypeError(f"{value} is not a fraction greater than 0 and at most 1")
+    return number
+
+
 def build_parser(max_cpu: int, max_mem: int) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="primer-finder", description=DESCRIPTION)
     parser.add_argument("-v", "--version", action="version", version=f"primer-finder {__version__}")
@@ -43,6 +54,10 @@ def build_parser(max_cpu: int, max_mem: int) -> argparse.ArgumentParser:
     find.add_argument("-d", "--duplication", metavar="1", type=int, default=1,
                       help="Maximum number of times a kmer can be found in each inclusion genome. Default 1, "
                            "meaning that repeated regions are discarded.")
+    find.add_argument("-p", "--min-inclusion", metavar="1.0", type=_fraction, default=1.0,
+                      help="Fraction of the inclusion genomes a kmer must be in, between 0 and 1. Default "
+                           "1.0, meaning every one of them. 0.9 keeps what 90%% of them share, rounded up, "
+                           "and the assay will not amplify the genomes that lack it.")
     find.add_argument("-r", "--reference", metavar="/exclusion_folder/genome.fasta", type=Path,
                       help="Exclusion genome to map the assembled kmers to. Default is the first genome of "
                            "the exclusion folder in alphabetical order.")
@@ -118,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
             memory_gb=memory,
             kmer_size=args.kmer_size,
             duplication=args.duplication,
+            min_inclusion=args.min_inclusion,
             reference=args.reference,
             assembler=args.assembler,
             keep_intermediate=args.keep_intermediate,

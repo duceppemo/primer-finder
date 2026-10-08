@@ -53,7 +53,8 @@ published subspecies-specific qPCR assays were designed on, two of them in the t
 [Validation](https://github.com/duceppemo/primer-finder/wiki/Validation).
 
 primer-finder only keeps perfect matches: a kmer must be in **all** the inclusion genomes with no mismatch,
-and in **none** of the exclusion genomes. It is therefore very sensitive to the quality of the assemblies and
+and in **none** of the exclusion genomes (`-p/--min-inclusion` relaxes the first half when some of the
+inclusion genomes are incomplete). It is therefore very sensitive to the quality of the assemblies and
 to how the genomes were assigned to the two groups. Curate the input genomes;
 [genome_comparator](https://github.com/duceppemo/genome_comparator) helps with that.
 

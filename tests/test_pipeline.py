@@ -9,7 +9,14 @@ from pathlib import Path
 import pytest
 
 from primer_finder import PrimerFinderError
-from primer_finder.pipeline import Settings, lower_positions, run, write_presence_table
+from primer_finder.pipeline import (
+    Settings,
+    lower_positions,
+    required_genomes,
+    run,
+    write_presence_table,
+)
+from primer_finder.seqio import iter_records
 
 
 def final_records(output: Path) -> dict[str, str]:
@@ -298,3 +305,95 @@ def test_input_folders_may_hold_a_space(stubs, genomes, tmp_path):
     assert run(Settings(inclusion=spaced, exclusion=exclusion, output=output,
                         threads=1, memory_gb=2)) == 0
     assert (output / "final_kmers.fasta").exists()
+
+
+@pytest.fixture
+def four_inclusion(stubs, genomes, tmp_path):
+    """Four inclusion genomes, and stubs where ctg1 is missing from one of them and ctg2 from two."""
+    _, exclusion = genomes
+    inclusion = tmp_path / "four"
+    inclusion.mkdir()
+    for number in range(1, 5):
+        (inclusion / f"g{number}.fasta").write_text(">chr\n" + "ACGT" * 50 + "\n")
+    stubs(contigs={"ctg1": "ACGT" * 25, "ctg2": "TTGG" * 25},
+          sam=[["ctg1", 0, "40=1X7=1X50="], ["ctg2", 0, "40=1X7=1X50="]],
+          presence={"g1": ["ctg1", "ctg2"], "g2": ["ctg1", "ctg2"], "g3": ["ctg1"], "g4": []})
+    return lambda **changes: Settings(inclusion=inclusion, exclusion=exclusion,
+                                      output=tmp_path / "out", threads=1, memory_gb=2, **changes)
+
+
+@pytest.mark.parametrize(
+    ("fraction", "genomes_given", "expected"),
+    [(1.0, 8, 8), (0.9, 8, 8), (0.75, 8, 6), (0.5, 3, 2), (0.01, 8, 1), (1.0, 1, 1)],
+)
+def test_required_genomes_rounds_up(tmp_path, fraction, genomes_given, expected):
+    settings = Settings(inclusion=tmp_path, exclusion=tmp_path, output=tmp_path, threads=1, memory_gb=2,
+                        min_inclusion=fraction)
+    assert required_genomes(settings, [tmp_path] * genomes_given) == expected
+
+
+def test_a_contig_some_inclusion_genomes_lack_is_kept_with_a_threshold(stubs, four_inclusion):
+    """ctg1 is in 3 of the 4 genomes, ctg2 in 2: -p 0.75 keeps ctg1 only."""
+    scenario = four_inclusion(min_inclusion=0.75)
+    assert run(scenario) == 0
+    records = {r.name: r for r in iter_records(scenario.output / "final_kmers.fasta")}
+    assert set(records) == {"ctg1"}
+    assert "inclusion=3/4" in records["ctg1"].desc
+    assert "[5, 12]" in records["ctg1"].desc  # The variant positions are still there
+
+
+def test_the_default_needs_every_inclusion_genome(stubs, four_inclusion):
+    with pytest.raises(PrimerFinderError, match="present in all the inclusion genomes"):
+        run(four_inclusion())
+
+
+def test_a_lower_threshold_keeps_more_and_puts_the_widest_first(stubs, four_inclusion):
+    """ctg_a is in 2 of the 4 genomes and ctg_b in 3. The mapping step sorts equal cigars by name, so
+    ctg_a comes first until the presence counts reorder them.
+    """
+    stubs(contigs={"ctg_a": "ACGT" * 25, "ctg_b": "TTGG" * 25},
+          sam=[["ctg_a", 0, "40=1X7=1X50="], ["ctg_b", 0, "40=1X7=1X50="]],
+          presence={"g1": ["ctg_a", "ctg_b"], "g2": ["ctg_a", "ctg_b"], "g3": ["ctg_b"], "g4": []})
+    scenario = four_inclusion(min_inclusion=0.5)
+    assert run(scenario) == 0
+    candidates = [r.name for r in iter_records(scenario.output / "3_candidates" / "best_kmers.fasta")]
+    assert candidates == ["ctg_a", "ctg_b"]  # Before this step, the narrower one is first
+    records = list(iter_records(scenario.output / "final_kmers.fasta"))
+    assert [r.name for r in records] == ["ctg_b", "ctg_a"]  # Most inclusion genomes first
+    assert "inclusion=3/4" in records[0].desc
+    assert "inclusion=2/4" in records[1].desc
+
+
+def test_the_threshold_sets_kmc_minimum_count(stubs, four_inclusion):
+    calls = stubs(contigs={"ctg1": "ACGT" * 25}, sam=[["ctg1", 0, "40=1X7=1X50="]],
+                  presence={f"g{n}": ["ctg1"] for n in range(1, 5)})
+    scenario = four_inclusion(min_inclusion=0.75)
+    run(scenario)
+    assert "-ci3 -cx4" in calls.read_text()  # Three of four genomes, and -d 1 still caps at four
+
+
+def test_run_info_records_the_threshold(stubs, four_inclusion):
+    scenario = four_inclusion(min_inclusion=0.75)
+    run(scenario)
+    parameters = json.loads((scenario.output / "run_info.json").read_text())["parameters"]
+    assert parameters["min_inclusion"] == 0.75
+    assert parameters["inclusion_genomes_required"] == 3
+
+
+def test_rounding_up_can_still_mean_every_genome(stubs, four_inclusion):
+    """0.9 of 4 genomes rounds up to 4, so the run asks for all of them and says so."""
+    with pytest.raises(PrimerFinderError, match="present in all the inclusion genomes"):
+        run(four_inclusion(min_inclusion=0.9))
+
+
+def test_the_error_names_the_threshold_that_was_asked_for(stubs, four_inclusion):
+    stubs(contigs={"ctg1": "ACGT" * 25}, sam=[["ctg1", 0, "40=1X7=1X50="]],
+          presence={"g1": ["ctg1"], "g2": [], "g3": [], "g4": []})
+    with pytest.raises(PrimerFinderError, match="at least 3 of the inclusion genomes"):
+        run(four_inclusion(min_inclusion=0.75))
+
+
+@pytest.mark.parametrize("fraction", [0, -0.5, 1.5])
+def test_a_threshold_outside_the_range_is_refused(stubs, settings, fraction):
+    with pytest.raises(PrimerFinderError, match="must be a fraction greater than 0 and at most 1"):
+        run(settings(min_inclusion=fraction))
