@@ -81,7 +81,7 @@ To check an installation, run the bundled example (simulated genomes with a know
 It is in the repository, not in the conda package:
 
 ```bash
-curl -sL https://github.com/duceppemo/primer-finder/archive/refs/tags/v1.2.0.tar.gz | tar -xz --strip-components=1 primer-finder-1.2.0/example
+curl -sL https://github.com/duceppemo/primer-finder/archive/refs/tags/v1.3.0.tar.gz | tar -xz --strip-components=1 primer-finder-1.3.0/example
 bash example/run_example.sh
 ```
 

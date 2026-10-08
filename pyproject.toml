@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "primer-finder"
 # Static on purpose: tests/test_cli.py keeps this in sync with primer_finder.__version__,
 # CITATION.cff, CHANGELOG.md and the conda recipe.
-version = "1.2.0"
+version = "1.3.0"
 description = "Find group-specific kmers to design selective qPCR assays."
 readme = "README.md"
 license = "MIT"

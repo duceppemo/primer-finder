@@ -11,7 +11,7 @@ same 465 assays scored at `-m` 0, 1, 2 and 3.
 **Still not evidence about PCR.** Nothing here was near a bench. What changed is that the model's own rule
 is now measured rather than assumed, which is also why one sentence of the 1.2.0 documentation was wrong.
 
-primer-finder 1.3.0 (commit after `bfc444f`), Primer3 2.6.1, blast 2.17.0+, insilicoPCR 0.6.1 with its
+primer-finder 1.3.0, Primer3 2.6.1, blast 2.17.0+, insilicoPCR 0.6.1 with its
 bundled blast 2.17.0+.
 
 ## 1. What `-m` governs: three zones along the primer
