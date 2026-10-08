@@ -9,6 +9,7 @@ import pytest
 
 from primer_finder import PrimerFinderError
 from primer_finder.design import (
+    DEFAULT_MISMATCHES,
     DEFAULT_PRODUCT_SIZE,
     STRONG_BASE_WEIGHT,
     WEAK_BASE_WEIGHT,
@@ -108,6 +109,14 @@ def test_the_gc_clamp_can_be_turned_off():
     assert "PRIMER_GC_CLAMP=0" in plain
     assert "PRIMER_GC_CLAMP=2" in build_request(Record("c", "", "ACGT" * 50), DEFAULT_PRODUCT_SIZE, 1,
                                                 gc_clamp=2)
+
+
+def test_in_silico_pcr_allows_one_mismatch_by_default():
+    """insilicoPCR does not count the last two bases of a primer at all, so this governs the mismatches
+    further in -- and one of those is often not enough to stop a reaction. Assuming it is would flatter
+    every assay that rests on a single difference."""
+    assert DEFAULT_MISMATCHES == 1
+    assert DesignSettings(results=Path("r"), output=Path("o"), threads=1).mismatches == 1
 
 
 def test_the_structures_primer3_must_not_leave_in_are_asked_for():

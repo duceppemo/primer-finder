@@ -23,6 +23,19 @@
 
 ### Changed
 
+- In silico PCR now lets each primer bind through **one** mismatch by default, instead of none
+  (`--mismatches`). What that tolerance governs was measured rather than assumed: insilicoPCR does not count
+  the last two bases of a primer at all — blast trims an unmatched base off its alignment — never amplifies
+  through a mismatch 3 or 4 bases from the 3' end whatever the tolerance, and only counts the mismatches 5
+  or more bases in, per primer. A single internal mismatch frequently does not stop a real reaction, so
+  assuming it does flattered every assay resting on one difference, and it hid 12 of the 30 absence-based
+  assays in the *Xylella* set that amplify something off-target in an exclusion genome. `--mismatches 2` is
+  a stricter second pass; 3 measured nothing 2 did not.
+- The claim that assays resting on a run of differences at a 3' end were never selective in silico is
+  **withdrawn as evidence**. It is still what happens, at every tolerance, but the cause is that the
+  alignment cannot see those bases — not anything about PCR. The sweep, the controlled test behind it and
+  the numbers that replace it are in `validation/results/2026-10-08_v1.3.0/`.
+
 - A difference is weighed by the base it replaces as well as by where it is: a position where the exclusion
   genomes have a G or a C counts for more than one where they have an A or a T, since G:C holds with three
   hydrogen bonds and A:T with two. The bases come from the exclusion genomes' own alignments of each

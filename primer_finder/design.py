@@ -42,6 +42,12 @@ DEFAULT_GC_CLAMP = 1
 # Primer3 models hairpins and dimers thermodynamically and refuses an oligo whose structure melts above
 # these temperatures, so the worst candidates never reach the ranking. These are its own defaults, set
 # here so that they are visible and can be tightened rather than left implicit.
+# How many mismatches insilicoPCR should let a primer bind through. It does not count the last two bases
+# of a primer -- blast trims a terminal mismatch off the alignment -- so this governs the mismatches five
+# or more bases from the 3' end; one of those is often not enough to stop a real reaction either, so
+# assuming it does would flatter an assay. See docs/wiki/Designing-assays.md.
+DEFAULT_MISMATCHES = 1
+
 DEFAULT_MAX_HAIRPIN_TM = 47.0
 DEFAULT_MAX_DIMER_TM = 47.0
 
@@ -731,7 +737,7 @@ class DesignSettings:
     conditions: Conditions = field(default_factory=Conditions)
     max_regions: int = DEFAULT_MAX_REGIONS  # 0 for every region
     insilico_pcr: Path | None = None
-    mismatches: int = 0
+    mismatches: int = DEFAULT_MISMATCHES
     command_line: list[str] = field(default_factory=list)
 
 

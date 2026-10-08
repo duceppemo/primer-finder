@@ -166,23 +166,38 @@ ranking puts low — or ruin one it puts high.
 ### What the in silico PCR numbers do and do not say
 
 Running the designed assays through in silico PCR gives numbers that look like evidence for the order above.
-They are weaker than they look, and are reported here only so that nobody mistakes them for more:
+They are weaker than they look, and are reported here only so that nobody mistakes them for more. On 287
+difference-based assays from *Xylella fastidiosa* subsp. *multiplex* regions, against 17 exclusion genomes,
+the share that amplified only the inclusion group rises with the number of differences under the primers:
 
-On 199 difference-based assays from *Xylella fastidiosa* subsp. *multiplex* regions, against 17 exclusion
-genomes in PCR mode, the share that amplified only the inclusion group rose with the number of differences
-under the primers (1: 20%, 2: 72%, 3: 91%, 4 or more: 100%), and assays with a run of two differences at a
-3' end **and nothing else** were selective in none of the eight cases seen.
+| differences under the primers | 0 (probe only) | 1 | 2 | 3 | 4 or more |
+|---|---|---|---|---|---|
+| qPCR mode, selective | 43% | 36% | 60% | 64% | 94% |
+| PCR mode, selective | 0% | 7% | 39% | 40% | 91% |
 
-Two reasons not to read that as a result about PCR:
+Three reasons not to read that as a result about PCR:
 
 1. **It is close to circular.** in silico PCR decides whether a primer binds by counting mismatches against
-   its own tolerance (`--mismatches`, 0 by default). More mismatches therefore means fewer reported hits
-   almost by construction. The numbers describe the model's rule as much as the biology.
-2. **It is one organism, one dataset, one set of parameters.** 25 genomes, 20 regions, one in silico tool.
+   its own tolerance (`--mismatches`). More differences therefore means fewer reported hits almost by
+   construction. The numbers describe the model's rule as much as the biology.
+2. **The model cannot see a difference at the very 3' end** — the position the ranking cares most about.
+   See the three zones [below](#what---mismatches-actually-governs). Assays whose only differences are one
+   or two bases at a 3' end are reported selective in none of the 65 cases seen, at **any** tolerance,
+   because those bases are not counted. That is a property of the alignment, and it is the one number from
+   an earlier version of this page that has had to be withdrawn as evidence: it says nothing either way
+   about whether such an assay would discriminate at the bench.
+3. **It is one organism, one dataset, one set of parameters.** 25 genomes, 20 regions, one in silico tool.
 
 So: the ranking is a sensible order to work through, supported by what others have published about
 mismatches, and the in silico numbers are a consistency check on one dataset. They are not a measurement of
-how these assays behave in a tube.
+how these assays behave in a tube. The full sweep is in
+[`validation/results/2026-10-08_v1.3.0/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/master/validation/results/2026-10-08_v1.3.0/SUMMARY.md).
+
+One thing in that record is **not** circular, and is worth acting on: of the 178 assays that are specific by
+absence — no designed mismatch anywhere, their amplicon simply missing from the exclusion genomes — 30
+amplify *something else* in an exclusion genome at the default tolerance, and 50 do at `--mismatches 2`.
+Off-target amplification is a real specificity risk that has nothing to do with the ranking, and it is the
+main reason to run the check at all.
 
 ## Checking the assays with in silico PCR
 
@@ -206,6 +221,42 @@ file is run against both groups. That gives two answers per assay, and they are 
 - **`qpcr_selective`** says whether the whole assay reports positive, with the probe having to bind too.
 
 An assay is `selective` in a mode when it amplifies **every** inclusion genome and **no** exclusion genome.
+
+### What `--mismatches` actually governs
+
+insilicoPCR takes a mismatch tolerance, and primer-finder passes `--mismatches 1` by default. What that
+governs was measured rather than assumed — a primer pair in a synthetic template, the template mutated one
+base at a time at a known distance from the primer's 3' end, run at tolerances from 0 to 10
+([`mismatch_zones.py`](https://github.com/duceppemo/primer-finder/blob/master/validation/results/2026-10-08_v1.3.0/mismatch_zones.py)).
+A primer turns out to have three zones, and the tolerance only controls one:
+
+| Where the mismatch is | What insilicoPCR does |
+|---|---|
+| the last 2 bases | **free.** Not counted as a mismatch at any tolerance, including 0. blast trims an unmatched base off the end of its alignment, and insilicoPCR reports the trim as a negative `EndMismatch` offset and calls the primer bound. |
+| 3 or 4 bases from the 3' end | **never amplifies**, at any tolerance — 10 was tested. A trim that long is rejected, and keeping the mismatch scores worse for blast than trimming. |
+| 5 or more bases in | **what `--mismatches` decides**, counted per primer: at `--mismatches 1` each primer may carry one, so an assay may carry two. |
+
+This is a property of the alignment, not of PCR, and there is no setting that changes it. Two consequences:
+a difference at the very 3' end — what the forced-end requests aim for — cannot be rewarded by this check,
+and a difference 3 or 4 bases in is treated as fatal when it may not be.
+
+**Why 1 and not 0, 2 or 3.** `--mismatches 0` assumes any mismatch five or more bases from the 3' end stops
+a primer, which is the optimistic end of what is known: a single internal mismatch frequently does not stop
+amplification, which is why double-mismatch allele-specific designs exist
+([Lefever et al. 2019](https://doi.org/10.1038/s41598-019-38581-z)). It also hid 12 of the 30 off-target
+amplifications above. `--mismatches 2` assumes two mismatches *per primer* still bind, which is more than
+that literature supports — two deliberate mismatches are what an allele-specific design uses to
+discriminate — so it belongs in a second, stricter pass rather than in the default. `--mismatches 3`
+measured nothing that 2 did not: on the *Xylella* set the two give identical verdicts in PCR mode, one assay
+apart in qPCR mode.
+
+```bash
+primer-finder design results/ -o assays/ --insilico-pcr <dir>                   # the default, -m 1
+primer-finder design results/ -o assays/ --insilico-pcr <dir> --mismatches 2    # the stricter check
+```
+
+An assay that still passes at `--mismatches 2` rests on something the model cannot explain away. Raising the
+tolerance only ever finds more exclusion amplification, never less, so it can only take assays away.
 
 ### When the regions were found with `-p` below 1
 
@@ -262,7 +313,8 @@ that occur several times inside a single genome, which is why it is not the defa
   silico PCR is the check, and the wet lab is the answer.
 - **The numbers behind the ranking come from one dataset.** They are from the *Xylella* validation set, with
   one organism, 25 genomes and 20 regions. They are consistent with what is known about 3' mismatches, but
-  they are not a universal law.
+  they are not a universal law — and in silico PCR cannot see a difference in the last two bases of a
+  primer at all, so it can never confirm the step of the ranking that cares most about it.
 - **Only the first 50 regions are designed on by default** (`--max-regions`), because the regions are already
   ordered most-promising-first and in silico PCR of thousands of assays takes a while. `--max-regions 0`
   does all of them.

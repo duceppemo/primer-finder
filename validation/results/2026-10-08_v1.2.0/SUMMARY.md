@@ -1,5 +1,12 @@
 # 2026-10-08 — primer-finder 1.2.0, designing assays on the *Xylella* regions
 
+> **Note, 2026-10-08.** The in silico PCR numbers in this record were taken with insilicoPCR's mismatch
+> tolerance at 0, which was primer-finder's default at the time. 1.3.0 measured what that tolerance governs
+> and made 1 the default, so these counts are the optimistic end of the range. Nothing here is withdrawn —
+> the run happened as described — but read it beside
+> [`../2026-10-08_v1.3.0/SUMMARY.md`](../2026-10-08_v1.3.0/SUMMARY.md), which also explains why a difference
+> in the last two bases of a primer cannot be seen by this check at all.
+
 Two things were run on the genome set of
 [`../2026-10-08_v1.1.0/SUMMARY.md`](../2026-10-08_v1.1.0/SUMMARY.md): the four published assays were
 recovered again, unchanged, and the new `design` command was run on the subsp. *multiplex* regions.

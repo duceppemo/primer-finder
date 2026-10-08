@@ -3,7 +3,7 @@
 Two different things are checked, and they answer different questions.
 
 **The tests and the example** (`pytest`, `example/run_example.sh`) check that the code does what the
-documentation says: 182 tests with stand-ins for the external programs, and a simulated dataset whose
+documentation says: 317 tests with stand-ins for the external programs, and a simulated dataset whose
 specific region is known, down to which bases must come out in lower case. They run in seconds and the CI
 runs them on every push. See [Development](Development) and [Example](Example).
 
@@ -57,6 +57,24 @@ That record is a dry run of the machinery, not evidence about PCR: nothing in it
 laboratory, and in silico PCR partly restates its own matching rule. It is kept because it shows the command
 working end to end on real data, and because the difference between its two modes is informative — assays
 whose only differences sit under the probe are selective in qPCR mode and not in standard PCR mode.
+
+### How many mismatches the check should allow
+
+`validation/results/2026-10-08_v1.3.0/SUMMARY.md` asks what insilicoPCR's `-m` tolerance does, by measuring
+it: the same 465 assays scored at 0, 1, 2 and 3, plus a controlled test with a synthetic template mutated
+one base at a time.
+
+The measured result is that a primer has three zones. The last two bases are **free** — a mismatch there is
+not counted at any tolerance, because blast trims it off the alignment. Three and four bases in **never**
+amplify, at any tolerance. Five or more bases in is what `-m` governs, counted per primer. So the tolerance
+cannot reward a difference at the very 3' end, which is what the ranking cares most about, and one sentence
+of the 1.2.0 page — that assays resting on a terminal run were selective in none of the cases seen — turned
+out to be the alignment's behaviour rather than anything about PCR. It has been withdrawn as evidence.
+
+The default is now `--mismatches 1`: 0 assumes any internal mismatch stops a primer, which hid 12 of the 30
+absence-based assays that amplify something off-target in an exclusion genome; 2 assumes two mismatches per
+primer still bind, which is what a deliberate allele-specific design uses to discriminate, so it is offered
+as a stricter second pass; 3 measured nothing 2 did not.
 
 ### Running it
 

@@ -134,8 +134,13 @@ def build_parser(max_cpu: int, max_mem: int) -> argparse.ArgumentParser:
                                     "insilicoPCR, and report which assays amplify every inclusion genome "
                                     "and no exclusion genome. Give the folder of an extracted portable "
                                     "release, its jar, or a launcher script.")
-    design_parser.add_argument("--mismatches", metavar="0", type=int, default=0,
-                               help="Primer mismatches insilicoPCR should allow. Default 0.")
+    design_parser.add_argument("--mismatches", metavar=str(design.DEFAULT_MISMATCHES), type=int,
+                               default=design.DEFAULT_MISMATCHES,
+                               help="Mismatches insilicoPCR should let each primer bind through. Default "
+                                    f"{design.DEFAULT_MISMATCHES}, since one mismatch is often not enough "
+                                    "to stop a reaction; 0 assumes any mismatch does, and 2 is a stricter "
+                                    "check. It never applies to the last two bases of a primer, which "
+                                    "insilicoPCR does not count.")
     design_parser.add_argument("--debug", action="store_true", help="Verbose logging.")
 
     convert = commands.add_parser(
