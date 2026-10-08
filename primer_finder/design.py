@@ -45,6 +45,13 @@ DEFAULT_GC_CLAMP = 1
 # assuming it does would flatter an assay. See docs/wiki/Designing-assays.md.
 DEFAULT_MISMATCHES = 1
 
+# How many differences one oligo must cover, for an assay that rests on differences rather than on absence.
+# The `find` command keeps a region because its differences could sit in one oligo -- a run of them, or two
+# fewer than a primer's length apart -- so an assay inside it that spends only one of them is not what was
+# selected for. Two mismatches under one primer also discriminate far better than one
+# (Lefever et al. 2019, doi:10.1038/s41598-019-38581-z). Assays below it are listed but carried no further.
+DEFAULT_MIN_OLIGO_DIFFERENCES = 2
+
 # Primer3 models hairpins and dimers thermodynamically and refuses an oligo whose structure melts above
 # these temperatures, so the worst candidates never reach the ranking. These are its own defaults, set
 # here so that they are visible and can be tightened rather than left implicit.
@@ -71,8 +78,9 @@ BOULDER_LINE = re.compile(r"^([A-Z0-9_]+)=(.*)$")
 # Primer3 is also asked for primers whose 3' end is forced onto a run of differences, which is what makes
 # an assay allele-specific. The request id carries the region and what was forced, separated by this.
 FORCE_SEP = "~force_"
-MAX_FORCED_RUNS = 4  # Per region, longest runs first
-MIN_PRIMER_SIZE = 18  # As the settings ask for: a forced end needs this much room behind it
+MAX_FORCED_RUNS = 4  # Per region, the targets holding the most differences first
+MIN_PRIMER_SIZE = 18   # As the settings ask for: a forced end needs this much room behind it
+MAX_PRIMER_SIZE = 25   # And the widest a primer may be, so the widest stretch one can cover
 MIN_PROBE_SIZE = 18
 # A forced request only cares about the neighbourhood of the run it aims at. Letting Primer3 consider the
 # whole of a several-kilobase region makes it slower by two orders of magnitude, since it weighs every
@@ -244,6 +252,17 @@ class Assay:
         return len(self.probe.variants) if self.probe else 0
 
     @property
+    def best_oligo_variants(self) -> int:
+        """The most differences any one of its oligos covers.
+
+        This is the number the `find` command's rule is about: it keeps a region whose differences could
+        sit in one oligo, and two mismatches under one primer discriminate far better than one mismatch
+        each under two. An assay can be designed inside such a region and still spend only one of them,
+        which `--min-oligo-differences` is there to set aside.
+        """
+        return max((len(oligo.variants) for oligo in self.oligos), default=0)
+
+    @property
     def primer_variant_weight(self) -> float:
         """The differences under the primers, weighted by which base each one replaces."""
         return self.forward.variant_weight + self.reverse.variant_weight
@@ -294,8 +313,8 @@ def build_request(record: seqio.Record, product_size: str, how_many: int,
         "PRIMER_PRODUCT_SIZE_RANGE": product_size,
         "PRIMER_NUM_RETURN": how_many,
         "PRIMER_OPT_SIZE": 20,
-        "PRIMER_MIN_SIZE": 18,
-        "PRIMER_MAX_SIZE": 25,
+        "PRIMER_MIN_SIZE": MIN_PRIMER_SIZE,
+        "PRIMER_MAX_SIZE": MAX_PRIMER_SIZE,
         "PRIMER_MIN_TM": 58.0,
         "PRIMER_OPT_TM": 60.0,
         "PRIMER_MAX_TM": 63.0,
@@ -422,27 +441,61 @@ def variant_runs(seq: str) -> list[tuple[int, int]]:
     return sorted(runs, key=lambda run: (-run[1], run[0]))
 
 
+def difference_targets(seq: str, span: int = MAX_PRIMER_SIZE) -> list[tuple[int, int, int]]:
+    """The stretches of at most `span` bases that hold the most differences, as `(start, length, count)`,
+    richest first and then leftmost, with no two of them overlapping.
+
+    This is what the `find` command's rule selects regions for: it keeps a region whose differences could
+    sit **in one oligo**, which means a run of them or two of them fewer than a primer's length apart
+    (`mapping.PRIMER_LENGTH`). A pair 7 bases apart is not a run, so aiming only at runs of consecutive
+    differences would ignore most of the evidence a region was kept for -- on the *Xylella* validation set,
+    19 of the 20 regions designed on hold such a pair and 8 hold nothing else.
+
+    `span` is the longest oligo Primer3 may return, so a target of that width is one an oligo can cover.
+    """
+    marked = [position for position, base in enumerate(seq) if base.islower()]
+    if not marked:
+        return []
+    windows: list[tuple[int, int, int]] = []
+    for index, first in enumerate(marked):
+        inside = [position for position in marked[index:] if position - first < span]
+        windows.append((first, inside[-1] - first + 1, len(inside)))
+    targets: list[tuple[int, int, int]] = []
+    taken: set[int] = set()
+    for start, width, count in sorted(windows, key=lambda w: (-w[2], w[1], w[0])):
+        if taken.isdisjoint(range(start, start + width)):
+            targets.append((start, width, count))
+            taken.update(range(start, start + width))
+    return targets
+
+
 def forced_requests(record: seqio.Record, product_size: str, how_many: int,
                     gc_clamp: int = DEFAULT_GC_CLAMP,
                     conditions: Conditions | None = None) -> list[str]:
-    """Primer3 records aimed at a run of differences: up to three per run.
+    """Primer3 records aimed at the differences, up to three per target.
+
+    A target is a stretch an oligo could cover that holds as many differences as possible -- see
+    `difference_targets`. The point of aiming at one is to spend the differences the region was kept for on
+    a single oligo: two mismatches under one primer discriminate far better than one, and a probe that
+    cannot bind the exclusion template is what a qPCR assay rests on.
 
     `SEQUENCE_FORCE_LEFT_END` and `SEQUENCE_FORCE_RIGHT_END` name the position of a primer's 3'-most base.
-    For the left primer that is the last base of the run; for the right primer, which reads the other way,
-    it is the first. `SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST` makes the probe straddle a position, which
-    is used to put it over the middle of the run.
+    For the left primer that is the last difference of the target, so the whole target falls behind the
+    3' end and under the primer; for the right primer, which reads the other way, it is the first.
+    `SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST` makes the probe straddle a position, which is used to put it
+    over the middle of the target.
 
     A request is only made when there is room for the rest of the assay on either side. Asking Primer3 for
     something that cannot exist -- a probe at base 15 of a region, with no room for a primer before it --
     does not return quickly: it searches the whole template first.
 
-    Any of them may still come back empty, which is not an error: the run may sit where no oligo of the
+    Any of them may still come back empty, which is not an error: the target may sit where no oligo of the
     required size and melting temperature can be placed.
     """
     requests = []
     length = len(record.seq)
     smallest_product = minimum_product(product_size)
-    for start, run in variant_runs(record.seq)[:MAX_FORCED_RUNS]:
+    for start, run, _ in difference_targets(record.seq)[:MAX_FORCED_RUNS]:
         left_end = start + run - 1
         # A left primer ending here needs its own length behind it and room for an amplicon ahead
         if left_end >= MIN_PRIMER_SIZE - 1 and left_end + smallest_product <= length:
@@ -458,10 +511,10 @@ def forced_requests(record: seqio.Record, product_size: str, how_many: int,
                 "SEQUENCE_FORCE_RIGHT_END": start,
                 "SEQUENCE_INCLUDED_REGION": window(record, start, product_size),
             }, gc_clamp=0, conditions=conditions))
-        # And one with the probe pinned over the middle of the run, so that it covers as many differences
-        # as it can: a probe that cannot bind the exclusion template is what a qPCR assay relies on. It
-        # needs room for a primer and a whole probe on either side, which is stricter than it has to be
-        # and so skips a few runs close to a region's ends.
+        # And one with the probe pinned over the middle of the target, so that it covers as many
+        # differences as it can: a probe that cannot bind the exclusion template is what a qPCR assay
+        # relies on. It needs room for a primer and a whole probe on either side, which is stricter than
+        # it has to be and so skips a few targets close to a region's ends.
         middle = start + run // 2
         margin = MIN_PRIMER_SIZE + MIN_PROBE_SIZE
         if margin <= middle <= length - margin:
@@ -706,7 +759,7 @@ DEFAULT_MAX_REGIONS = 50
 COLUMNS = (
     "assay", "region", "specific_by", "exclusion_genomes_with_amplicon", "best_terminal_run",
     "inclusion_copies_min", "inclusion_copies_max", "product_size", "penalty", "penalty_band",
-    "primer_variant_weight", "pair_dimer_tm", "pair_dimer_end_tm",
+    "best_oligo_variants", "primer_variant_weight", "pair_dimer_tm", "pair_dimer_end_tm",
     "forward", "forward_start", "forward_tm", "forward_gc", "forward_variants",
     "forward_hairpin_tm", "forward_self_dimer_tm",
     "forward_strong_variants", "forward_terminal_run", "forward_near_3prime",
@@ -736,6 +789,7 @@ class DesignSettings:
     assays_per_region: int = DEFAULT_ASSAYS_PER_REGION
     gc_clamp: int = DEFAULT_GC_CLAMP
     conditions: Conditions = field(default_factory=Conditions)
+    min_oligo_differences: int = DEFAULT_MIN_OLIGO_DIFFERENCES
     max_regions: int = DEFAULT_MAX_REGIONS  # 0 for every region
     insilico_pcr: Path | None = None
     mismatches: int = DEFAULT_MISMATCHES
@@ -759,6 +813,7 @@ def assay_row(assay: Assay, verdict: dict[str, object] | None = None) -> dict[st
         "inclusion_copies_max": max(assay.inclusion_copies) if assay.inclusion_copies else 0,
         "product_size": assay.product_size, "penalty": f"{assay.penalty:.4f}",
         "penalty_band": assay.penalty_band,
+        "best_oligo_variants": assay.best_oligo_variants,
         "primer_variant_weight": f"{assay.primer_variant_weight:g}",
         "pair_dimer_tm": f"{assay.pair_dimer_tm:.1f}",
         "pair_dimer_end_tm": f"{assay.pair_dimer_end_tm:.1f}",
@@ -891,14 +946,34 @@ def run(settings: DesignSettings) -> int:
         log.info("%d assay(s) amplify a target present more than once in every inclusion genome, which "
                  "usually improves the limit of detection", repeated)
     ranked = rank(assays)
-    usable = [assay for assay in ranked if assay.usable]
+    usable = telling = [assay for assay in ranked if assay.usable]
+    if settings.min_oligo_differences > 1:
+        # A region is kept by `find` because its differences could sit in one oligo. An assay designed in
+        # it can still spend only one of them, which is the weak case that rule was there to avoid.
+        kept = [assay for assay in usable
+                if assay.specific_by_absence
+                or assay.best_oligo_variants >= settings.min_oligo_differences]
+        thin = len(usable) - len(kept)
+        if thin:
+            log.info("%d assay(s) rest on fewer than %d difference(s) under a single oligo and are listed "
+                     "but not carried further (--min-oligo-differences)", thin,
+                     settings.min_oligo_differences)
+        usable = kept
+    carried = {id(assay) for assay in usable}
     by_absence = sum(1 for assay in usable if assay.specific_by_absence)
     log.info("%d assay(s) could tell the groups apart: %d because the exclusion genomes do not hold the "
              "amplicon, %d because an oligo sits on a difference", len(usable), by_absence,
              len(usable) - by_absence)
-    dropped = len(ranked) - len(usable)
+    dropped = sum(1 for assay in ranked if not assay.usable)
     if dropped:
         log.info("%d assay(s) would amplify both groups and are listed but not carried further", dropped)
+    if not usable and telling:
+        raise PrimerFinderError(
+            f"Every assay Primer3 proposed rests on fewer than {settings.min_oligo_differences} "
+            "difference(s) under a single oligo. --assays-per-region above the default gives Primer3 more "
+            "tries at the differences; --min-oligo-differences 1 accepts an assay that spends only one of "
+            "them, which is a weaker assay rather than no assay."
+        )
     if not usable:
         raise PrimerFinderError(
             "Every assay Primer3 proposed would amplify the exclusion genomes too. The regions may differ "
@@ -931,7 +1006,8 @@ def run(settings: DesignSettings) -> int:
         log.info("In silico PCR was not run. To check the assays against both groups: %s",
                  settings.output / insilico.SCRIPT_NAME)
 
-    write_assays(settings.output / ASSAYS_NAME, usable + [a for a in ranked if not a.usable], verdicts)
+    write_assays(settings.output / ASSAYS_NAME,
+                 usable + [a for a in ranked if id(a) not in carried], verdicts)
     (settings.output / DESIGN_INFO_NAME).write_text(json.dumps({
         "version": __version__,
         "command_line": settings.command_line,
@@ -945,6 +1021,7 @@ def run(settings: DesignSettings) -> int:
             "gc_clamp": settings.gc_clamp,
             "conditions": vars(settings.conditions),
             "mismatches": settings.mismatches,
+            "min_oligo_differences": settings.min_oligo_differences,
             "threads": settings.threads,
             "min_inclusion": threshold_of(settings),
         },
@@ -952,7 +1029,7 @@ def run(settings: DesignSettings) -> int:
         "counts": {
             "regions": len(regions),
             "assays": len(ranked),
-            "usable": len(ranked) - dropped,
+            "usable": len(usable),
             "specific_by_absence": by_absence,
             "selective": {
                 kind: {

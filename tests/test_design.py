@@ -9,6 +9,7 @@ import pytest
 
 from primer_finder import PrimerFinderError
 from primer_finder.design import (
+    DEFAULT_MIN_OLIGO_DIFFERENCES,
     DEFAULT_MISMATCHES,
     DEFAULT_PRODUCT_SIZE,
     STRONG_BASE_WEIGHT,
@@ -23,6 +24,7 @@ from primer_finder.design import (
     check_against_exclusion,
     count_inclusion_copies,
     design,
+    difference_targets,
     forced_requests,
     genome_folders,
     parse_records,
@@ -73,6 +75,55 @@ def test_runs_of_differences_at_the_three_prime_end(variants, reverse, run_lengt
     one = oligo(100, 20, variants=variants, reverse=reverse)
     assert one.terminal_run == run_length
     assert one.near_three_prime == near
+
+
+def test_the_targets_are_stretches_one_oligo_could_cover():
+    """`find` keeps a region because its differences could sit in one oligo -- a run of them, or two of
+    them fewer than a primer's length apart. A pair seven bases apart is not a run, so aiming only at runs
+    would ignore the evidence the region was kept for."""
+    # start, width, how many differences
+    assert difference_targets("A" * 60 + "cgt" + "A" * 60) == [(60, 3, 3)]          # a run of three
+    assert difference_targets("A" * 60 + "c" + "A" * 6 + "t" + "A" * 60) == [(60, 8, 2)]   # 7 apart
+    assert difference_targets("A" * 60 + "c" + "A" * 8 + "g" + "A" * 9 + "t" + "A" * 60) == [(60, 20, 3)]
+    assert difference_targets("ACGT") == []
+
+
+def test_a_difference_too_far_from_the_next_is_its_own_target():
+    """Past the width of the widest oligo there is no placement that covers both, so they are separate
+    targets and each is worth only itself."""
+    seq = "A" * 60 + "c" + "A" * 30 + "t" + "A" * 60
+    assert difference_targets(seq) == [(60, 1, 1), (91, 1, 1)]
+
+
+def test_the_richest_target_comes_first_and_they_do_not_overlap():
+    """Only the first few are aimed at, so the order decides which differences get a request; and two
+    targets over the same bases would spend those requests twice on the same thing."""
+    seq = "A" * 40 + "c" + "A" * 5 + "g" + "A" * 5 + "t" + "A" * 40 + "cg" + "A" * 40
+    targets = difference_targets(seq)
+    assert [count for _, _, count in targets] == sorted((c for _, _, c in targets), reverse=True)
+    assert targets[0][2] == 3
+    covered = [range(start, start + width) for start, width, _ in targets]
+    for first, second in zip(covered, covered[1:], strict=False):
+        assert not set(first) & set(second)
+
+
+def test_a_window_wider_than_one_oligo_is_not_a_target():
+    """The span is the widest primer Primer3 may return: a stretch wider than that is not one an oligo
+    could cover, however many differences are in it."""
+    seq = "A" * 60 + "c" + "A" * 23 + "t" + "A" * 60      # 24 apart: a 25-mer covers both
+    assert difference_targets(seq) == [(60, 25, 2)]
+    seq = "A" * 60 + "c" + "A" * 24 + "t" + "A" * 60      # 25 apart: nothing covers both
+    assert difference_targets(seq) == [(60, 1, 1), (85, 1, 1)]
+
+
+def test_a_forced_request_pins_the_end_past_a_whole_pair_not_just_one_base():
+    """The point is to spend both differences on one primer: a left primer whose 3' end is the *second* of
+    them has both behind it, under the primer."""
+    region = Record("ctg1", "", "A" * 200 + "c" + "A" * 6 + "t" + "A" * 200)
+    joined = "\n".join(forced_requests(region, DEFAULT_PRODUCT_SIZE, 1))
+    assert "SEQUENCE_FORCE_LEFT_END=207" in joined    # the second difference
+    assert "SEQUENCE_FORCE_RIGHT_END=200" in joined   # the first, for the primer that reads backwards
+    assert "SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST=204" in joined   # the middle of the pair
 
 
 def test_variant_runs():
@@ -629,6 +680,62 @@ def test_an_assay_that_amplifies_an_exclusion_genome_is_not_selective(stubs, fin
     assert bad["pcr_selective"] == "no" and bad["pcr_exclusion_amplified"] == "1"
     # and it is no longer at the top of the list
     assert rows[0]["assay"] != "ctg1_assay0"
+
+
+def one_difference_run(tmp_path, genomes, stubs) -> Path:
+    """A finished run whose region offers two differences too far apart for one oligo, so every assay in
+    it can only ever spend one of them. The stub's left primer covers bases 10-29."""
+    inclusion, exclusion = genomes
+    results = tmp_path / "results"
+    results.mkdir()
+    region = "A" * 15 + "c" + "A" * 80 + "t" + "A" * 100
+    (results / "final_kmers.fasta").write_text(f">ctg1 [15, 96]\n{region}\n")
+    (results / "run_info.json").write_text(json.dumps(
+        {"parameters": {"inclusion": str(inclusion), "exclusion": str(exclusion)}}))
+    stubs(amplicon_hits={path.name.split(".")[0]: 1 for path in exclusion.glob("*.fasta")})
+    return results
+
+
+def test_an_assay_resting_on_one_difference_is_set_aside(stubs, tmp_path, genomes):
+    """A region is kept because two differences could sit in one oligo. An assay inside it that spends
+    only one of them is the weak case that rule was there to avoid, so it is not carried further -- and
+    when that is every assay, the error says which option accepts them."""
+    results = one_difference_run(tmp_path, genomes, stubs)
+    with pytest.raises(PrimerFinderError, match="min-oligo-differences 1"):
+        run(design_settings(results, tmp_path / "strict"))
+
+
+def test_the_weaker_assay_can_be_asked_for(stubs, tmp_path, genomes):
+    results = one_difference_run(tmp_path, genomes, stubs)
+    output = tmp_path / "loose"
+    assert run(design_settings(results, output, min_oligo_differences=1)) == 0
+    rows = list(iter_rows(output / "assays.tsv"))
+    assert rows and all(row["best_oligo_variants"] == "1" for row in rows)
+    assert rows[0]["assay"] in (output / "assays_pcr.fasta").read_text()
+
+
+def test_the_default_asks_for_two_differences_under_one_oligo():
+    assert DEFAULT_MIN_OLIGO_DIFFERENCES == 2
+    assert DesignSettings(results=Path("r"), output=Path("o"), threads=1).min_oligo_differences == 2
+
+
+def test_an_assay_specific_by_absence_is_not_asked_for_differences(stubs, finished_run, tmp_path, genomes):
+    """It does not rest on a difference at all: there is nothing in the exclusion genomes to amplify, so
+    the number of differences under its oligos is beside the point."""
+    output = tmp_path / "assays"
+    assert run(design_settings(finished_run, output, min_oligo_differences=4)) == 0
+    rows = list(iter_rows(output / "assays.tsv"))
+    kept = [row for row in rows if row["assay"] in (output / "assays_pcr.fasta").read_text()]
+    assert kept and all(row["specific_by"] == "absence" for row in kept)
+
+
+def test_how_many_differences_the_best_oligo_covers_is_reported(tmp_path):
+    one = assay(forward=oligo(start=100, length=20, variants=[115, 119]),
+                probe=oligo(start=140, length=22, variants=[150]))
+    path = tmp_path / "assays.tsv"
+    write_assays(path, [one])
+    assert next(iter_rows(path))["best_oligo_variants"] == "2"   # the forward primer's two, not the three
+                                                                 # its oligos cover between them
 
 
 def test_the_structure_temperatures_survive_a_whole_run(stubs, finished_run, tmp_path, genomes):

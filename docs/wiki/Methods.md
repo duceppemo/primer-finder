@@ -66,6 +66,11 @@ A contig is kept when, judged on that cigar string:
 which is what makes an assay selective. A single mismatch somewhere in the contig is not enough, because a
 primer carrying one mismatch still amplifies the exclusion template often enough to be useless.
 
+`primer-finder design` is built to spend them that way: it aims its Primer3 requests at the stretch of at
+most one oligo's width holding the most differences, and by default sets aside an assay that covers fewer
+than two of them under any single oligo. See
+[Designing assays](Designing-assays#spending-the-differences-on-one-oligo).
+
 The kept contigs are written to `best_kmers.fasta`, the ones with the most differing bases first — which puts
 a contig the exclusion genome does not hold at all at the top — with those bases in lower case. Mismatched,
 inserted and clipped bases are marked; a deletion is in the cigar string only, since those bases are not in
@@ -122,7 +127,9 @@ sequence.
 ## Designing the assay
 
 `primer-finder design` does this part: Primer3 on the regions, a check of what would make each assay
-selective, and the primer files for in silico PCR. See [Designing assays](Designing-assays), which also
+selective, and the primer files for in silico PCR. It aims its requests at the differences a single oligo
+could cover — which is what step 3 selected the region for — and by default carries no further an assay
+that covers fewer than two of them under one oligo. See [Designing assays](Designing-assays), which also
 explains how the assays are ordered and why the total number of differences under the primers matters more
 than a single one at the 3' end.
 

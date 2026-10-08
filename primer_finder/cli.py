@@ -127,6 +127,15 @@ def build_parser(max_cpu: int, max_mem: int) -> argparse.ArgumentParser:
                                default=design.DEFAULT_PROBE_NM,
                                help="Probe concentration of the reaction, in nM. Default "
                                     f"{design.DEFAULT_PROBE_NM:g}.")
+    design_parser.add_argument("--min-oligo-differences",
+                               metavar=str(design.DEFAULT_MIN_OLIGO_DIFFERENCES), type=int,
+                               default=design.DEFAULT_MIN_OLIGO_DIFFERENCES,
+                               help="How many differences one oligo must cover, for an assay that rests on "
+                                    "differences rather than on absence. Default "
+                                    f"{design.DEFAULT_MIN_OLIGO_DIFFERENCES}, which is what the find step "
+                                    "selected the region for: differences close enough to sit in a single "
+                                    "oligo. Assays below it are listed but carried no further; 1 keeps "
+                                    "them.")
     design_parser.add_argument("--max-regions", metavar=str(design.DEFAULT_MAX_REGIONS), type=int,
                                default=design.DEFAULT_MAX_REGIONS,
                                help="Design on this many regions, the most promising first. 0 for every "
@@ -207,6 +216,7 @@ def main(argv: list[str] | None = None) -> int:
                     primer_nm=args.primer_conc,
                     probe_nm=args.probe_conc,
                 ),
+                min_oligo_differences=args.min_oligo_differences,
                 max_regions=args.max_regions,
                 insilico_pcr=args.insilico_pcr,
                 mismatches=args.mismatches,

@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **The `design` command now aims its Primer3 requests at the differences a single oligo could cover,
+  rather than at runs of consecutive ones.** This is what the `find` step selects a region for: it keeps a
+  region whose differences could sit in one oligo, which means a run of them *or* two of them fewer than 21
+  bases apart. A pair seven bases apart is not a run, so the old target missed it and pinned a primer's 3'
+  end on a single base instead — wasting the pair the region was kept for. On the *Xylella* validation set
+  that was the usual case: 19 of the 20 regions designed on hold such a pair and 8 hold nothing else.
+  Aiming at any 25-base window instead raised the share of difference-based assays whose best single oligo
+  covers two or more differences from 43% to 77%, everything else unchanged.
+
+### Added
+
+- `--min-oligo-differences`, **2 by default**: an assay that rests on differences rather than on absence
+  must cover that many under one oligo, or it is listed but carried no further — not written to the
+  insilicoPCR files and not ranked among the candidates. One mismatch, even at a 3' end, often does not
+  stop amplification, so an assay that spends only one of a region's close pair is the weak case the
+  `find` rule exists to avoid. Assays specific by absence are exempt. `--min-oligo-differences 1` keeps
+  them, and when the filter leaves nothing the error says so.
+- `best_oligo_variants` in `assays.tsv`: the most differences any one of an assay's oligos covers, which is
+  the number the filter and the `find` rule are both about.
+
 ## 1.3.0
 
 ### Added

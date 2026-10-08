@@ -35,14 +35,49 @@ Three kinds of request go in for each region, and the results are pooled and de-
 | Request | What it asks for | Why |
 |---|---|---|
 | plain | the best assay anywhere in the region | the region may be absent from the exclusion genomes, in which case any assay in it works |
-| `SEQUENCE_FORCE_LEFT_END` / `SEQUENCE_FORCE_RIGHT_END` | a primer whose 3' end sits on the last (or first) base of a run of differences | allele-specific PCR: a mismatch at the 3' end hinders extension |
-| `SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST` | a probe straddling the middle of a run of differences | a probe that cannot bind the exclusion template |
+| `SEQUENCE_FORCE_LEFT_END` / `SEQUENCE_FORCE_RIGHT_END` | a primer whose 3' end sits on the last (or first) difference of a target | allele-specific PCR: a mismatch at the 3' end hinders extension, and the rest of the target falls under the primer |
+| `SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST` | a probe straddling the middle of a target | a probe that cannot bind the exclusion template |
+
+A **target** is a stretch of at most 25 bases — the widest primer Primer3 may return — holding as many
+differences as possible. The four richest, non-overlapping ones are aimed at. See
+[below](#spending-the-differences-on-one-oligo) for why that is the unit rather than a run of consecutive
+differences.
 
 The forced requests often come back empty, which is not an error: no oligo of the required length and
 melting temperature may fit there. **A forced request cannot produce a bad oligo** — the constraints below
 are part of every request, forced or not, apart from the GC clamp (which cannot be, see below), and Primer3
 returns nothing rather than something outside them.
-The runs are taken longest-first, up to four per region.
+
+### Spending the differences on one oligo
+
+This is the point the whole pipeline turns on, so it is worth stating plainly. `primer-finder find` keeps a
+region when its differences from an exclusion genome **could sit in one oligo** — a run of them, or two of
+them fewer than 21 matching bases apart, 21 being about a primer's length
+([Methods](Methods#3-the-differences-worth-an-assay-minimap2)). A region is selected for that and nothing else; the whole
+reason it is a candidate is that an oligo can be placed to carry two or more mismatches at once.
+
+So the design step has to actually do it, and two things make sure of it:
+
+1. **The forced requests aim at a window, not at a run.** Two differences seven bases apart are not
+   consecutive, so a run-based target would see two runs of one and pin a primer's 3' end on a single base,
+   wasting the pair the region was kept for. On the *Xylella* validation set that is the usual case: 19 of
+   the 20 regions designed on hold such a pair, and 8 hold nothing else. Aiming at any 25-base window
+   instead raised the share of difference-based assays whose best single oligo covers two or more
+   differences **from 43% to 77%**, on the same regions with everything else unchanged.
+2. **`--min-oligo-differences`, 2 by default, sets aside the rest.** An assay that rests on differences and
+   spends only one of them is the weak case the `find` rule exists to avoid — a single mismatch, even at a
+   3' end, often does not stop amplification
+   ([Lefever et al. 2019](https://doi.org/10.1038/s41598-019-38581-z)). Those assays are still listed, with
+   `best_oligo_variants` saying how many the best oligo carries, but they are not written to the
+   insilicoPCR files and not carried further. `--min-oligo-differences 1` keeps them, which is a weaker
+   assay rather than no assay.
+
+An assay that is **specific by absence** is exempt: it does not rest on a difference at all, so how many
+sit under its oligos is beside the point.
+
+On the *Xylella* set the two together take the 509 assays Primer3 proposed to 436 carried forward (195 by
+absence, 241 by difference) and set 68 aside. The ranking is unchanged: it still prefers more differences in
+total, and does not take a view on whether two under one primer beat one under each.
 
 ## What an oligo has to satisfy
 
