@@ -56,7 +56,7 @@ Add a test with every fix, and check that it fails without the fix.
 | `ci.yml` | push to `master`, pull requests | `ruff check`, the test suite on Python 3.10-3.13 and on macOS, coverage to Codecov, and the example with the real programs in a micromamba environment built from `environment.yml` |
 | `wiki.yml` | push touching `docs/wiki/**` | copies `docs/wiki/` to the GitHub wiki |
 | `release.yml` | a `v*` tag | builds the wheel and the sdist, checks that the tag matches the version, and creates the GitHub release with the notes taken from `CHANGELOG.md` |
-| `publish.yml` | a published GitHub release, or by hand with a tag | builds the wheel and the sdist again and uploads them to PyPI through a trusted publisher (OpenID Connect, no API token). The `pypi` environment of this repository must match the environment of the publisher registered on PyPI |
+| `publish.yml` | a `v*` tag, or by hand with a tag | builds the wheel and the sdist again and uploads them to PyPI through a trusted publisher (OpenID Connect, no API token). It runs from the tag rather than from the release, because a release created by `release.yml` cannot trigger another workflow. The `pypi` environment of this repository must match the environment of the publisher registered on PyPI |
 
 The wiki is maintained in `docs/wiki/` in this repository and published by `wiki.yml`. Do not edit the pages
 on GitHub directly: the next push overwrites them.

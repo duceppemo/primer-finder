@@ -1,8 +1,10 @@
 name: Publish to PyPI
 
 on:
-  release:
-    types: [published]
+  # A tag, not the release: a release created by release.yml with GITHUB_TOKEN does not trigger other
+  # workflows, so `on: release` would never fire. Both workflows run from the same tag push instead.
+  push:
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
       tag:
