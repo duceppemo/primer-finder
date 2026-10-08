@@ -5,6 +5,7 @@
   <a href="https://codecov.io/gh/duceppemo/primer-finder"><img src="https://codecov.io/gh/duceppemo/primer-finder/graph/badge.svg" alt="Coverage"></a>
   <a href="https://github.com/duceppemo/primer-finder/releases/latest"><img src="https://img.shields.io/github/v/release/duceppemo/primer-finder?label=release&cacheSeconds=3600" alt="Latest release"></a>
   <a href="https://anaconda.org/bioconda/primer-finder"><img src="https://img.shields.io/conda/vn/bioconda/primer-finder?label=bioconda" alt="Bioconda"></a>
+  <a href="https://pypi.org/project/primer-finder/"><img src="https://img.shields.io/pypi/v/primer-finder?label=pypi" alt="PyPI"></a>
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+">
   <a href="https://github.com/duceppemo/primer-finder/blob/master/LICENSE"><img src="https://img.shields.io/github/license/duceppemo/primer-finder" alt="License: MIT"></a>
   <a href="https://github.com/duceppemo/primer-finder/wiki"><img src="https://img.shields.io/badge/docs-wiki-informational" alt="Documentation"></a>

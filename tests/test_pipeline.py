@@ -216,7 +216,7 @@ def test_missing_input_folder(stubs, tmp_path, genomes):
 def test_a_file_that_is_not_a_fasta_is_refused(stubs, settings, genomes):
     inclusion, _ = genomes
     (inclusion / "notes.fasta").write_text("this is not a fasta file\n")
-    with pytest.raises(PrimerFinderError, match="Not a fasta file"):
+    with pytest.raises(PrimerFinderError, match="1 file.* in the inclusion folder are not fasta"):
         run(settings())
 
 

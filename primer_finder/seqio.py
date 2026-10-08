@@ -13,6 +13,9 @@ from primer_finder import PrimerFinderError
 
 log = logging.getLogger(__name__)
 
+# How many offending file names to put in an error message or a warning.
+MOST_LISTED = 5
+
 # The file extensions accepted in the inclusion and exclusion folders.
 EXTENSIONS = (".fa", ".fasta", ".fna", ".fa.gz", ".fasta.gz", ".fna.gz")
 
@@ -77,7 +80,7 @@ def read_fasta(path: Path | str) -> dict[str, Record]:
         records[record.name] = record
     if duplicates:
         log.warning("%s holds %d record(s) whose name is not unique (%s); only the last of each is used",
-                    path, len(duplicates), ", ".join(sorted(set(duplicates))[:5]))
+                    path, len(duplicates), ", ".join(sorted(set(duplicates))[:MOST_LISTED]))
     return records
 
 
@@ -143,6 +146,11 @@ def require_genomes(folder: Path, group: str) -> list[Path]:
         )
     bad = [str(genome) for genome in genomes if not is_fasta(genome)]
     if bad:
-        raise PrimerFinderError("Not a fasta file (no header on the first line): " + ", ".join(bad))
+        listed = ", ".join(sorted(bad)[:MOST_LISTED])
+        extra = f", and {len(bad) - MOST_LISTED} more" if len(bad) > MOST_LISTED else ""
+        raise PrimerFinderError(
+            f"{len(bad)} file(s) in the {group} folder are not fasta (no header on the first line): "
+            f"{listed}{extra}"
+        )
     return genomes
 

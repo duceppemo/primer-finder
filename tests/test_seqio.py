@@ -77,7 +77,7 @@ def test_require_genomes_reports_what_is_wrong(tmp_path):
     with pytest.raises(PrimerFinderError, match="no file with an accepted extension"):
         require_genomes(tmp_path / "empty", "inclusion")
     (tmp_path / "empty" / "a.fasta").write_text("not a fasta\n")
-    with pytest.raises(PrimerFinderError, match="Not a fasta file"):
+    with pytest.raises(PrimerFinderError, match="1 file.* are not fasta"):
         require_genomes(tmp_path / "empty", "inclusion")
 
 
@@ -106,7 +106,7 @@ def test_gzip_data_in_a_file_that_is_not_named_gz_is_not_a_fasta(tmp_path):
     with gziplib.open(path, "wt") as fh:
         fh.write(">chr\nACGT\n")
     assert not is_fasta(path)
-    with pytest.raises(PrimerFinderError, match="Not a fasta file"):
+    with pytest.raises(PrimerFinderError, match="are not fasta"):
         require_genomes(tmp_path, "inclusion")
 
 
@@ -118,3 +118,16 @@ def test_duplicate_record_names_are_reported(tmp_path, caplog):
     assert records["ctg1"].seq == "TTTT"
     assert "name is not unique (ctg1)" in caplog.text
     assert count_records(path) == 3
+
+
+def test_a_folder_full_of_files_that_are_not_fasta_gives_a_short_error(tmp_path):
+    """Pointing -i at a large folder by mistake must not print a thousand paths."""
+    for number in range(40):
+        (tmp_path / f"g{number:02d}.fasta").write_text("not a fasta\n")
+    with pytest.raises(PrimerFinderError) as error:
+        require_genomes(tmp_path, "inclusion")
+    message = str(error.value)
+    assert "40 file(s)" in message
+    assert "and 35 more" in message
+    assert message.count("g0") <= 5
+    assert len(message) < 500
