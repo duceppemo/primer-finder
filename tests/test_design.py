@@ -10,6 +10,8 @@ import pytest
 from primer_finder import PrimerFinderError
 from primer_finder.design import (
     DEFAULT_PRODUCT_SIZE,
+    STRONG_BASE_WEIGHT,
+    WEAK_BASE_WEIGHT,
     Assay,
     DesignSettings,
     Oligo,
@@ -220,8 +222,49 @@ def test_amplicon_copies_counts_each_full_length_hit(stubs, tmp_path, fasta):
     genomes = [fasta("g1.fasta", {"chr": "ACGT" * 50}), fasta("g2.fasta", {"chr": "TTTT" * 50})]
     one = assay(amplicon="ACGT" * 10)
     one.region, one.number = "ctg1", 0
-    counts = amplicon_copies([one], genomes, tmp_path / "work", threads=2)
+    counts, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=2)
     assert counts[one.name] == [2, 0]
+
+
+def test_a_difference_over_a_g_or_c_weighs_more_than_one_over_an_a_or_t():
+    """Breaking a G:C pair costs three hydrogen bonds against two, so at equal numbers it counts for more.
+    This only ever breaks a tie; it is reasoning from the chemistry, not a measurement."""
+    strong = assay(region="gc", exclusion_genomes_with_amplicon=1,
+                   forward=oligo(variants=[118, 119], ))
+    strong.forward.variant_bases = {118: "G", 119: "C"}
+    weak = assay(region="at", exclusion_genomes_with_amplicon=1, forward=oligo(variants=[118, 119]))
+    weak.forward.variant_bases = {118: "A", 119: "T"}
+    assert strong.primer_variant_weight == 2.0
+    assert weak.primer_variant_weight == 1.0
+    assert [one.region for one in rank([weak, strong])] == ["gc", "at"]
+
+
+def test_the_number_of_differences_still_comes_first():
+    """The weight breaks ties; it does not outrank having more differences."""
+    three_weak = assay(region="three", exclusion_genomes_with_amplicon=1,
+                       forward=oligo(variants=[115, 117, 119]))
+    three_weak.forward.variant_bases = {115: "A", 117: "T", 119: "A"}
+    two_strong = assay(region="two", exclusion_genomes_with_amplicon=1, forward=oligo(variants=[118, 119]))
+    two_strong.forward.variant_bases = {118: "G", 119: "C"}
+    assert two_strong.primer_variant_weight > three_weak.primer_variant_weight
+    assert [one.region for one in rank([two_strong, three_weak])] == ["three", "two"]
+
+
+def test_a_difference_whose_base_is_unknown_weighs_in_between():
+    unknown = oligo(variants=[119])
+    assert unknown.variant_weight == 0.75
+
+
+def test_the_bases_come_from_the_exclusion_alignments(stubs, tmp_path, fasta):
+    """What an oligo has to mismatch is what the exclusion genomes have there, so it is read from their
+    own alignments of the amplicon."""
+    stubs(amplicon_hits={"g1": 1}, amplicon_mismatch={"3": "G", "7": "A"})
+    genomes = [fasta("g1.fasta", {"chr": "ACGT" * 50})]
+    one = assay(amplicon="ACGTACGTACGT", forward=oligo(start=0, length=12, variants=[3, 7]))
+    check_against_exclusion([one], genomes, tmp_path / "work", threads=1)
+    assert one.forward.variant_bases == {3: "G", 7: "A"}
+    assert one.forward.strong_variants == 1
+    assert one.primer_variant_weight == STRONG_BASE_WEIGHT + WEAK_BASE_WEIGHT
 
 
 def test_check_against_exclusion_and_inclusion_copies(stubs, tmp_path, fasta):

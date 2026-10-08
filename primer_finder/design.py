@@ -66,6 +66,15 @@ PENALTY_BANDS = (1.0, 2.0, 4.0)
 # How close to the 3' end a difference still counts as "near the end", where it hinders extension most.
 THREE_PRIME_WINDOW = 5
 
+# A mismatch is worth more where the base it replaces is a G or a C. Those pair with three hydrogen bonds
+# against two for A and T, so breaking one costs more, and which bases are involved is known to change what
+# a mismatch does (Sharma et al. 2022, doi:10.1016/j.jmoldx.2022.08.005). This is reasoning from the
+# chemistry, not a measurement: it only ever breaks a tie between assays with the same number of
+# differences. A position whose base is not known counts in between.
+STRONG_BASE_WEIGHT = 1.0   # the exclusion genome has a G or a C there
+WEAK_BASE_WEIGHT = 0.5     # it has an A or a T
+UNKNOWN_BASE_WEIGHT = 0.75
+
 
 @dataclass
 class Oligo:
@@ -84,6 +93,8 @@ class Oligo:
     gc: float
     variants: list[int] = field(default_factory=list)  # Positions in the region it covers that differ
     reverse: bool = False
+    # What the exclusion genomes have at those positions, when it is known
+    variant_bases: dict[int, str] = field(default_factory=dict)
 
     @property
     def end(self) -> int:
@@ -118,6 +129,25 @@ class Oligo:
         """Differences within THREE_PRIME_WINDOW bases of the 3' end, run or not."""
         return sum(1 for position in self.variants
                    if self.distance_from_three_prime(position) < THREE_PRIME_WINDOW)
+
+    @property
+    def strong_variants(self) -> int:
+        """Differences where the exclusion genome has a G or a C."""
+        return sum(1 for position in self.variants if self.variant_bases.get(position) in ("G", "C"))
+
+    @property
+    def variant_weight(self) -> float:
+        """The differences this oligo covers, weighted by the base each one replaces."""
+        total = 0.0
+        for position in self.variants:
+            base = self.variant_bases.get(position)
+            if base in ("G", "C"):
+                total += STRONG_BASE_WEIGHT
+            elif base in ("A", "T"):
+                total += WEAK_BASE_WEIGHT
+            else:
+                total += UNKNOWN_BASE_WEIGHT
+        return total
 
 
 @dataclass
@@ -166,6 +196,15 @@ class Assay:
     @property
     def probe_variants_covered(self) -> int:
         return len(self.probe.variants) if self.probe else 0
+
+    @property
+    def primer_variant_weight(self) -> float:
+        """The differences under the primers, weighted by which base each one replaces."""
+        return self.forward.variant_weight + self.reverse.variant_weight
+
+    @property
+    def primer_strong_variants(self) -> int:
+        return self.forward.strong_variants + self.reverse.strong_variants
 
     @property
     def penalty_band(self) -> int:
@@ -477,54 +516,77 @@ def design(regions: Iterable[seqio.Record], work_dir: Path, product_size: str = 
 
 
 def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: Path,
-                    threads: int) -> dict[str, list[int]]:
-    """How many copies of each amplicon each genome holds, as a list in the order of `genomes`.
+                    threads: int) -> tuple[dict[str, list[int]], dict[str, dict[int, str]]]:
+    """How many copies of each amplicon each genome holds, and what those genomes have where they differ.
 
     A copy is a blast hit covering nearly the whole amplicon at high identity, so a genome that holds the
     target twice gives two. In the exclusion group that answers "is there anything to amplify"; in the
     inclusion group it is the copy number of the target, which bears on the limit of detection.
+
+    The second value maps, for each assay, a position of the region to the base the genomes have there,
+    taking the commonest when they disagree. It is only meaningful for the exclusion group, whose bases are
+    what an oligo has to mismatch.
     """
     counts = {assay.name: [0] * len(genomes) for assay in assays}
+    bases: dict[str, dict[int, str]] = {assay.name: {} for assay in assays}
     if not assays or not genomes:
-        return counts
+        return counts, bases
     work_dir.mkdir(parents=True, exist_ok=True)
     query = work_dir / "amplicons.fasta"
     seqio.write_fasta(query, [seqio.Record(assay.name, "", assay.amplicon) for assay in assays])
     sizes = {assay.name: len(assay.amplicon) for assay in assays}
-    fields = ("qseqid", "evalue", "length", "pident")
+    starts = {assay.name: assay.forward.start for assay in assays}  # The amplicon starts here in the region
+    fields = ("qseqid", "qstart", "qend", "evalue", "length", "pident", "qseq", "sseq")
 
-    def one(index: int, genome: Path) -> dict[str, int]:
+    def one(index: int, genome: Path) -> tuple[dict[str, int], dict[str, dict[int, str]]]:
         folder = blast.genome_folder(work_dir, index, genome)
         db = blast.make_db(genome, folder)
         hits = blast.parse_hits(blast.blastn(db, query, folder / blast.HITS_NAME, fields,
                                              max_targets=MAX_COPIES), fields)
         found: dict[str, int] = {}
+        seen: dict[str, dict[int, str]] = {}
         for hit in hits:
             if hit.evalue > blast.MAX_EVALUE:
                 continue
             # A copy is the amplicon in one piece: that is what a primer pair can amplify
             if hit.length >= MIN_AMPLICON_COVERAGE * sizes[hit.query] and hit.identity >= MIN_AMPLICON_IDENTITY:
                 found[hit.query] = found.get(hit.query, 0) + 1
-        return found
+                offset = starts[hit.query]
+                seen.setdefault(hit.query, {}).update(
+                    {position + offset: base for position, base in blast.variant_bases(hit).items()}
+                )
+        return found, seen
 
-    for index, found in enumerate(blast.parallel(enumerate(genomes), one, threads)):
+    from collections import Counter
+
+    votes: dict[str, dict[int, Counter]] = {assay.name: {} for assay in assays}
+    for index, (found, seen) in enumerate(blast.parallel(enumerate(genomes), one, threads)):
         for name, number in found.items():
             counts[name][index] = number
-    return counts
+        for name, positions in seen.items():
+            for position, base in positions.items():
+                votes[name].setdefault(position, Counter())[base] += 1
+    for name, positions in votes.items():
+        bases[name] = {position: counter.most_common(1)[0][0] for position, counter in positions.items()}
+    return counts, bases
 
 
 def check_against_exclusion(assays: Sequence[Assay], exclusion: Sequence[Path], work_dir: Path,
                             threads: int) -> None:
-    """Count, for each assay, how many exclusion genomes hold its amplicon. Sets the count in place."""
-    counts = amplicon_copies(assays, exclusion, work_dir, threads)
+    """Count how many exclusion genomes hold each amplicon, and note what they have where an oligo differs
+    from them. Sets both in place."""
+    counts, bases = amplicon_copies(assays, exclusion, work_dir, threads)
     for assay in assays:
         assay.exclusion_genomes_with_amplicon = sum(1 for number in counts[assay.name] if number)
+        for oligo in assay.oligos:
+            oligo.variant_bases = {position: base for position, base in bases[assay.name].items()
+                                   if oligo.start <= position < oligo.end}
 
 
 def count_inclusion_copies(assays: Sequence[Assay], inclusion: Sequence[Path], work_dir: Path,
                            threads: int) -> None:
     """Count the copies of each amplicon in every inclusion genome. Sets them in place."""
-    counts = amplicon_copies(assays, inclusion, work_dir, threads)
+    counts, _ = amplicon_copies(assays, inclusion, work_dir, threads)
     for assay in assays:
         assay.inclusion_copies = counts[assay.name]
 
@@ -567,10 +629,11 @@ DEFAULT_MAX_REGIONS = 50
 COLUMNS = (
     "assay", "region", "specific_by", "exclusion_genomes_with_amplicon", "best_terminal_run",
     "inclusion_copies_min", "inclusion_copies_max", "product_size", "penalty", "penalty_band",
+    "primer_variant_weight",
     "forward", "forward_start", "forward_tm", "forward_gc", "forward_variants",
-    "forward_terminal_run", "forward_near_3prime",
+    "forward_strong_variants", "forward_terminal_run", "forward_near_3prime",
     "reverse", "reverse_start", "reverse_tm", "reverse_gc", "reverse_variants",
-    "reverse_terminal_run", "reverse_near_3prime",
+    "reverse_strong_variants", "reverse_terminal_run", "reverse_near_3prime",
     "probe", "probe_start", "probe_tm", "probe_gc", "probe_variants",
 )
 VERDICT_COLUMNS = ("inclusion_total", "exclusion_total",
@@ -614,6 +677,7 @@ def assay_row(assay: Assay, verdict: dict[str, object] | None = None) -> dict[st
         "inclusion_copies_max": max(assay.inclusion_copies) if assay.inclusion_copies else 0,
         "product_size": assay.product_size, "penalty": f"{assay.penalty:.4f}",
         "penalty_band": assay.penalty_band,
+        "primer_variant_weight": f"{assay.primer_variant_weight:g}",
     }
     for part, oligo in (("forward", assay.forward), ("reverse", assay.reverse), ("probe", assay.probe)):
         row[part] = oligo.sequence if oligo else ""
@@ -622,6 +686,7 @@ def assay_row(assay: Assay, verdict: dict[str, object] | None = None) -> dict[st
         row[f"{part}_gc"] = f"{oligo.gc:.1f}" if oligo else ""
         row[f"{part}_variants"] = len(oligo.variants) if oligo else ""
         if part != "probe":  # Where the differences sit matters only for the primers
+            row[f"{part}_strong_variants"] = oligo.strong_variants if oligo else ""
             row[f"{part}_terminal_run"] = oligo.terminal_run if oligo else ""
             row[f"{part}_near_3prime"] = oligo.near_three_prime if oligo else ""
     for kind, one in (verdict or {}).items():
@@ -817,6 +882,7 @@ def rank_key(assay: Assay) -> tuple:
     return (
         0 if assay.specific_by_absence else 1,
         -assay.primer_variants_covered,
+        -assay.primer_variant_weight,  # At equal numbers, a difference over a G or a C is worth more
         -assay.best_terminal_run,
         -assay.near_three_prime,
         assay.penalty_band,            # Chemistry first, so a worse probe cannot win on mismatches alone

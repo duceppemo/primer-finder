@@ -52,10 +52,10 @@ class Alignments:
     """What one exclusion genome holds of one contig: every part of the contig it aligns, and where each
     of those alignments differs from it."""
 
-    spans: list[tuple[int, int, set[int]]] = field(default_factory=list)  # start, end (0-based), variants
+    spans: list[tuple[int, int, dict[int, str]]] = field(default_factory=list)  # start, end, variants
 
     def add(self, hit: Hit) -> None:
-        self.spans.append((hit.qstart - 1, hit.qend, set(variant_positions(hit))))
+        self.spans.append((hit.qstart - 1, hit.qend, variant_bases(hit)))
 
     def covers(self, position: int) -> bool:
         return any(start <= position < end for start, end, _ in self.spans)
@@ -69,6 +69,10 @@ class Alignments:
     @property
     def variants(self) -> set[int]:
         return {position for _, _, variants in self.spans for position in variants}
+
+    def bases_at(self, position: int) -> list[str]:
+        """What the exclusion genome has at this position, once per alignment that covers it."""
+        return [variants[position] for _, _, variants in self.spans if position in variants]
 
 
 @dataclass
@@ -143,19 +147,30 @@ def parse_hits(out_file: Path, fields: Sequence[str]) -> list[Hit]:
     return hits
 
 
-def variant_positions(hit: Hit) -> list[int]:
-    """The positions of the contig (0-based) that differ from this exclusion sequence: mismatches, inserted
-    bases, and the base next to a deletion."""
-    positions: list[int] = []
+def variant_bases(hit: Hit) -> dict[int, str]:
+    """The positions of the contig (0-based) that differ from this exclusion sequence, and the base the
+    exclusion sequence has there.
+
+    A mismatch gives the base it has instead; a base the contig has and the exclusion sequence does not
+    gives "-"; where the exclusion sequence has bases the contig lacks, the position they would fit at is
+    marked with the first of them. The base matters because how much a mismatch costs depends on which
+    bases are involved, not only on where it is.
+    """
+    bases: dict[int, str] = {}
     position = hit.qstart - 1
     for query_base, subject_base in zip(hit.qseq, hit.sseq, strict=False):
-        if query_base == "-":  # The exclusion genome has bases the contig does not: mark where they fit in
-            positions.append(position)
+        if query_base == "-":  # The exclusion genome has bases the contig does not
+            bases.setdefault(position, subject_base.upper())
             continue
         if subject_base == "-" or query_base.upper() != subject_base.upper():
-            positions.append(position)
+            bases[position] = subject_base.upper()
         position += 1
-    return sorted(set(positions))
+    return bases
+
+
+def variant_positions(hit: Hit) -> list[int]:
+    """The positions of the contig (0-based) that differ from this exclusion sequence."""
+    return sorted(variant_bases(hit))
 
 
 def has_close_variants(positions: Sequence[int], window: int = PRIMER_LENGTH) -> bool:

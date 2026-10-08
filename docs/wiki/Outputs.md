@@ -133,7 +133,8 @@ the ones that would amplify both groups are kept at the end for the record.
 | `inclusion_copies_min`, `inclusion_copies_max` | copies of the amplicon per inclusion genome; above 1 only for a run made with `-d 2` or more |
 | `product_size`, `penalty`, `penalty_band` | the amplicon length and Primer3's pair penalty, with the band the ranking uses |
 | `forward`, `reverse`, `probe` | the sequences, with `_start`, `_tm`, `_gc` and `_variants` (differences covered) for each |
-| `forward_terminal_run`, `forward_near_3prime` | and the same for `reverse`: where those differences sit relative to the 3' end |
+| `primer_variant_weight` | the differences under the primers, weighted by the base each replaces: 1 for a G or C, 0.5 for an A or T, 0.75 when unknown |
+| `forward_strong_variants`, `forward_terminal_run`, `forward_near_3prime` | and the same for `reverse`: how many of its differences replace a G or a C, and where they sit relative to the 3' end |
 | `inclusion_total`, `exclusion_total` | how many genomes were tested, when in silico PCR was run |
 | `qpcr_inclusion_amplified`, `qpcr_inclusion_percent`, `qpcr_exclusion_amplified`, `qpcr_selective` | what insilicoPCR said in qPCR mode, with the probe |
 | `pcr_inclusion_amplified`, `pcr_inclusion_percent`, `pcr_exclusion_amplified`, `pcr_selective` | and in standard PCR mode, primers only |

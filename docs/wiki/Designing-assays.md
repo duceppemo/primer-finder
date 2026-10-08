@@ -54,13 +54,17 @@ Assays are ordered by this key, each step breaking the ties of the one before:
 1. **Absence beats everything.** An assay whose amplicon no exclusion genome holds has nothing to amplify
    there. This is the one step that does not depend on how a reaction behaves.
 2. **How many differences the primers cover, in total.**
-3. **The longest run of differences ending at a primer's 3' end.**
-4. **Differences within five bases of a 3' end**, run or not.
-5. **Primer3's pair penalty, by band** (<1, <2, <4, worse), so that a probe covering more differences never
+3. **What those differences replace**, weighted: a position where the exclusion genomes have a G or a C
+   counts 1, an A or a T counts 0.5, and one whose base is not known counts 0.75. G and C pair with three
+   hydrogen bonds against two, so a mismatch there costs more to form. This only ever separates assays that
+   cover the same number of differences.
+4. **The longest run of differences ending at a primer's 3' end.**
+5. **Differences within five bases of a 3' end**, run or not.
+6. **Primer3's pair penalty, by band** (<1, <2, <4, worse), so that a probe covering more differences never
    wins over an assay that is clearly better made.
-6. **Copies of the amplicon in the inclusion genomes**, since a repeated target usually gives a better limit
+7. **Copies of the amplicon in the inclusion genomes**, since a repeated target usually gives a better limit
    of detection. See [below](#repeated-targets-and--d).
-7. **Differences under the probe**, then the exact penalty, then the names, so that a run is reproducible.
+8. **Differences under the probe**, then the exact penalty, then the names, so that a run is reproducible.
 
 ### Why that order, and how much to trust it
 
@@ -71,10 +75,16 @@ Steps 2 to 4 follow common practice in allele-specific design rather than any me
   primer — the basis of double-mismatch allele-specific qPCR
   ([Lefever et al. 2019](https://doi.org/10.1038/s41598-019-38581-z)). More differences under a primer is
   the same idea, arrived at without having to engineer one;
-- *where* a mismatch sits, and which bases are involved, changes its effect; the 3' end is the position that
-  matters most for extension, which is why it breaks the ties
+- *where* a mismatch sits, and **which bases are involved**, changes its effect
   ([Sharma et al. 2022](https://doi.org/10.1016/j.jmoldx.2022.08.005) summarise this for PCR while
-  characterising it for RPA).
+  characterising it for RPA). Hence two tie-breaks: the 3' end is the position that matters most for
+  extension, and a difference replacing a G or a C is worth more than one replacing an A or a T, since
+  G:C holds with three hydrogen bonds and A:T with two.
+
+The bases are read from the exclusion genomes' own alignments of each amplicon, so what is weighed is what
+an oligo would actually have to mismatch, genome by genome, rather than what the region happens to carry.
+`assays.tsv` reports the weight (`primer_variant_weight`) and the count of G/C positions per primer
+(`forward_strong_variants`, `reverse_strong_variants`), so the order can be checked.
 
 **How much a given mismatch costs depends on the assay, not only on the sequence**: annealing temperature,
 polymerase, magnesium, cycling and template concentration all change it. A design that discriminates under

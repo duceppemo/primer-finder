@@ -124,17 +124,31 @@ def blastn(argv: list[str]) -> int:
                if line.startswith(">")]
     rows: list[list[str]] = []
     if "length" in fields and "pident" in fields:
-        # Counting the copies of an amplicon: one row per copy, each covering the whole query
-        lengths, name = {}, None
+        # Counting the copies of an amplicon: one row per copy, each covering the whole query.
+        # `amplicon_mismatch` puts a base of the genome's own at a position of the amplicon, which is what
+        # the design step weighs a difference by.
+        sequences, name = {}, None
         for line in Path(argument(argv, "-query")).read_text().splitlines():
             if line.startswith(">"):
                 name = line[1:].split()[0]
-                lengths[name] = 0
+                sequences[name] = ""
             elif name:
-                lengths[name] += len(line.strip())
+                sequences[name] += line.strip()
         copies = value("amplicon_hits", {}).get(genome, 0)
+        mismatches = {int(position): base
+                      for position, base in value("amplicon_mismatch", {}).items()}
         for query in queries:
-            rows.extend([[query, "1e-30", str(lengths.get(query, 100)), "100.0"]] * copies)
+            sequence = sequences.get(query, "A" * 100)
+            subject = list(sequence)
+            for position, base in mismatches.items():
+                if position < len(subject):
+                    subject[position] = base
+            row = {
+                "qseqid": query, "qstart": "1", "qend": str(len(sequence)), "evalue": "1e-30",
+                "length": str(len(sequence)), "pident": "100.0",
+                "qseq": sequence, "sseq": "".join(subject),
+            }
+            rows.extend([[row[name] for name in fields]] * copies)
     elif "qseq" in fields:  # The exclusion step: aligned sequences
         hits = value("exclusion_hits", {})
         default = [[query, 1, len(DEFAULT_QSEQ), 1e-30, DEFAULT_QSEQ, DEFAULT_SSEQ] for query in queries]

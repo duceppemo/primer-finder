@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- A difference is weighed by the base it replaces as well as by where it is: a position where the exclusion
+  genomes have a G or a C counts for more than one where they have an A or a T, since G:C holds with three
+  hydrogen bonds and A:T with two. The bases come from the exclusion genomes' own alignments of each
+  amplicon, and the weight separates only assays covering the same number of differences. `assays.tsv`
+  reports it (`primer_variant_weight`, `forward_strong_variants`, `reverse_strong_variants`).
+
 ## 1.2.0
 
 ### Added
