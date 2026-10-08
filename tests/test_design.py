@@ -267,6 +267,22 @@ def test_the_bases_come_from_the_exclusion_alignments(stubs, tmp_path, fasta):
     assert one.primer_variant_weight == STRONG_BASE_WEIGHT + WEAK_BASE_WEIGHT
 
 
+def test_the_inclusion_group_is_not_asked_for_the_aligned_sequences(stubs, tmp_path, fasta):
+    """Only the exclusion genomes' bases are weighed, so counting copies in the inclusion group does not
+    ask blast for the alignments or read them."""
+    calls = stubs(amplicon_hits={"g1": 2})
+    genomes = [fasta("g1.fasta", {"chr": "ACGT" * 50})]
+    one = assay(amplicon="ACGT" * 10)
+    count_inclusion_copies([one], genomes, tmp_path / "incl", threads=1)
+    assert one.inclusion_copies == [2]
+    blastn = [line for line in calls.read_text().splitlines() if line.startswith("blastn")]
+    assert blastn and all("qseq sseq" not in line for line in blastn)  # "qseqid" is not "qseq"
+
+    check_against_exclusion([one], genomes, tmp_path / "excl", threads=1)
+    blastn = [line for line in calls.read_text().splitlines() if line.startswith("blastn")]
+    assert any("qseq sseq" in line for line in blastn)  # the exclusion group is
+
+
 def test_check_against_exclusion_and_inclusion_copies(stubs, tmp_path, fasta):
     stubs(amplicon_hits={"g1": 1, "g2": 3})
     genomes = [fasta("g1.fasta", {"chr": "ACGT" * 50}), fasta("g2.fasta", {"chr": "ACGT" * 50})]

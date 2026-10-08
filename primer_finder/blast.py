@@ -70,9 +70,6 @@ class Alignments:
     def variants(self) -> set[int]:
         return {position for _, _, variants in self.spans for position in variants}
 
-    def bases_at(self, position: int) -> list[str]:
-        """What the exclusion genome has at this position, once per alignment that covers it."""
-        return [variants[position] for _, _, variants in self.spans if position in variants]
 
 
 @dataclass

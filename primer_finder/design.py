@@ -19,6 +19,7 @@ import json
 import logging
 import re
 import time
+from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -515,8 +516,8 @@ def design(regions: Iterable[seqio.Record], work_dir: Path, product_size: str = 
     return assays
 
 
-def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: Path,
-                    threads: int) -> tuple[dict[str, list[int]], dict[str, dict[int, str]]]:
+def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: Path, threads: int,
+                    with_bases: bool = True) -> tuple[dict[str, list[int]], dict[str, dict[int, str]]]:
     """How many copies of each amplicon each genome holds, and what those genomes have where they differ.
 
     A copy is a blast hit covering nearly the whole amplicon at high identity, so a genome that holds the
@@ -525,7 +526,8 @@ def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: 
 
     The second value maps, for each assay, a position of the region to the base the genomes have there,
     taking the commonest when they disagree. It is only meaningful for the exclusion group, whose bases are
-    what an oligo has to mismatch.
+    what an oligo has to mismatch, so `with_bases` is off for the inclusion group: the aligned sequences are
+    then not asked for and not read.
     """
     counts = {assay.name: [0] * len(genomes) for assay in assays}
     bases: dict[str, dict[int, str]] = {assay.name: {} for assay in assays}
@@ -536,7 +538,9 @@ def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: 
     seqio.write_fasta(query, [seqio.Record(assay.name, "", assay.amplicon) for assay in assays])
     sizes = {assay.name: len(assay.amplicon) for assay in assays}
     starts = {assay.name: assay.forward.start for assay in assays}  # The amplicon starts here in the region
-    fields = ("qseqid", "qstart", "qend", "evalue", "length", "pident", "qseq", "sseq")
+    fields = ("qseqid", "qstart", "qend", "evalue", "length", "pident")
+    if with_bases:
+        fields += ("qseq", "sseq")
 
     def one(index: int, genome: Path) -> tuple[dict[str, int], dict[str, dict[int, str]]]:
         folder = blast.genome_folder(work_dir, index, genome)
@@ -551,13 +555,12 @@ def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: 
             # A copy is the amplicon in one piece: that is what a primer pair can amplify
             if hit.length >= MIN_AMPLICON_COVERAGE * sizes[hit.query] and hit.identity >= MIN_AMPLICON_IDENTITY:
                 found[hit.query] = found.get(hit.query, 0) + 1
-                offset = starts[hit.query]
-                seen.setdefault(hit.query, {}).update(
-                    {position + offset: base for position, base in blast.variant_bases(hit).items()}
-                )
+                if with_bases:
+                    offset = starts[hit.query]
+                    seen.setdefault(hit.query, {}).update(
+                        {position + offset: base for position, base in blast.variant_bases(hit).items()}
+                    )
         return found, seen
-
-    from collections import Counter
 
     votes: dict[str, dict[int, Counter]] = {assay.name: {} for assay in assays}
     for index, (found, seen) in enumerate(blast.parallel(enumerate(genomes), one, threads)):
@@ -586,7 +589,7 @@ def check_against_exclusion(assays: Sequence[Assay], exclusion: Sequence[Path], 
 def count_inclusion_copies(assays: Sequence[Assay], inclusion: Sequence[Path], work_dir: Path,
                            threads: int) -> None:
     """Count the copies of each amplicon in every inclusion genome. Sets them in place."""
-    counts, _ = amplicon_copies(assays, inclusion, work_dir, threads)
+    counts, _ = amplicon_copies(assays, inclusion, work_dir, threads, with_bases=False)
     for assay in assays:
         assay.inclusion_copies = counts[assay.name]
 
