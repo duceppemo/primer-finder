@@ -8,6 +8,7 @@ import pytest
 
 from primer_finder import PrimerFinderError
 from primer_finder.seqio import (
+    MOST_LISTED,
     Record,
     base_name,
     count_records,
@@ -129,5 +130,5 @@ def test_a_folder_full_of_files_that_are_not_fasta_gives_a_short_error(tmp_path)
     message = str(error.value)
     assert "40 file(s)" in message
     assert "and 35 more" in message
-    assert message.count("g0") <= 5
-    assert len(message) < 500
+    # The length of the message depends on how long the paths are, so count the names it lists
+    assert message.count(".fasta") == MOST_LISTED
