@@ -515,3 +515,23 @@ def test_the_threshold_and_the_duplication_limit_together(stubs, four_inclusion)
                   presence={f"g{number}": ["ctg1"] for number in range(1, 5)})
     run(four_inclusion(min_inclusion=0.5, duplication=2))
     assert "-ci2 -cx8" in calls.read_text()  # Two of four genomes, up to twice in each of the four
+
+
+def test_the_exclusion_step_still_matches_contigs_when_a_tag_is_in_the_header(stubs, four_inclusion):
+    """With a threshold, the query headers of the exclusion step carry `inclusion=x/y` after the name.
+
+    blast reports the first word of a header as the query name, so the hits still line up with the contigs
+    (checked against the real blastn, which returns `ctg1` for `>ctg1 40=1X7=1X50= inclusion=3/4`). If they
+    did not, a contig would look as though no exclusion genome holds it and would be kept as fully
+    specific, which is the opposite of the truth. Here the two variants are 30 bases apart, so the contig
+    must be dropped.
+    """
+    far_apart = ["ctg1", 1, 40, 1e-30, "A" * 40, "C" + "A" * 28 + "C" + "A" * 10]
+    stubs(contigs={"ctg1": "ACGT" * 25}, sam=[["ctg1", 0, "40=1X7=1X50="]],
+          presence={"g1": ["ctg1"], "g2": ["ctg1"], "g3": ["ctg1"], "g4": []},
+          exclusion_hits={"exclusion_1": [far_apart], "exclusion_2": [far_apart]})
+    scenario = four_inclusion(min_inclusion=0.75)
+    assert run(scenario) == 0
+    # It reached the exclusion step with the tag on its header, and was dropped there
+    assert "inclusion=3/4" in (scenario.output / "4_blast" / "all_inclusion_contigs.fasta").read_text()
+    assert list(iter_records(scenario.output / "final_kmers.fasta")) == []
