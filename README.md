@@ -36,6 +36,10 @@ conda activate primer-finder
 primer-finder -i inclusion/ -e exclusion/ -o results/
 ```
 
+> **The bioconda package is awaiting review** ([bioconda-recipes#70034](https://github.com/bioconda/bioconda-recipes/pull/70034)).
+> Until it is merged, use `pip install primer-finder` in an environment that already holds KMC, SKESA or
+> SPAdes, minimap2 and BLAST, or install from the source code with `environment.yml`, which brings them.
+
 `inclusion/` and `exclusion/` hold one assembled genome per file (`.fasta`, `.fna`, `.fa`, gzipped or not;
 subfolders and symbolic links are followed). The answer is `results/final_kmers.fasta`: one record per
 candidate region, the specific bases in lower case and their positions in the header, the most promising

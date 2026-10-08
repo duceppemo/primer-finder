@@ -5,6 +5,10 @@ SKESA or SPAdes, minimap2 and BLAST. Python 3.10 or later.
 
 ## From bioconda (recommended)
 
+> **Not available yet**: the recipe is awaiting review ([bioconda-recipes#70034](https://github.com/bioconda/bioconda-recipes/pull/70034)). Until it is merged,
+> install [from PyPI](#from-pypi) into an environment that already holds the programs, or
+> [from the source code](#from-the-source-code) with `environment.yml`, which brings them.
+
 ```bash
 conda create -n primer-finder -c conda-forge -c bioconda primer-finder
 conda activate primer-finder
