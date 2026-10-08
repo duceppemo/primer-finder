@@ -139,10 +139,18 @@ the ones that would amplify both groups are kept at the end for the record.
 | `forward_strong_variants`, `forward_terminal_run`, `forward_near_3prime` | and the same for `reverse`: how many of its differences replace a G or a C, and where they sit relative to the 3' end |
 | `inclusion_total`, `exclusion_total` | how many genomes were tested, when in silico PCR was run |
 | `qpcr_inclusion_amplified`, `qpcr_inclusion_percent`, `qpcr_exclusion_amplified`, `qpcr_selective` | what insilicoPCR said in qPCR mode, with the probe |
-| `pcr_inclusion_amplified`, `pcr_inclusion_percent`, `pcr_exclusion_amplified`, `pcr_selective` | and in standard PCR mode, primers only |
+| `qpcr_exclusion_terminal_only` | of the exclusion genomes it amplified, how many did so **only** where a difference sits in the last two bases of a primer — bases insilicoPCR does not count. When this equals `qpcr_exclusion_amplified`, the `no` is the model's blind spot, not a cross-reaction |
+| `pcr_inclusion_amplified`, `pcr_inclusion_percent`, `pcr_exclusion_amplified`, `pcr_exclusion_terminal_only`, `pcr_selective` | and the same in standard PCR mode, primers only |
 
 The structure temperatures are predicted for the reaction the run was given (`--monovalent`, `--divalent`,
 `--dntp`, `--primer-conc`, `--probe-conc`), which `design_info.json` records under `parameters.conditions`.
+
+**Read `*_exclusion_terminal_only` before believing a `no`.** insilicoPCR calls a primer bound when blast
+trims an unmatched base off its 3' end, at every `--mismatches`, so an amplification that needed that trim
+is one the tool could not have refused — and the 3' end is exactly where a selective assay puts its
+differences. A genome counts only when *every* amplicon reported for it needed the trim; one clean amplicon
+makes it a real amplification. On the *Xylella* set, 155 of the 245 `no` verdicts in PCR mode were entirely
+of this kind, against 83 that were genuine. Those 155 are the assays a bench would have to settle.
 
 `selective` is `yes` when the assay amplified every inclusion genome and no exclusion genome, `partial
 (88%)` when it reached the `-p/--min-inclusion` the regions were found with but not all of them, and `no`

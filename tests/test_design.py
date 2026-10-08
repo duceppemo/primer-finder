@@ -561,6 +561,33 @@ def test_an_assay_that_amplifies_an_exclusion_genome_is_not_selective(stubs, fin
     assert rows[0]["assay"] != "ctg1_assay0"
 
 
+def test_an_exclusion_amplification_that_rests_on_a_trimmed_primer_end_is_reported(stubs, finished_run,
+                                                                                   tmp_path, genomes,
+                                                                                   insilico_pcr):
+    """The verdict is still `no` -- insilicoPCR said it amplified -- but the column says the amplification
+    rests on bases insilicoPCR does not count, so the `no` is the model's blind spot rather than a
+    cross-reaction."""
+    inclusion, exclusion = genomes
+    sample = sorted(path.name.split(".")[0] for path in exclusion.glob("*.fasta"))[0]
+    stubs(insilico_extra={"ctg1_assay0": [sample]}, insilico_terminal={"ctg1_assay0": [sample]})
+    output = tmp_path / "assays"
+    assert run(design_settings(finished_run, output, insilico_pcr=insilico_pcr)) == 0
+    row = next(r for r in iter_rows(output / "assays.tsv") if r["assay"] == "ctg1_assay0")
+    assert row["pcr_selective"] == "no"
+    assert row["pcr_exclusion_amplified"] == "1" and row["pcr_exclusion_terminal_only"] == "1"
+
+
+def test_a_real_exclusion_amplification_is_not_counted_as_terminal(stubs, finished_run, tmp_path, genomes,
+                                                                   insilico_pcr):
+    inclusion, exclusion = genomes
+    sample = sorted(path.name.split(".")[0] for path in exclusion.glob("*.fasta"))[0]
+    stubs(insilico_extra={"ctg1_assay0": [sample]})
+    output = tmp_path / "assays"
+    assert run(design_settings(finished_run, output, insilico_pcr=insilico_pcr)) == 0
+    row = next(r for r in iter_rows(output / "assays.tsv") if r["assay"] == "ctg1_assay0")
+    assert row["pcr_exclusion_amplified"] == "1" and row["pcr_exclusion_terminal_only"] == "0"
+
+
 def test_an_assay_that_misses_an_inclusion_genome_is_not_selective(stubs, finished_run, tmp_path,
                                                                    genomes, insilico_pcr):
     inclusion, _ = genomes

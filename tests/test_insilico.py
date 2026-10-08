@@ -16,6 +16,7 @@ from primer_finder.insilico import (
     command,
     count_genomes,
     read_report,
+    read_terminal_only,
     resolve,
     run,
     verdicts,
@@ -150,6 +151,58 @@ def test_a_failing_run_is_reported(stubs, tmp_path, insilico_pcr):
     primers.write_text(">a-F\nAAAA\n>a-R\nTTTT\n")
     with pytest.raises(PrimerFinderError, match="failed"):
         run(resolve(insilico_pcr), genomes, primers, tmp_path / "out", threads=1)
+
+
+def write_hits(folder: Path, rows: list[tuple[str, str, int, int]]) -> Path:
+    """A report with the mismatch columns: (sample, gene, counted mismatches, bases trimmed off a 3' end)."""
+    report = folder / REPORT
+    report.parent.mkdir(parents=True, exist_ok=True)
+    with report.open("w") as fh:
+        fh.write("Sample\tGene\tForwardMismatches\tReverseMismatches"
+                 "\tForwardEndMismatch\tReverseEndMismatch\n")
+        for sample, gene, mismatches, trimmed in rows:
+            fh.write(f"{sample}\t{gene}\t{mismatches}\t0\t{-trimmed if trimmed else 0}\t0\n")
+    return report
+
+
+def test_an_amplicon_that_needed_a_trimmed_primer_end_is_recognised(tmp_path):
+    """insilicoPCR does not count the last two bases of a primer: blast trims an unmatched one off and the
+    primer is called bound. An amplification that needed that is one it could not have refused."""
+    write_hits(tmp_path, [("g0", "a_assay0", 0, 1),      # only there because a base was trimmed
+                          ("g1", "a_assay0", 0, 0),      # a clean match: a real amplification
+                          ("g2", "b_assay0", 1, 2)])     # trimmed as well, and a counted mismatch too
+    found = read_terminal_only(tmp_path)
+    assert found == {"a_assay0": {"g0"}, "b_assay0": {"g2"}}
+
+
+def test_a_genome_with_one_clean_amplicon_does_not_count_as_terminal(tmp_path):
+    """One assay can place several amplicons in the same genome. It only amplifies it through an ignored
+    difference if every one of them needed the trim."""
+    write_hits(tmp_path, [("g0", "a_assay0", 0, 1), ("g0", "a_assay0", 0, 0)])
+    assert read_terminal_only(tmp_path) == {}
+
+
+def test_a_verdict_whose_only_exclusion_hits_are_terminal_is_the_models_blind_spot():
+    """Not selective, but every exclusion genome it amplified rests on bases insilicoPCR cannot judge."""
+    blind = Verdict(8, 8, 3, 17, exclusion_terminal_only=3)
+    assert not blind.selective and blind.only_terminal
+    partly = Verdict(8, 8, 3, 17, exclusion_terminal_only=2)
+    assert not partly.only_terminal           # one of the three is a real amplification
+    assert not Verdict(8, 8, 0, 17).only_terminal          # selective: nothing to explain
+    assert not Verdict(7, 8, 1, 17, exclusion_terminal_only=1).only_terminal  # misses an inclusion genome
+
+
+def test_verdicts_carry_the_terminal_only_count(tmp_path):
+    inclusion, exclusion = tmp_path / "inclusion", tmp_path / "exclusion"
+    for folder, how_many in ((inclusion, 3), (exclusion, 2)):
+        folder.mkdir()
+        for number in range(how_many):
+            (folder / f"g{number}.fasta").write_text(">chr\nACGT\n")
+    found = verdicts([assay("a")], inclusion, exclusion,
+                     {"a_assay0": {"g0", "g1", "g2"}}, {"a_assay0": {"g0", "g1"}},
+                     exclusion_terminal={"a_assay0": {"g0", "g1"}})
+    assert found["a_assay0"].exclusion_terminal_only == 2
+    assert found["a_assay0"].only_terminal
 
 
 def test_verdicts_put_the_two_reports_together(tmp_path):

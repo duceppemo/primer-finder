@@ -33,6 +33,12 @@ log = logging.getLogger(__name__)
 # Where insilicoPCR puts the table that says which assay amplified which sample.
 REPORT = Path("consolidated_report") / "report.tsv"
 SAMPLE_COLUMN, ASSAY_COLUMN = "Sample", "Gene"
+# insilicoPCR reports, per primer, how many mismatches it bound through and how many bases blast had to
+# trim off its 3' end to place it. The trim is the interesting one: those bases are not counted as
+# mismatches at any tolerance, so an amplification that rests on one is an amplification insilicoPCR could
+# not have refused. See docs/wiki/Designing-assays.md.
+MISMATCH_COLUMNS = ("ForwardMismatches", "ReverseMismatches")
+END_COLUMNS = ("ForwardEndMismatch", "ReverseEndMismatch")
 
 QPCR_NAME = "assays_qpcr.fasta"
 PCR_NAME = "assays_pcr.fasta"
@@ -54,6 +60,7 @@ class Verdict:
     exclusion_amplified: int
     exclusion_total: int
     threshold: float = 1.0
+    exclusion_terminal_only: int = 0  # Of those, the ones that rest on an uncounted 3'-end difference
 
     @property
     def fraction(self) -> float:
@@ -74,6 +81,14 @@ class Verdict:
     def selective(self) -> bool:
         """Good enough for the threshold the regions were found with, and silent on the exclusion group."""
         return self.exclusion_amplified == 0 and self.fraction >= self.threshold
+
+    @property
+    def only_terminal(self) -> bool:
+        """It covers the inclusion group, and every exclusion genome it amplified rests on a difference in
+        the last two bases of a primer -- which insilicoPCR does not count. The `no` is then the model's
+        blind spot: the assay may well discriminate, and in silico PCR cannot say either way."""
+        return (self.fraction >= self.threshold and self.exclusion_amplified > 0
+                and self.exclusion_terminal_only == self.exclusion_amplified)
 
     @property
     def label(self) -> str:
@@ -176,15 +191,44 @@ def read_report(output: Path) -> dict[str, set[str]]:
     return amplified
 
 
+def _ends(row: dict[str, str]) -> bool:
+    """Whether blast had to trim a base off the 3' end of either primer to place this amplicon."""
+    return any(int((row.get(column) or "0").strip() or 0) != 0 for column in END_COLUMNS)
+
+
+def read_terminal_only(output: Path) -> dict[str, set[str]]:
+    """Which samples each assay amplified *only* through a difference in the last two bases of a primer.
+
+    insilicoPCR does not count those bases: blast trims an unmatched base off the end of its alignment and
+    the primer is called bound, at every `-m`. So an amplification whose every reported amplicon needed
+    that trim is one the tool could not have refused, and a `no` verdict that rests entirely on them is the
+    model's blind spot rather than a cross-reaction. A sample only counts when *all* of its amplicons needed
+    it: one clean amplicon is a real one.
+    """
+    hits: dict[tuple[str, str], list[bool]] = {}
+    with (output / REPORT).open(newline="") as fh:
+        for row in csv.DictReader(fh, delimiter="\t"):
+            assay, sample = (row.get(ASSAY_COLUMN) or "").strip(), (row.get(SAMPLE_COLUMN) or "").strip()
+            if assay and sample:
+                hits.setdefault((assay, sample), []).append(_ends(row))
+    terminal: dict[str, set[str]] = {}
+    for (assay, sample), ends in hits.items():
+        if all(ends):
+            terminal.setdefault(assay, set()).add(sample)
+    return terminal
+
+
 def count_genomes(folder: Path) -> int:
     return len(seqio.find_genomes(folder))
 
 
 def verdicts(assays: Iterable[Assay], inclusion: Path, exclusion: Path,
              inclusion_report: dict[str, set[str]], exclusion_report: dict[str, set[str]],
-             threshold: float = 1.0) -> dict[str, Verdict]:
+             threshold: float = 1.0,
+             exclusion_terminal: dict[str, set[str]] | None = None) -> dict[str, Verdict]:
     """Put the two reports together, one verdict per assay."""
     inclusion_total, exclusion_total = count_genomes(inclusion), count_genomes(exclusion)
+    terminal = exclusion_terminal or {}
     return {
         assay.name: Verdict(
             inclusion_amplified=len(inclusion_report.get(assay.name, set())),
@@ -192,6 +236,7 @@ def verdicts(assays: Iterable[Assay], inclusion: Path, exclusion: Path,
             exclusion_amplified=len(exclusion_report.get(assay.name, set())),
             exclusion_total=exclusion_total,
             threshold=threshold,
+            exclusion_terminal_only=len(terminal.get(assay.name, set())),
         )
         for assay in assays
     }

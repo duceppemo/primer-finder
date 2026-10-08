@@ -6,6 +6,9 @@ reports is read from PRIMER_FINDER_STUBS, as for the other stub programs:
 
     insilico_misses    {assay: [sample, ...]}  samples of the inclusion group that do not amplify
     insilico_extra     {assay: [sample, ...]}  samples of the exclusion group that do amplify
+    insilico_terminal  {assay: [sample, ...]}  of those, the ones where blast had to trim the primer's
+                                               3' end, which is how the real one reports a difference in
+                                               the last two bases: a mismatch it does not count
     insilico_fail      true to exit non-zero, as a failing run would
 
 By default every assay amplifies every sample of the folder whose name holds "inclusion", and none of the
@@ -49,11 +52,13 @@ def main(argv: list[str]) -> int:
     for assay in assays:
         misses = set(scenario.get("insilico_misses", {}).get(assay, []))
         extra = set(scenario.get("insilico_extra", {}).get(assay, []))
+        terminal = set(scenario.get("insilico_terminal", {}).get(assay, []))
         for sample in samples:
             amplifies = (sample not in misses) if inclusion else (sample in extra)
             if amplifies:
+                end = "-1" if sample in terminal else "0"
                 rows.append([sample, assay, "1-100", "100", "chr", "", f"{assay}-F", f"{assay}-R",
-                             "0", "0", "0", "0", f"{assay}-P", "20-40", "20", "0"])
+                             "0", "0", end, "0", f"{assay}-P", "20-40", "20", "0"])
     with report.open("w") as fh:
         fh.write("\t".join(COLUMNS) + "\n")
         for row in rows:

@@ -717,9 +717,9 @@ COLUMNS = (
 )
 VERDICT_COLUMNS = ("inclusion_total", "exclusion_total",
                    "qpcr_inclusion_amplified", "qpcr_inclusion_percent", "qpcr_exclusion_amplified",
-                   "qpcr_selective",
+                   "qpcr_exclusion_terminal_only", "qpcr_selective",
                    "pcr_inclusion_amplified", "pcr_inclusion_percent", "pcr_exclusion_amplified",
-                   "pcr_selective")
+                   "pcr_exclusion_terminal_only", "pcr_selective")
 
 
 @dataclass
@@ -781,6 +781,7 @@ def assay_row(assay: Assay, verdict: dict[str, object] | None = None) -> dict[st
             f"{kind}_inclusion_amplified": one.inclusion_amplified,
             f"{kind}_inclusion_percent": one.percent,
             f"{kind}_exclusion_amplified": one.exclusion_amplified,
+            f"{kind}_exclusion_terminal_only": one.exclusion_terminal_only,
             f"{kind}_selective": one.label,
         })
     return row
@@ -993,13 +994,16 @@ def run_insilico_pcr(settings: DesignSettings, assays: Sequence[Assay], primer_f
     verdicts: dict[str, dict[str, object]] = {assay.name: {} for assay in assays}
     for kind, primer_file in primer_files.items():
         reports: dict[str, dict[str, set[str]]] = {}
+        terminal: dict[str, set[str]] = {}
         for group, folder in (("inclusion", inclusion), ("exclusion", exclusion)):
             log.info("In silico PCR (%s) against the %s genomes...", kind, group)
             output = settings.output / "insilico_pcr" / f"{kind}_{group}"
             insilico.run(launcher, folder, primer_file, output, settings.threads, settings.mismatches)
             reports[group] = insilico.read_report(output)
+            if group == "exclusion":
+                terminal = insilico.read_terminal_only(output)
         mode = insilico.verdicts(assays, inclusion, exclusion, reports["inclusion"], reports["exclusion"],
-                                 threshold)
+                                 threshold, terminal)
         for name, verdict in mode.items():
             verdicts[name][kind] = verdict
         complete = sum(1 for verdict in mode.values() if verdict.complete)
@@ -1008,4 +1012,9 @@ def run_insilico_pcr(settings: DesignSettings, assays: Sequence[Assay], primer_f
         log.info("In silico PCR (%s): %d of %d assay(s) amplify every inclusion genome and no exclusion "
                  "genome%s", kind, complete, counted,
                  f", and {partial} more reach the -p threshold" if partial else "")
+        blind = sum(1 for verdict in mode.values() if verdict.only_terminal)
+        if blind:
+            log.info("In silico PCR (%s): %d of the rest amplify the exclusion genomes only where a "
+                     "difference sits in the last two bases of a primer, which insilicoPCR does not count "
+                     "(%s_exclusion_terminal_only)", kind, blind, kind)
     return verdicts

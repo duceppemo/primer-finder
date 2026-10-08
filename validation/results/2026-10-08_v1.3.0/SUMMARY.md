@@ -181,12 +181,37 @@ primer-finder design <work>/multiplex/results -o <work>/multiplex/assays -t 32 -
 reported 311 of 465 selective in qPCR mode and 220 of 465 in PCR mode — the same two numbers the sweep
 above computed independently from the reports, which is the check that the default is wired through.
 
+### What the `no` verdicts are made of
+
+The same run, split by what insilicoPCR itself reported for each exclusion amplification. A genome counts as
+terminal when every amplicon reported for it needed a base trimmed off a primer's 3' end:
+
+| | qPCR mode | PCR mode |
+|---|---|---|
+| selective | 311 | 220 |
+| `no`, every exclusion amplification terminal | 105 | 155 |
+| `no`, some of them terminal | 2 | 7 |
+| `no`, on amplifications the model can defend | 47 | 83 |
+
+So in PCR mode the check rejects 83 of 465 assays on its own evidence, not 245. The other 162 it cannot
+judge: the amplifications it reported rest on bases it does not count. Of the 155 fully terminal ones, 127
+are difference-based — 96 with a one-base run at a 3' end, 22 with two, 3 with three, which is the ranking's
+preferred shape — and 28 are specific by absence, where the off-target amplicon elsewhere in the exclusion
+genome itself only binds through an ignored terminal mismatch.
+
+On the inclusion side the question does not arise: of 3,720 assay-and-genome amplifications, none depended
+on a trimmed primer end. Every inclusion genome that counted had at least one clean amplicon.
+
+`assays.tsv` reports this per assay as `qpcr_exclusion_terminal_only` and `pcr_exclusion_terminal_only`.
+
 ## What this does and does not show
 
 - It shows what insilicoPCR's `-m` governs, exactly, including that it does not govern the last two bases
   of a primer and cannot be made to.
 - It shows the ranking's order is stable across tolerances, and that the absence-based assays — the ones
   the ranking puts first — are the ones that hold up.
+- It shows that most of what this check rejects, it rejects for a reason it cannot defend: 155 of 245 `no`
+  verdicts in PCR mode rest entirely on bases it does not count.
 - It does **not** show that any of these assays works. No assay here has been near a bench, and the
   gradient with the number of differences remains close to a restatement of the model's own rule.
 

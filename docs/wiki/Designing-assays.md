@@ -258,6 +258,35 @@ primer-finder design results/ -o assays/ --insilico-pcr <dir> --mismatches 2    
 An assay that still passes at `--mismatches 2` rests on something the model cannot explain away. Raising the
 tolerance only ever finds more exclusion amplification, never less, so it can only take assays away.
 
+### When a `no` is the model's blind spot
+
+Because the last two bases are free, an assay can be reported non-selective for a reason that is about the
+alignment rather than about the assay. `assays.tsv` therefore carries **`qpcr_exclusion_terminal_only`** and
+**`pcr_exclusion_terminal_only`**: of the exclusion genomes an assay amplified, how many did so *only* where
+a difference sits in the last two bases of a primer. A genome counts only when every amplicon reported for
+it needed the trim — one clean amplicon is a real amplification.
+
+When that number equals `*_exclusion_amplified`, **every** exclusion amplification behind the `no` is one
+insilicoPCR could not have refused, and the design is one in silico PCR cannot judge in either direction.
+The command says so as it runs, and on the *Xylella* set it is most of them:
+
+| PCR mode, 465 usable assays | |
+|---|---|
+| selective | 220 |
+| `no`, but every exclusion amplification rests on an uncounted 3'-end difference | **155** |
+| `no`, partly | 7 |
+| `no`, on amplifications the model can defend | 83 |
+
+Of those 155, 127 rest on a difference the ranking deliberately put at a 3' end (96 of one base, 22 of two,
+3 of three) and 28 are specific by absence — an off-target amplicon somewhere else in an exclusion genome
+that itself only binds through an ignored terminal mismatch, which is a weak off-target rather than a clean
+one. Either way: the column tells you which `no` to argue with, and 83 rather than 245 is the number of
+assays this check actually rejects on its own evidence.
+
+The inclusion side needs no such column. Of 3,720 assay-and-genome amplifications in the inclusion group,
+**none** depended on a trimmed primer end: every inclusion genome that counted had at least one clean
+amplicon, which is what should happen when the assays were designed on sequence all of them share.
+
 ### When the regions were found with `-p` below 1
 
 `-p/--min-inclusion` lets `find` keep a region that some inclusion genomes lack. An assay designed on such a
