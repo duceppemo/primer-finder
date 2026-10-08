@@ -41,20 +41,51 @@ SCRIPT_NAME = "run_insilico_pcr.sh"
 
 @dataclass
 class Verdict:
-    """What in silico PCR says about one assay."""
+    """What in silico PCR says about one assay.
+
+    `threshold` is the fraction of the inclusion genomes the assay has to amplify to count, which is the
+    `-p/--min-inclusion` of the run the regions came from. With the default 1.0 an assay has to amplify
+    every one of them; with a lower one, a region that some inclusion genomes lack was acceptable when it
+    was found, so an assay on it is acceptable here on the same terms.
+    """
 
     inclusion_amplified: int
     inclusion_total: int
     exclusion_amplified: int
     exclusion_total: int
+    threshold: float = 1.0
+
+    @property
+    def fraction(self) -> float:
+        """The share of the inclusion genomes it amplified."""
+        return self.inclusion_amplified / self.inclusion_total if self.inclusion_total else 0.0
+
+    @property
+    def percent(self) -> int:
+        """That share as a whole number, rounded down so that it never overstates the coverage."""
+        return int(self.fraction * 100)
+
+    @property
+    def complete(self) -> bool:
+        """Amplifies every inclusion genome and no exclusion genome."""
+        return self.inclusion_amplified == self.inclusion_total and self.exclusion_amplified == 0
 
     @property
     def selective(self) -> bool:
-        """Amplifies every genome it should and none of the others."""
-        return self.inclusion_amplified == self.inclusion_total and self.exclusion_amplified == 0
+        """Good enough for the threshold the regions were found with, and silent on the exclusion group."""
+        return self.exclusion_amplified == 0 and self.fraction >= self.threshold
+
+    @property
+    def label(self) -> str:
+        """What the table says: `yes`, `partial (88%)` when it meets a threshold below 1, or `no`."""
+        if self.complete:
+            return "yes"
+        if self.selective:
+            return f"partial ({self.percent}%)"
+        return "no"
 
     def __str__(self) -> str:
-        return (f"inclusion {self.inclusion_amplified}/{self.inclusion_total}, "
+        return (f"inclusion {self.inclusion_amplified}/{self.inclusion_total} ({self.percent}%), "
                 f"exclusion {self.exclusion_amplified}/{self.exclusion_total}")
 
 
@@ -150,7 +181,8 @@ def count_genomes(folder: Path) -> int:
 
 
 def verdicts(assays: Iterable[Assay], inclusion: Path, exclusion: Path,
-             inclusion_report: dict[str, set[str]], exclusion_report: dict[str, set[str]]) -> dict[str, Verdict]:
+             inclusion_report: dict[str, set[str]], exclusion_report: dict[str, set[str]],
+             threshold: float = 1.0) -> dict[str, Verdict]:
     """Put the two reports together, one verdict per assay."""
     inclusion_total, exclusion_total = count_genomes(inclusion), count_genomes(exclusion)
     return {
@@ -159,6 +191,7 @@ def verdicts(assays: Iterable[Assay], inclusion: Path, exclusion: Path,
             inclusion_total=inclusion_total,
             exclusion_amplified=len(exclusion_report.get(assay.name, set())),
             exclusion_total=exclusion_total,
+            threshold=threshold,
         )
         for assay in assays
     }

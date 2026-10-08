@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 # The conda package that provides each program, for the "missing program" message.
 PACKAGES = {
     "kmc": "kmc",
+    "primer3_core": "primer3",
     "kmc_tools": "kmc",
     "skesa": "skesa",
     "spades.py": "spades",
@@ -31,6 +32,7 @@ VERSION_FLAGS = {
     "kmc_tools": (),
     "blastn": ("-version",),
     "makeblastdb": ("-version",),
+    "primer3_core": ("--about",),  # --version prints nothing at all
 }
 
 # How many lines of a failed program's output to put in the error message.
@@ -57,19 +59,30 @@ def require(names: Sequence[str]) -> None:
         )
 
 
-def run(cmd: Sequence[str | Path], *, stdout_path: Path | None = None, cwd: Path | None = None) -> str:
+class ToolTimeout(ToolError):
+    """An external program was still running when its time was up."""
+
+
+def run(cmd: Sequence[str | Path], *, stdout_path: Path | None = None, cwd: Path | None = None,
+        timeout: float | None = None) -> str:
     """Run a program, waiting for it to finish.
 
     Its output is captured and logged; with `stdout_path`, its standard output goes to that file instead.
+    With `timeout`, a program still running after that many seconds is killed and ToolTimeout raised:
+    some inputs make a program search for an answer that does not exist, for as long as it is allowed to.
     Returns the captured output. Raises ToolError if the program fails or is not found.
     """
     argv = [str(part) for part in cmd]
     log.debug("Running: %s", shlex.join(argv))
     stdout = stdout_path.open("wb") if stdout_path else subprocess.PIPE
     try:
-        process = subprocess.run(argv, stdout=stdout, stderr=subprocess.PIPE, cwd=cwd)
+        process = subprocess.run(argv, stdout=stdout, stderr=subprocess.PIPE, cwd=cwd, timeout=timeout)
     except FileNotFoundError as exc:
         raise ToolError(f"Program not found: {argv[0]}") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise ToolTimeout(
+            f"{argv[0]} was still running after {timeout:g} s and was stopped:\n  {shlex.join(argv)}"
+        ) from exc
     finally:
         if stdout_path:
             stdout.close()

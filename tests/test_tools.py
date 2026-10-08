@@ -70,6 +70,25 @@ def test_the_version_flag_each_program_wants(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", str(tmp_path))
     script(tmp_path, "blastn", "import sys; print('USAGE') if '--version' in sys.argv else print('blastn: 2.17.0+')")
     script(tmp_path, "kmc", "import sys; print('K-Mer Counter (KMC) ver. 3.2.4' if len(sys.argv) == 1 else 'Usage:')")
+    script(tmp_path, "primer3_core", "import sys; print('libprimer3 release 2.6.1' if '--about' in sys.argv else '')")
     assert tools.version("blastn") == "blastn: 2.17.0+"
     assert tools.version("kmc").startswith("K-Mer Counter")
+    assert tools.version("primer3_core") == "libprimer3 release 2.6.1"
     assert tools.version("blastn", "--version") == "USAGE"  # An explicit flag wins
+
+
+def test_a_program_that_takes_too_long_is_stopped(tmp_path):
+    """Some inputs make a program search for an answer that does not exist, for as long as it is given."""
+    import time
+
+    program = script(tmp_path, "slow", "import time; time.sleep(30)")
+    started = time.monotonic()
+    with pytest.raises(tools.ToolTimeout, match="still running after 1 s"):
+        tools.run([program], timeout=1)
+    assert time.monotonic() - started < 10  # It was killed, not waited for
+
+
+def test_a_timeout_is_a_tool_error(tmp_path):
+    """So that a caller that does not care why can catch one thing."""
+    assert issubclass(tools.ToolTimeout, tools.ToolError)
+    assert issubclass(tools.ToolTimeout, PrimerFinderError)

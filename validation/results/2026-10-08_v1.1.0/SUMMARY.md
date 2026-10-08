@@ -56,6 +56,11 @@ which cannot be right, since the assay itself sits at 1,908,399–1,908,502 in t
   beyond these 25 genomes.
 - It is not a wet-lab result. The published papers did that part.
 
+## Afterwards
+
+`../2026-10-08_v1.2.0/SUMMARY.md` repeats this on the same genomes with 1.2.0 and adds a run of the `design`
+command on the subsp. *multiplex* regions.
+
 ## Reproducing
 
 ```bash

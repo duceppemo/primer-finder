@@ -45,48 +45,62 @@ something outside them. The runs are taken longest-first, up to four per region.
 
 ## The scoring scheme
 
+The order is a **heuristic for which assays to look at first**, not a prediction of what will work at the
+bench. Nothing here has been tested in a laboratory. Read it as "these are the ones worth trying", and let
+in silico PCR and then the bench decide.
+
 Assays are ordered by this key, each step breaking the ties of the one before:
 
-1. **Absence beats everything.** An assay whose amplicon no exclusion genome holds cannot amplify the wrong
-   group, and no number of mismatches is as good as nothing to amplify.
-2. **How many differences the primers cover, in total.** This is the strongest predictor of whether an assay
-   really is selective, which is not the obvious answer — see the numbers below.
-3. **The longest run of differences ending at a primer's 3' end.** At equal totals this is the better place
-   for them: a mismatch at the 3' end hinders extension more than one in the middle.
+1. **Absence beats everything.** An assay whose amplicon no exclusion genome holds has nothing to amplify
+   there. This is the one step that does not depend on how a reaction behaves.
+2. **How many differences the primers cover, in total.**
+3. **The longest run of differences ending at a primer's 3' end.**
 4. **Differences within five bases of a 3' end**, run or not.
-5. **Primer3's pair penalty, by band** (<1, <2, <4, worse). Chemistry comes before the remaining signals, so
-   a probe covering more differences never wins over an assay that is clearly better made.
-6. **Copies of the amplicon in the inclusion genomes.** A target present several times per genome usually
-   gives a better limit of detection. See [below](#repeated-targets-and--d) — this is only ever above 1 for
-   a run made with `-d 2` or more.
-7. **Differences under the probe**, then the exact penalty, then the region and assay names so that a run is
-   reproducible.
+5. **Primer3's pair penalty, by band** (<1, <2, <4, worse), so that a probe covering more differences never
+   wins over an assay that is clearly better made.
+6. **Copies of the amplicon in the inclusion genomes**, since a repeated target usually gives a better limit
+   of detection. See [below](#repeated-targets-and--d).
+7. **Differences under the probe**, then the exact penalty, then the names, so that a run is reproducible.
 
-### Why total differences outrank a run at the 3' end
+### Why that order, and how much to trust it
 
-A single mismatch at the 3' end does not always stop amplification. That is visible in the numbers, which
-come from 199 difference-based assays designed on *Xylella fastidiosa* subsp. *multiplex* regions and run
-through in silico PCR against 17 exclusion genomes (PCR mode, primers only):
+Steps 2 to 4 follow common practice in allele-specific design rather than any measurement made here:
 
-| Differences under the primers | 1 | 2 | 3 | 4 or more |
-|---|---|---|---|---|
-| Amplified only the inclusion group | 20% | 72% | 91% | 100% |
+- a single mismatch, even at the 3' end, is often not enough on its own. Allele-specific PCR is known for
+  "low discriminating power", and a common remedy is to introduce a **second, artificial mismatch** in the
+  primer — the basis of double-mismatch allele-specific qPCR
+  ([Lefever et al. 2019](https://doi.org/10.1038/s41598-019-38581-z)). More differences under a primer is
+  the same idea, arrived at without having to engineer one;
+- *where* a mismatch sits, and which bases are involved, changes its effect; the 3' end is the position that
+  matters most for extension, which is why it breaks the ties
+  ([Sharma et al. 2022](https://doi.org/10.1016/j.jmoldx.2022.08.005) summarise this for PCR while
+  characterising it for RPA).
 
-| Longest run at a 3' end | 0 | 1 | 2 | 3 or more |
-|---|---|---|---|---|
-| Amplified only the inclusion group | 96% | 41% | 65% | 100% |
+**How much a given mismatch costs depends on the assay, not only on the sequence**: annealing temperature,
+polymerase, magnesium, cycling and template concentration all change it. A design that discriminates under
+one set of conditions may not under another, and optimisation at the bench can recover an assay this
+ranking puts low — or ruin one it puts high.
 
-The run on its own is not the whole story: assays with a run of two and **only** two differences in total
-were selective in **none** of the eight cases seen, while assays with three or more differences were
-selective in 55 of 57 whatever their run.
+### What the in silico PCR numbers do and do not say
 
-The reason is in how the differences are found. A lower-case base in `final_kmers.fasta` differs from **at
-least 90%** of the exclusion genomes that hold the region, not from every one of them (see
-[Methods](Methods)). One or two such bases can still match a particular genome; four rarely do. More
-differences therefore means the assay holds up across the whole exclusion group, which is what selectivity
-means here.
+Running the designed assays through in silico PCR gives numbers that look like evidence for the order above.
+They are weaker than they look, and are reported here only so that nobody mistakes them for more:
 
-This is why the order is: total first, then where they sit.
+On 199 difference-based assays from *Xylella fastidiosa* subsp. *multiplex* regions, against 17 exclusion
+genomes in PCR mode, the share that amplified only the inclusion group rose with the number of differences
+under the primers (1: 20%, 2: 72%, 3: 91%, 4 or more: 100%), and assays with a run of two differences at a
+3' end **and nothing else** were selective in none of the eight cases seen.
+
+Two reasons not to read that as a result about PCR:
+
+1. **It is close to circular.** in silico PCR decides whether a primer binds by counting mismatches against
+   its own tolerance (`--mismatches`, 0 by default). More mismatches therefore means fewer reported hits
+   almost by construction. The numbers describe the model's rule as much as the biology.
+2. **It is one organism, one dataset, one set of parameters.** 25 genomes, 20 regions, one in silico tool.
+
+So: the ranking is a sensible order to work through, supported by what others have published about
+mismatches, and the in silico numbers are a consistency check on one dataset. They are not a measurement of
+how these assays behave in a tube.
 
 ## Checking the assays with in silico PCR
 
@@ -110,8 +124,22 @@ file is run against both groups. That gives two answers per assay, and they are 
 - **`qpcr_selective`** says whether the whole assay reports positive, with the probe having to bind too.
 
 An assay is `selective` in a mode when it amplifies **every** inclusion genome and **no** exclusion genome.
-On the *multiplex* regions, 254 of 315 assays were selective in qPCR mode and 224 in PCR mode: the 30 that
-differ are the ones the probe rescues.
+
+### When the regions were found with `-p` below 1
+
+`-p/--min-inclusion` lets `find` keep a region that some inclusion genomes lack. An assay designed on such a
+region cannot amplify genomes that do not hold it, so judging it against all of them would be unfair. The
+design step reads the `-p` of the run out of its `run_info.json` and applies the same bar:
+
+| `qpcr_selective` / `pcr_selective` | What it means |
+|---|---|
+| `yes` | amplifies every inclusion genome and no exclusion genome |
+| `partial (88%)` | amplifies 88% of the inclusion genomes — at or above the run's `-p` — and no exclusion genome |
+| `no` | below the threshold, or it amplifies an exclusion genome |
+
+The percentage is also in `qpcr_inclusion_percent` and `pcr_inclusion_percent`, and is rounded down so that
+it never overstates the coverage. Amplifying an exclusion genome is never excused, whatever `-p` was. Assays
+that amplify every inclusion genome are listed before those that merely meet the threshold.
 
 ## Repeated targets and `-d`
 

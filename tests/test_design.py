@@ -98,12 +98,56 @@ def test_forced_requests_aim_at_the_runs_of_differences():
     assert all("SEQUENCE_ID=ctg1~force_" in request for request in requests)
 
 
-def test_a_run_too_close_to_an_end_is_not_forced():
-    """There has to be room for a whole primer behind its 3' end."""
-    region = Record("ctg1", "", "ac" + "A" * 200)
-    joined = "\n".join(forced_requests(region, DEFAULT_PRODUCT_SIZE, 1))
-    assert "SEQUENCE_FORCE_LEFT_END" not in joined  # No room to the left of position 1
-    assert "SEQUENCE_FORCE_RIGHT_END=0" in joined
+def test_nothing_is_forced_where_the_rest_of_the_assay_would_not_fit():
+    """Primer3 does not fail fast on an impossible constraint: it searches the whole template first.
+
+    A probe forced at base 15 of a region, with no room for a primer before it, kept Primer3 busy for 45
+    minutes in the run that led to these guards.
+    """
+    at_the_start = Record("ctg1", "", "ac" + "A" * 1500)
+    assert forced_requests(at_the_start, DEFAULT_PRODUCT_SIZE, 1) == []
+
+    at_the_end = Record("ctg2", "", "A" * 1500 + "ac")
+    assert forced_requests(at_the_end, DEFAULT_PRODUCT_SIZE, 1) == []
+
+    # In the middle there is room for all three
+    in_the_middle = Record("ctg3", "", "A" * 700 + "acg" + "A" * 700)
+    joined = "\n".join(forced_requests(in_the_middle, DEFAULT_PRODUCT_SIZE, 1))
+    assert "SEQUENCE_FORCE_LEFT_END=702" in joined
+    assert "SEQUENCE_FORCE_RIGHT_END=700" in joined
+    assert "SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST=701" in joined
+
+
+def test_a_request_primer3_does_not_answer_is_dropped(stubs, tmp_path, caplog):
+    """A slow request must not hold up the rest: it is dropped and counted."""
+    import logging
+
+    import primer_finder.design as design_module
+
+    stubs(primer3_sleep=5)
+    originals = design_module.PRIMER3_TIMEOUT, design_module.PROBE_TIMEOUT
+    design_module.PRIMER3_TIMEOUT = design_module.PROBE_TIMEOUT = 0.5
+    try:
+        with caplog.at_level(logging.INFO):
+            assert design([Record("ctg1", "", "A" * 200)], tmp_path / "work") == []
+    finally:
+        design_module.PRIMER3_TIMEOUT, design_module.PROBE_TIMEOUT = originals
+    assert "ran out of time" in caplog.text
+
+
+def test_pinning_the_probe_gets_less_time_than_the_rest(stubs, tmp_path):
+    """It is the expensive constraint, and the one worth abandoning first."""
+    from primer_finder.design import PRIMER3_TIMEOUT, PROBE_TIMEOUT, requests_for
+
+    assert PROBE_TIMEOUT < PRIMER3_TIMEOUT
+    region = Record("ctg1", "", "A" * 700 + "acg" + "A" * 700)
+    requests = requests_for(region, DEFAULT_PRODUCT_SIZE, 1, force_ends=True)
+    probe = [timeout for request, timeout in requests
+             if "SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST" in request]
+    others = [timeout for request, timeout in requests
+              if "SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST" not in request]
+    assert probe and all(timeout == PROBE_TIMEOUT for timeout in probe)
+    assert others and all(timeout == PRIMER3_TIMEOUT for timeout in others)
 
 
 def test_parse_records():
@@ -219,8 +263,8 @@ def test_the_order_puts_the_assays_that_cannot_amplify_the_wrong_group_first():
 
 
 def test_more_differences_beat_a_longer_run_at_the_end():
-    """Four mismatches anywhere discriminate better than two at the 3' end, which is what in silico PCR
-    said of the Xylella assays."""
+    """The order this tool uses: more differences first, where they sit second. See
+    docs/wiki/Designing-assays.md for what that is and is not based on."""
     four = assay(region="four", exclusion_genomes_with_amplicon=1,
                  forward=oligo(variants=[105, 110, 115, 119]))
     two_at_the_end = assay(region="two", exclusion_genomes_with_amplicon=1,
@@ -361,7 +405,8 @@ def test_design_runs_in_silico_pcr_and_reports_a_verdict_per_mode(stubs, finishe
     assert first["qpcr_selective"] == "yes" and first["pcr_selective"] == "yes"
     assert first["inclusion_total"] == "2" and first["pcr_exclusion_amplified"] == "0"
     info = json.loads((output / "design_info.json").read_text())
-    assert info["counts"]["selective"]["qpcr"] > 0 and info["counts"]["selective"]["pcr"] > 0
+    assert info["counts"]["selective"]["qpcr"]["complete"] > 0
+    assert info["counts"]["selective"]["pcr"]["complete"] > 0
 
 
 def test_an_assay_that_amplifies_an_exclusion_genome_is_not_selective(stubs, finished_run, tmp_path,
@@ -404,3 +449,40 @@ def test_write_assays_without_a_verdict(tmp_path):
     assert row["specific_by"] == "absence"
     assert row["inclusion_copies_min"] == "2"
     assert "qpcr_selective" not in row
+
+
+def test_the_threshold_of_a_run_is_read_from_what_it_recorded(finished_run, tmp_path):
+    from primer_finder.design import threshold_of
+
+    assert threshold_of(design_settings(finished_run, tmp_path / "out")) == 1.0
+    (finished_run / "run_info.json").write_text(json.dumps(
+        {"parameters": {"min_inclusion": 0.75, "inclusion": "x", "exclusion": "y"}}))
+    assert threshold_of(design_settings(finished_run, tmp_path / "out")) == 0.75
+
+
+def test_a_run_without_run_info_has_the_default_threshold(finished_run, tmp_path):
+    from primer_finder.design import threshold_of
+
+    (finished_run / "run_info.json").unlink()
+    assert threshold_of(design_settings(finished_run, tmp_path / "out")) == 1.0
+
+
+def test_an_assay_missing_an_inclusion_genome_counts_when_the_run_allowed_it(stubs, finished_run,
+                                                                             tmp_path, genomes,
+                                                                             insilico_pcr):
+    """-p 0.5 on the find run means an assay need only reach half the inclusion genomes here."""
+    inclusion, exclusion = genomes
+    (finished_run / "run_info.json").write_text(json.dumps({"parameters": {
+        "inclusion": str(inclusion), "exclusion": str(exclusion), "min_inclusion": 0.5}}))
+    sample = sorted(path.name.split(".")[0] for path in inclusion.glob("*.fasta"))[0]
+    stubs(insilico_misses={"ctg1_assay0": [sample]})
+    output = tmp_path / "assays"
+    assert run(design_settings(finished_run, output, insilico_pcr=insilico_pcr)) == 0
+    row = next(one for one in iter_rows(output / "assays.tsv") if one["assay"] == "ctg1_assay0")
+    assert row["qpcr_selective"] == "partial (50%)"
+    assert row["qpcr_inclusion_percent"] == "50"
+    # and an assay that amplifies them all still ranks above it
+    assert next(iter_rows(output / "assays.tsv"))["qpcr_selective"] == "yes"
+    info = json.loads((output / "design_info.json").read_text())
+    assert info["parameters"]["min_inclusion"] == 0.5
+    assert info["counts"]["selective"]["qpcr"]["at_threshold"] >= info["counts"]["selective"]["qpcr"]["complete"]

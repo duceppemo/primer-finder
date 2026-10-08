@@ -47,6 +47,17 @@ What it does not show: that the other hundreds of regions in each run would make
 about specificity outside those 22 genomes. Those regions are candidates to design on, which is what the
 [Methods](Methods) page means by a candidate.
 
+## Designing assays on those regions
+
+`validation/results/2026-10-08_v1.2.0/SUMMARY.md` records a run of
+[`primer-finder design`](Designing-assays) on the subsp. *multiplex* regions: 20 regions, 432 assays, 417
+that could tell the groups apart, and in silico PCR of all of them against the 25 genomes in both modes.
+
+That record is a dry run of the machinery, not evidence about PCR: nothing in it has been tested in a
+laboratory, and in silico PCR partly restates its own matching rule. It is kept because it shows the command
+working end to end on real data, and because the difference between its two modes is informative — assays
+whose only differences sit under the probe are selective in qPCR mode and not in standard PCR mode.
+
 ### Running it
 
 ```bash

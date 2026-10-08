@@ -2,7 +2,7 @@
 # tarball for tag v{{ version }} (curl -sL <url> | sha256sum). For a new release: bump `version`, recompute
 # the sha256, reset `number` to 0, and update bioconda-recipes (its autobump bot usually does).
 {% set name = "primer-finder" %}
-{% set version = "1.1.0" %}
+{% set version = "1.2.0" %}
 
 package:
   name: {{ name }}

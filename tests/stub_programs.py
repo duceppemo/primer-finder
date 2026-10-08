@@ -165,6 +165,11 @@ def primer3_core(argv: list[str]) -> int:
             key, value = line.split("=", 1)
             current[key] = value
 
+    sleep = value_of("primer3_sleep", 0)
+    if sleep:  # To test what happens when Primer3 does not answer in time
+        import time
+
+        time.sleep(sleep)
     pairs = value_of("primer3_pairs", 1)
     error = value_of("primer3_error", "")
     out = []

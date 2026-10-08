@@ -135,7 +135,9 @@ the ones that would amplify both groups are kept at the end for the record.
 | `forward`, `reverse`, `probe` | the sequences, with `_start`, `_tm`, `_gc` and `_variants` (differences covered) for each |
 | `forward_terminal_run`, `forward_near_3prime` | and the same for `reverse`: where those differences sit relative to the 3' end |
 | `inclusion_total`, `exclusion_total` | how many genomes were tested, when in silico PCR was run |
-| `qpcr_inclusion_amplified`, `qpcr_exclusion_amplified`, `qpcr_selective` | what insilicoPCR said in qPCR mode, with the probe |
-| `pcr_inclusion_amplified`, `pcr_exclusion_amplified`, `pcr_selective` | and in standard PCR mode, primers only |
+| `qpcr_inclusion_amplified`, `qpcr_inclusion_percent`, `qpcr_exclusion_amplified`, `qpcr_selective` | what insilicoPCR said in qPCR mode, with the probe |
+| `pcr_inclusion_amplified`, `pcr_inclusion_percent`, `pcr_exclusion_amplified`, `pcr_selective` | and in standard PCR mode, primers only |
 
-`selective` is `yes` when the assay amplified every inclusion genome and no exclusion genome.
+`selective` is `yes` when the assay amplified every inclusion genome and no exclusion genome, `partial
+(88%)` when it reached the `-p/--min-inclusion` the regions were found with but not all of them, and `no`
+otherwise. Amplifying an exclusion genome is `no` whatever the threshold.

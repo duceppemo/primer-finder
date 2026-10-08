@@ -45,6 +45,17 @@ BOULDER_LINE = re.compile(r"^([A-Z0-9_]+)=(.*)$")
 FORCE_SEP = "~force_"
 MAX_FORCED_RUNS = 4  # Per region, longest runs first
 MIN_PRIMER_SIZE = 18  # As the settings ask for: a forced end needs this much room behind it
+MIN_PROBE_SIZE = 18
+# A forced request only cares about the neighbourhood of the run it aims at. Letting Primer3 consider the
+# whole of a several-kilobase region makes it slower by two orders of magnitude, since it weighs every
+# pair of positions; this is how far either side of the forced position it is allowed to look.
+FORCED_WINDOW_MARGIN = 60
+# Each request is given its own run of Primer3 and its own time limit, so that a slow one costs only
+# itself. Pinning the probe over a position (SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST) is the expensive
+# constraint by far: on one real region, eleven of twelve requests took a tenth of a second each and two
+# probe ones took 27 and 114 seconds. The rest are fast enough that their limit is only a safety net.
+PRIMER3_TIMEOUT = 60.0
+PROBE_TIMEOUT = 15.0
 
 # Primer3's pair penalty is how far an assay is from the ideal chemistry. Assays are compared by band so
 # that a probe covering more differences cannot win over one with clearly better chemistry; within a band
@@ -306,82 +317,148 @@ def variant_runs(seq: str) -> list[tuple[int, int]]:
 
 
 def forced_requests(record: seqio.Record, product_size: str, how_many: int) -> list[str]:
-    """Primer3 records aimed at a run of differences: three per run.
+    """Primer3 records aimed at a run of differences: up to three per run.
 
     `SEQUENCE_FORCE_LEFT_END` and `SEQUENCE_FORCE_RIGHT_END` name the position of a primer's 3'-most base.
     For the left primer that is the last base of the run; for the right primer, which reads the other way,
     it is the first. `SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST` makes the probe straddle a position, which
     is used to put it over the middle of the run.
 
-    Any of the three may come back empty, which is not an error: the run may sit where no oligo of the
+    A request is only made when there is room for the rest of the assay on either side. Asking Primer3 for
+    something that cannot exist -- a probe at base 15 of a region, with no room for a primer before it --
+    does not return quickly: it searches the whole template first.
+
+    Any of them may still come back empty, which is not an error: the run may sit where no oligo of the
     required size and melting temperature can be placed.
     """
     requests = []
-    length_of_region = len(record.seq)
+    length = len(record.seq)
+    smallest_product = minimum_product(product_size)
     for start, run in variant_runs(record.seq)[:MAX_FORCED_RUNS]:
         left_end = start + run - 1
-        if left_end >= MIN_PRIMER_SIZE:  # Room for a primer ending there
+        # A left primer ending here needs its own length behind it and room for an amplicon ahead
+        if left_end >= MIN_PRIMER_SIZE - 1 and left_end + smallest_product <= length:
             requests.append(build_request(record, product_size, how_many, {
                 "SEQUENCE_ID": f"{record.name}{FORCE_SEP}left{left_end}",
                 "SEQUENCE_FORCE_LEFT_END": left_end,
+                "SEQUENCE_INCLUDED_REGION": window(record, left_end, product_size),
             }))
-        if start <= length_of_region - MIN_PRIMER_SIZE:
+        # A right primer ending here needs room for an amplicon behind it and its own length ahead
+        if start >= smallest_product - 1 and start + MIN_PRIMER_SIZE <= length:
             requests.append(build_request(record, product_size, how_many, {
                 "SEQUENCE_ID": f"{record.name}{FORCE_SEP}right{start}",
                 "SEQUENCE_FORCE_RIGHT_END": start,
+                "SEQUENCE_INCLUDED_REGION": window(record, start, product_size),
             }))
         # And one with the probe pinned over the middle of the run, so that it covers as many differences
-        # as it can: a probe that cannot bind the exclusion template is what a qPCR assay relies on.
-        requests.append(build_request(record, product_size, how_many, {
-            "SEQUENCE_ID": f"{record.name}{FORCE_SEP}probe{start + run // 2}",
-            "SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST": start + run // 2,
-            "PRIMER_INTERNAL_MIN_3_PRIME_OVERLAP_OF_JUNCTION": 3,
-            "PRIMER_INTERNAL_MIN_5_PRIME_OVERLAP_OF_JUNCTION": 3,
-        }))
+        # as it can: a probe that cannot bind the exclusion template is what a qPCR assay relies on. It
+        # needs a primer and half a probe on either side of it.
+        middle = start + run // 2
+        margin = MIN_PRIMER_SIZE + MIN_PROBE_SIZE
+        if margin <= middle <= length - margin:
+            requests.append(build_request(record, product_size, how_many, {
+                "SEQUENCE_ID": f"{record.name}{FORCE_SEP}probe{middle}",
+                "SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST": middle,
+                "SEQUENCE_INCLUDED_REGION": window(record, middle, product_size),
+                "PRIMER_INTERNAL_MIN_3_PRIME_OVERLAP_OF_JUNCTION": 3,
+                "PRIMER_INTERNAL_MIN_5_PRIME_OVERLAP_OF_JUNCTION": 3,
+            }))
     return requests
 
 
-def region_of(request_id: str) -> str:
-    """The region a request id belongs to, whether or not an end was forced."""
-    return request_id.split(FORCE_SEP)[0]
+def window(record: seqio.Record, position: int, product_size: str) -> str:
+    """The stretch of the region Primer3 may place oligos in, around a forced position, as `start,length`.
+
+    Wide enough for the largest amplicon asked for on either side of the position, and no wider: the work
+    Primer3 does grows with the square of what it is given to look at.
+    """
+    reach = maximum_product(product_size) + FORCED_WINDOW_MARGIN
+    start = max(0, position - reach)
+    end = min(len(record.seq), position + reach)
+    return f"{start},{end - start}"
+
+
+def maximum_product(product_size: str) -> int:
+    """The largest amplicon the product size range allows."""
+    try:
+        return max(int(part.split("-")[-1]) for part in product_size.split())
+    except (ValueError, IndexError):  # pragma: no cover - the command line checks the format
+        return 150
+
+
+def minimum_product(product_size: str) -> int:
+    """The smallest amplicon the product size range allows."""
+    try:
+        return min(int(part.split("-")[0]) for part in product_size.split())
+    except (ValueError, IndexError):  # pragma: no cover - the command line checks the format
+        return 70
+
+
+def requests_for(record: seqio.Record, product_size: str, how_many: int,
+                 force_ends: bool) -> list[tuple[str, float]]:
+    """Every Primer3 request for one region, with how long each may take."""
+    requests = [(build_request(record, product_size, how_many), PRIMER3_TIMEOUT)]
+    if force_ends:
+        for request in forced_requests(record, product_size, how_many):
+            slow = "SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST" in request
+            requests.append((request, PROBE_TIMEOUT if slow else PRIMER3_TIMEOUT))
+    return requests
 
 
 def design(regions: Iterable[seqio.Record], work_dir: Path, product_size: str = DEFAULT_PRODUCT_SIZE,
-           how_many: int = DEFAULT_ASSAYS_PER_REGION, force_ends: bool = True) -> list[Assay]:
+           how_many: int = DEFAULT_ASSAYS_PER_REGION, force_ends: bool = True,
+           threads: int = 1) -> list[Assay]:
     """Run Primer3 over every region and return the assays it proposes.
 
     Two kinds of request go in: a plain one, which lets Primer3 pick the best chemistry anywhere in the
-    region, and one per run of differences with a primer's 3' end forced onto it. The second kind is what
-    produces allele-specific assays; it often returns nothing, which is not an error.
+    region, and one per run of differences with a primer's 3' end or the probe forced onto it. The second
+    kind is what produces allele-specific assays; it often returns nothing, which is not an error.
+
+    Each request is run on its own, several at a time, with a time limit. Primer3 can spend minutes on a
+    request whose answer is hard to find, and one that runs out of time is dropped with a note rather than
+    holding up the rest.
     """
     regions = list(regions)
     work_dir.mkdir(parents=True, exist_ok=True)
-    request_file = work_dir / "primer3_input.txt"
-    output = work_dir / "primer3_output.txt"
-    requests = []
-    for record in regions:
-        requests.append(build_request(record, product_size, how_many))
-        if force_ends:
-            requests.extend(forced_requests(record, product_size, how_many))
-    request_file.write_text("".join(requests))
-    tools.run([PROGRAM, request_file], stdout_path=output)
+    work: list[tuple[int, seqio.Record, str, float]] = []
+    for index, record in enumerate(regions):
+        for number, (request, timeout) in enumerate(
+                requests_for(record, product_size, how_many, force_ends)):
+            work.append((f"{index:04d}_{number:02d}", record, request, timeout))
 
-    by_name = {record.name: record for record in regions}
+    def one(name: str, record: seqio.Record, request: str, timeout: float) -> list[Assay] | None:
+        request_file = work_dir / f"{name}_input.txt"
+        output = work_dir / f"{name}_output.txt"
+        request_file.write_text(request)
+        try:
+            tools.run([PROGRAM, request_file], stdout_path=output, timeout=timeout)
+        except tools.ToolTimeout:
+            log.debug("Primer3 did not answer within %g s for %s; that request is dropped (%s)",
+                      timeout, record.name, request_file)
+            return None  # The caller counts these
+        proposed: list[Assay] = []
+        for fields in parse_records(output.read_text()):
+            if fields.get("PRIMER_ERROR"):
+                raise PrimerFinderError(
+                    f"Primer3 failed on {fields.get('SEQUENCE_ID', record.name)}: {fields['PRIMER_ERROR']}"
+                )
+            proposed.extend(assays_of(record, fields))
+        return proposed
+
     found: dict[str, list[Assay]] = {record.name: [] for record in regions}
-    for fields in parse_records(output.read_text()):
-        request_id = fields.get("SEQUENCE_ID")
-        if request_id is None:  # pragma: no cover - Primer3 echoes the id
-            continue
-        if fields.get("PRIMER_ERROR"):
-            raise PrimerFinderError(f"Primer3 failed on {request_id}: {fields['PRIMER_ERROR']}")
-        record = by_name.get(region_of(request_id))
-        if record is None:  # pragma: no cover
-            continue
-        found[record.name].extend(assays_of(record, fields))
+    timed_out = 0
+    for (_, record, _, _), proposed in zip(work, blast.parallel(work, one, threads), strict=True):
+        if proposed is None:
+            timed_out += 1
+        else:
+            found[record.name].extend(proposed)
+    if timed_out:
+        log.info("%d Primer3 request(s) ran out of time and were dropped; the regions they belong to are "
+                 "still designed on from their other requests", timed_out)
 
-    # The two kinds of request overlap, so the same assay can come back more than once
     assays: list[Assay] = []
     for name, proposed in found.items():
+        # The kinds of request overlap, so the same assay can come back more than once
         seen = set()
         number = 0
         for assay in proposed:
@@ -453,27 +530,24 @@ def count_inclusion_copies(assays: Sequence[Assay], inclusion: Sequence[Path], w
 
 
 def rank(assays: Iterable[Assay]) -> list[Assay]:
-    """The assays worth looking at first.
+    """The assays worth looking at first. A heuristic order, not a prediction of what works at the bench.
 
-    An assay whose amplicon no exclusion genome holds comes first: there is nothing for it to amplify, which
-    no number of mismatches can beat. The rest rely on differences under their primers, and the order among
-    them follows what in silico PCR actually says about them (see validation/results, the Xylella subsp.
-    multiplex regions, 199 such assays against 17 exclusion genomes):
+    An assay whose amplicon no exclusion genome holds comes first: there is nothing for it to amplify, and
+    that does not depend on how a reaction behaves. The rest rely on differences under their primers, and
+    are ordered the way allele-specific design is usually approached:
 
-    - how many differences the primers cover in total is what predicts selectivity. One: 20% of those
-      assays amplified only the inclusion group; two: 72%; three: 91%; four or more: 100%. The reason is
-      that a marked base differs in *most* exclusion genomes, not in all of them, so one or two marks can
-      still match a particular genome, while four rarely do;
-    - how long a run of them ends at a primer's 3' end breaks the ties. At equal numbers it is the better
-      place for them, since a mismatch there hinders extension; on its own it is not enough, and a run of
-      two with nothing else was selective in none of the eight cases seen;
-    - then the differences near a 3' end;
-    - then Primer3's pair penalty, by band: a probe that covers more differences is worth having, but not
-      at the price of clearly worse chemistry, and a probe Primer3 would not return at all is no probe;
-    - then how many copies of the amplicon the inclusion genomes hold, since a repeated target usually
-      improves the limit of detection. The `find` command's default -d 1 discards repeated regions before
-      this step sees them, so this only ever rises above 1 for a run made with -d 2 or more;
-    - then the differences under the probe, then the exact penalty.
+    - how many differences the primers cover in total. A single mismatch, even at the 3' end, is often not
+      enough on its own; adding a second one is the basis of double-mismatch allele-specific qPCR
+      (Lefever et al. 2019, doi:10.1038/s41598-019-38581-z);
+    - then the longest run of them ending at a 3' end, and how many sit near one, since position changes
+      how much a mismatch costs (Sharma et al. 2022, doi:10.1016/j.jmoldx.2022.08.005);
+    - then Primer3's penalty by band, so a probe covering more differences never beats an assay that is
+      clearly better made;
+    - then the copies of the amplicon per inclusion genome, which bear on the limit of detection;
+    - then the probe's differences, the exact penalty, and the names, so that a run is reproducible.
+
+    How much any mismatch actually costs depends on the assay -- annealing temperature, polymerase,
+    magnesium, cycling -- not on the sequence alone. See docs/wiki/Designing-assays.md.
     """
     return sorted(assays, key=rank_key)
 
@@ -500,8 +574,10 @@ COLUMNS = (
     "probe", "probe_start", "probe_tm", "probe_gc", "probe_variants",
 )
 VERDICT_COLUMNS = ("inclusion_total", "exclusion_total",
-                   "qpcr_inclusion_amplified", "qpcr_exclusion_amplified", "qpcr_selective",
-                   "pcr_inclusion_amplified", "pcr_exclusion_amplified", "pcr_selective")
+                   "qpcr_inclusion_amplified", "qpcr_inclusion_percent", "qpcr_exclusion_amplified",
+                   "qpcr_selective",
+                   "pcr_inclusion_amplified", "pcr_inclusion_percent", "pcr_exclusion_amplified",
+                   "pcr_selective")
 
 
 @dataclass
@@ -553,8 +629,9 @@ def assay_row(assay: Assay, verdict: dict[str, object] | None = None) -> dict[st
             "inclusion_total": one.inclusion_total,
             "exclusion_total": one.exclusion_total,
             f"{kind}_inclusion_amplified": one.inclusion_amplified,
+            f"{kind}_inclusion_percent": one.percent,
             f"{kind}_exclusion_amplified": one.exclusion_amplified,
-            f"{kind}_selective": "yes" if one.selective else "no",
+            f"{kind}_selective": one.label,
         })
     return row
 
@@ -568,6 +645,22 @@ def write_assays(path: Path, assays: Sequence[Assay], verdicts: dict[str, object
         writer.writeheader()
         for assay in assays:
             writer.writerow(assay_row(assay, (verdicts or {}).get(assay.name)))
+
+
+def threshold_of(settings: DesignSettings) -> float:
+    """The -p/--min-inclusion the run used, which is what an assay on its regions has to live up to.
+
+    A region found with -p 0.9 is one that a tenth of the inclusion genomes may lack, so an assay on it
+    cannot be expected to amplify all of them: in silico PCR judges it against the same fraction.
+    """
+    info_file = settings.results / "run_info.json"
+    if not info_file.is_file():
+        return 1.0
+    try:
+        recorded = json.loads(info_file.read_text()).get("parameters", {}).get("min_inclusion", 1.0)
+        return float(recorded)
+    except (ValueError, TypeError, json.JSONDecodeError):  # pragma: no cover - a hand-edited file
+        return 1.0
 
 
 def genome_folders(settings: DesignSettings) -> tuple[Path, Path]:
@@ -601,8 +694,7 @@ def run(settings: DesignSettings) -> int:
             f"{final} is missing: give the output folder of a finished primer-finder run."
         )
     inclusion, exclusion = genome_folders(settings)
-    tools.require([PROGRAM])
-    tools.require(["makeblastdb", "blastn"])
+    tools.require([PROGRAM, "makeblastdb", "blastn"])
     settings.output.mkdir(parents=True, exist_ok=True)
     add_log_file(settings.output / LOG_NAME)
     log.info("primer-finder %s, designing assays", __version__)
@@ -618,7 +710,7 @@ def run(settings: DesignSettings) -> int:
     log.info("Running Primer3 on %d region(s), up to %d assay(s) each...", len(regions),
              settings.assays_per_region)
     assays = design(regions, settings.output / "primer3", settings.product_size,
-                    settings.assays_per_region)
+                    settings.assays_per_region, threads=settings.threads)
     log.info("Primer3 proposed %d assay(s) on %d region(s)", len(assays),
              len({assay.region for assay in assays}))
     if not assays:
@@ -667,9 +759,16 @@ def run(settings: DesignSettings) -> int:
 
     verdicts = None
     if settings.insilico_pcr is not None:
-        verdicts = run_insilico_pcr(settings, usable, primer_files, inclusion, exclusion)
+        threshold = threshold_of(settings)
+        if threshold < 1:
+            log.info("The regions were found with -p %g, so an assay counts when it amplifies that share "
+                     "of the inclusion genomes", threshold)
+        verdicts = run_insilico_pcr(settings, usable, primer_files, inclusion, exclusion, threshold)
+        # Amplifying every inclusion genome comes before merely meeting the threshold
         usable = sorted(usable, key=lambda assay: (
-            -sum(1 for verdict in verdicts[assay.name].values() if verdict.selective), rank_key(assay)))
+            -sum(2 if verdict.complete else 1 if verdict.selective else 0
+                 for verdict in verdicts[assay.name].values()),
+            rank_key(assay)))
     else:
         insilico.write_script(settings.output / insilico.SCRIPT_NAME, None, list(primer_files.values()),
                               inclusion, exclusion, settings.threads, settings.mismatches)
@@ -689,6 +788,7 @@ def run(settings: DesignSettings) -> int:
             "max_regions": settings.max_regions,
             "mismatches": settings.mismatches,
             "threads": settings.threads,
+            "min_inclusion": threshold_of(settings),
         },
         "programs": tools.versions([PROGRAM, "blastn"]),
         "counts": {
@@ -697,8 +797,12 @@ def run(settings: DesignSettings) -> int:
             "usable": len(ranked) - dropped,
             "specific_by_absence": by_absence,
             "selective": {
-                kind: sum(1 for modes in verdicts.values()
-                          if kind in modes and modes[kind].selective)
+                kind: {
+                    "complete": sum(1 for modes in verdicts.values()
+                                    if kind in modes and modes[kind].complete),
+                    "at_threshold": sum(1 for modes in verdicts.values()
+                                        if kind in modes and modes[kind].selective),
+                }
                 for kind in ("qpcr", "pcr")
             } if verdicts else None,
         },
@@ -725,7 +829,8 @@ def rank_key(assay: Assay) -> tuple:
 
 
 def run_insilico_pcr(settings: DesignSettings, assays: Sequence[Assay], primer_files: dict[str, Path],
-                     inclusion: Path, exclusion: Path) -> dict[str, dict[str, object]]:
+                     inclusion: Path, exclusion: Path,
+                     threshold: float = 1.0) -> dict[str, dict[str, object]]:
     """Amplify the assays against both groups with insilicoPCR, once per mode, and put the reports
     together. Returns, per assay, a verdict per mode."""
     launcher = insilico.resolve(settings.insilico_pcr)
@@ -739,11 +844,14 @@ def run_insilico_pcr(settings: DesignSettings, assays: Sequence[Assay], primer_f
             output = settings.output / "insilico_pcr" / f"{kind}_{group}"
             insilico.run(launcher, folder, primer_file, output, settings.threads, settings.mismatches)
             reports[group] = insilico.read_report(output)
-        mode = insilico.verdicts(assays, inclusion, exclusion, reports["inclusion"], reports["exclusion"])
+        mode = insilico.verdicts(assays, inclusion, exclusion, reports["inclusion"], reports["exclusion"],
+                                 threshold)
         for name, verdict in mode.items():
             verdicts[name][kind] = verdict
-        selective = sum(1 for verdict in mode.values() if verdict.selective)
+        complete = sum(1 for verdict in mode.values() if verdict.complete)
+        partial = sum(1 for verdict in mode.values() if verdict.selective and not verdict.complete)
         counted = sum(1 for assay in assays if kind == "pcr" or assay.probe is not None)
         log.info("In silico PCR (%s): %d of %d assay(s) amplify every inclusion genome and no exclusion "
-                 "genome", kind, selective, counted)
+                 "genome%s", kind, complete, counted,
+                 f", and {partial} more reach the -p threshold" if partial else "")
     return verdicts

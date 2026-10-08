@@ -1,11 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.2.0
 
 ### Added
 
-- `primer-finder design`: Primer3 on the regions of a finished run, and the assays it proposes judged by
-  what would make them selective. An assay works either because no exclusion genome holds its amplicon or
+- `primer-finder design`: Primer3 on the regions of a finished run, and the assays it proposes ordered by a
+  heuristic for which to try first — not a prediction of bench behaviour, and nothing here is wet-lab
+  tested. An assay works either because no exclusion genome holds its amplicon or
   because an oligo sits on bases that differ; one that is neither would amplify both groups and is set
   aside. Primer3 is also asked for primers whose 3' end is forced onto a run of differing bases, and for
   probes straddling one, so that allele-specific assays are proposed as well as convenient ones.
@@ -13,11 +14,24 @@
   [insilicoPCR](https://github.com/duceppemo/insilicoPCR) reads, twice over — with the probe and without,
   since it cannot report both kinds at once — together with a script that runs it over both groups.
   `--insilico-pcr` runs it directly and records, per assay and per mode, whether it amplifies every
-  inclusion genome and no exclusion genome.
+  inclusion genome and no exclusion genome. When the regions were found with `-p` below 1, an assay that
+  reaches that share counts too and is reported as `partial (88%)`: the regions themselves were allowed to
+  be missing from some inclusion genomes, so the assays on them are judged on the same terms.
 - The copies of each amplicon in the inclusion genomes are counted and preferred, since a repeated target
   usually improves the limit of detection. Note that `find -d 1`, the default, discards repeated regions
   before the design step can see them.
 - A logo, in `docs/images/`.
+
+### Fixed
+
+- A Primer3 request whose answer is hard to find no longer holds up the command. Each request is run on its
+  own with a time limit, and pinning the probe over a position — the expensive constraint, and the one that
+  ran for 45 minutes on a real region — gets a shorter one. A request that runs out of time is dropped and
+  counted; its region is still designed on from the others.
+- Nothing is forced where the rest of the assay would not fit, and a forced request only searches the
+  neighbourhood of what it aims at rather than the whole region.
+- `primer3_core --version` prints nothing, so `run_info.json` recorded a copyright line as its version;
+  `--about` is used instead.
 
 ## 1.1.0
 

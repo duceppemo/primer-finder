@@ -165,7 +165,7 @@ def test_verdicts_put_the_two_reports_together(tmp_path):
         {"b_assay0": {"g1"}},
     )
     assert found["a_assay0"].selective
-    assert str(found["a_assay0"]) == "inclusion 3/3, exclusion 0/2"
+    assert str(found["a_assay0"]) == "inclusion 3/3 (100%), exclusion 0/2"
     assert not found["b_assay0"].selective  # misses an inclusion genome and hits an exclusion one
     assert found["b_assay0"].inclusion_amplified == 1
     assert found["b_assay0"].exclusion_amplified == 1
@@ -192,3 +192,40 @@ def test_the_script_without_a_launcher_asks_for_one(tmp_path):
     path = write_script(tmp_path / "run.sh", None, [tmp_path / "q.fasta"],
                         tmp_path / "inclusion", tmp_path / "exclusion", threads=2, mismatches=0)
     assert "INSILICO_PCR" in path.read_text()
+
+
+def test_a_threshold_below_one_accepts_an_assay_that_misses_a_genome():
+    """A region found with -p 0.75 may be absent from some inclusion genomes, so an assay on it is judged
+    against the same share rather than against all of them."""
+    almost = Verdict(inclusion_amplified=7, inclusion_total=8, exclusion_amplified=0, exclusion_total=17,
+                     threshold=0.75)
+    assert almost.selective and not almost.complete
+    assert almost.label == "partial (87%)"
+    assert almost.percent == 87
+
+    strict = Verdict(7, 8, 0, 17)  # the default threshold is every genome
+    assert not strict.selective and strict.label == "no"
+
+
+def test_a_threshold_never_excuses_amplifying_the_exclusion_group():
+    assert not Verdict(8, 8, 1, 17, threshold=0.5).selective
+
+
+def test_below_the_threshold_is_not_selective():
+    assert not Verdict(5, 8, 0, 17, threshold=0.75).selective
+
+
+def test_the_percentage_is_rounded_down_so_it_never_overstates():
+    assert Verdict(2, 3, 0, 1, threshold=0.6).percent == 66
+    assert Verdict(0, 3, 0, 1, threshold=0.0001).percent == 0
+
+
+def test_verdicts_pass_the_threshold_on(tmp_path):
+    inclusion, exclusion = tmp_path / "inclusion", tmp_path / "exclusion"
+    for folder, how_many in ((inclusion, 4), (exclusion, 1)):
+        folder.mkdir()
+        for number in range(how_many):
+            (folder / f"g{number}.fasta").write_text(">chr\nACGT\n")
+    found = verdicts([assay("a")], inclusion, exclusion, {"a_assay0": {"g0", "g1", "g2"}}, {},
+                     threshold=0.75)
+    assert found["a_assay0"].label == "partial (75%)"
