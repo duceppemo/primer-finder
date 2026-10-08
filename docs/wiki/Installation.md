@@ -51,9 +51,15 @@ Without installing anything, `python primer_finder.py ...` works from a clone an
 | `spades.py` | assembling the kmers (`-a spades`) | `spades` >=3.15 |
 | `minimap2` | mapping the contigs to an exclusion genome | `minimap2` >=2.24 |
 | `blastn`, `makeblastdb` | checking the contigs against every genome | `blast` >=2.14 |
+| `primer3_core` | designing assays on the regions (`primer-finder design`) | `primer3` >=2.6 |
 
 A missing program is reported before anything runs, with the conda package that provides it. Only the
 assembler you ask for has to be installed.
+
+[insilicoPCR](https://github.com/duceppemo/insilicoPCR) is **not** installed with primer-finder and is not
+needed to run it. It is a separate program, and `primer-finder design --insilico-pcr` points at an extracted
+portable release of it (which brings its own Java, BBMap and BLAST+). See
+[Designing assays](Designing-assays).
 
 ## Checking the installation
 

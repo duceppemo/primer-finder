@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `primer-finder design`: Primer3 on the regions of a finished run, and the assays it proposes judged by
+  what would make them selective. An assay works either because no exclusion genome holds its amplicon or
+  because an oligo sits on bases that differ; one that is neither would amplify both groups and is set
+  aside. Primer3 is also asked for primers whose 3' end is forced onto a run of differing bases, and for
+  probes straddling one, so that allele-specific assays are proposed as well as convenient ones.
+- The assays are written as the primer files
+  [insilicoPCR](https://github.com/duceppemo/insilicoPCR) reads, twice over — with the probe and without,
+  since it cannot report both kinds at once — together with a script that runs it over both groups.
+  `--insilico-pcr` runs it directly and records, per assay and per mode, whether it amplifies every
+  inclusion genome and no exclusion genome.
+- The copies of each amplicon in the inclusion genomes are counted and preferred, since a repeated target
+  usually improves the limit of detection. Note that `find -d 1`, the default, discards repeated regions
+  before the design step can see them.
+- A logo, in `docs/images/`.
+
 ## 1.1.0
 
 ### Added

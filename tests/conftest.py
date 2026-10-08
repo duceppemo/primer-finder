@@ -63,6 +63,12 @@ def stubs(tmp_path, monkeypatch):
 
 
 @pytest.fixture
+def insilico_pcr() -> Path:
+    """The stand-in for insilicoPCR, which `design --insilico-pcr` can be pointed at."""
+    return Path(__file__).resolve().parent / "stub_insilico_pcr.py"
+
+
+@pytest.fixture
 def settings(genomes, tmp_path):
     inclusion, exclusion = genomes
     defaults = {

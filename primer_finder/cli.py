@@ -7,13 +7,13 @@ import logging
 import sys
 from pathlib import Path
 
-from primer_finder import PrimerFinderError, __version__, assemble, idt, kmers
+from primer_finder import PrimerFinderError, __version__, assemble, design, idt, kmers
 from primer_finder.pipeline import Settings, run
 from primer_finder.system import default_memory_gb, usable_cpus
 
 log = logging.getLogger(__name__)
 
-COMMANDS = ("find", "idt")
+COMMANDS = ("find", "design", "idt")
 DESCRIPTION = (
     "Find group-specific kmers to design selective qPCR assays: kmers shared by every inclusion genome "
     "and absent from every exclusion genome."
@@ -34,7 +34,7 @@ def _fraction(value: str) -> float:
 def build_parser(max_cpu: int, max_mem: int) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="primer-finder", description=DESCRIPTION)
     parser.add_argument("-v", "--version", action="version", version=f"primer-finder {__version__}")
-    commands = parser.add_subparsers(dest="command", metavar="{find,idt}")
+    commands = parser.add_subparsers(dest="command", metavar="{find,design,idt}")
 
     find = commands.add_parser(
         "find", help="Find inclusion-specific contigs (the default command).", description=DESCRIPTION
@@ -67,6 +67,41 @@ def build_parser(max_cpu: int, max_mem: int) -> argparse.ArgumentParser:
                       help="Keep the KMC databases, the SAM file and the blast databases.")
     find.add_argument("--debug", action="store_true", help="Verbose logging.")
     find.add_argument("-v", "--version", action="version", version=f"primer-finder {__version__}")
+
+    design_parser = commands.add_parser(
+        "design", help="Design assays on the regions of a finished run, with Primer3.",
+        description="Design primers and probes on the candidate regions of a finished primer-finder run, "
+                    "keep the assays that could tell the two groups apart, and write the primer files "
+                    "insilicoPCR reads.",
+    )
+    design_parser.add_argument("results", type=Path, help="The output folder of a finished run.")
+    design_parser.add_argument("-o", "--output", metavar="/assay_folder/", required=True, type=Path,
+                               help="Folder to hold the designed assays.")
+    design_parser.add_argument("-i", "--inclusion", metavar="/inclusion_folder/", type=Path,
+                               help="Inclusion genomes. Default: what the run recorded.")
+    design_parser.add_argument("-e", "--exclusion", metavar="/exclusion_folder/", type=Path,
+                               help="Exclusion genomes. Default: what the run recorded.")
+    design_parser.add_argument("-t", "--threads", metavar=str(max_cpu), type=int, default=max_cpu,
+                               help=f"Number of CPU. Default is every CPU available ({max_cpu}).")
+    design_parser.add_argument("--product-size", metavar=design.DEFAULT_PRODUCT_SIZE,
+                               default=design.DEFAULT_PRODUCT_SIZE,
+                               help=f"Amplicon size range for Primer3. Default {design.DEFAULT_PRODUCT_SIZE}.")
+    design_parser.add_argument("--assays-per-region", metavar=str(design.DEFAULT_ASSAYS_PER_REGION),
+                               type=int, default=design.DEFAULT_ASSAYS_PER_REGION,
+                               help="How many assays Primer3 should propose per region. Default "
+                                    f"{design.DEFAULT_ASSAYS_PER_REGION}.")
+    design_parser.add_argument("--max-regions", metavar=str(design.DEFAULT_MAX_REGIONS), type=int,
+                               default=design.DEFAULT_MAX_REGIONS,
+                               help="Design on this many regions, the most promising first. 0 for every "
+                                    f"region. Default {design.DEFAULT_MAX_REGIONS}.")
+    design_parser.add_argument("--insilico-pcr", metavar="/insilicoPCR/", type=Path,
+                               help="Run in silico PCR of the designed assays against both groups with "
+                                    "insilicoPCR, and report which assays amplify every inclusion genome "
+                                    "and no exclusion genome. Give the folder of an extracted portable "
+                                    "release, its jar, or a launcher script.")
+    design_parser.add_argument("--mismatches", metavar="0", type=int, default=0,
+                               help="Primer mismatches insilicoPCR should allow. Default 0.")
+    design_parser.add_argument("--debug", action="store_true", help="Verbose logging.")
 
     convert = commands.add_parser(
         "idt", help="Convert an IDT order sheet into a fasta file of assays.",
@@ -111,6 +146,20 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "idt":
             idt.convert(args.table, args.output, args.prefix)
             return 0
+        if args.command == "design":
+            return design.run(design.DesignSettings(
+                results=args.results,
+                output=args.output,
+                threads=args.threads,
+                inclusion=args.inclusion,
+                exclusion=args.exclusion,
+                product_size=args.product_size,
+                assays_per_region=args.assays_per_region,
+                max_regions=args.max_regions,
+                insilico_pcr=args.insilico_pcr,
+                mismatches=args.mismatches,
+                command_line=["primer-finder", *given],
+            ))
         threads = args.threads
         if threads < 1:
             parser.error("-t/--threads must be 1 or more")

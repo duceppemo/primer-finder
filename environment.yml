@@ -10,4 +10,5 @@ dependencies:
   - spades>=3.15      # assembling the inclusion-specific kmers (-a spades)
   - minimap2>=2.24    # mapping the assembled kmers to an exclusion genome
   - blast>=2.14       # checking the contigs against every inclusion and exclusion genome
+  - primer3>=2.6      # designing assays on the regions (primer-finder design)
   - pip

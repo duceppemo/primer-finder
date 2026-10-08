@@ -43,6 +43,8 @@ class Hit:
     evalue: float
     qseq: str = ""
     sseq: str = ""
+    length: int = 0  # Of the alignment, when the caller asked for it
+    identity: float = 0.0  # Per cent, when the caller asked for it
 
 
 @dataclass
@@ -135,6 +137,8 @@ def parse_hits(out_file: Path, fields: Sequence[str]) -> list[Hit]:
                 evalue=float(values[index["evalue"]]),
                 qseq=values[index["qseq"]] if "qseq" in index else "",
                 sseq=values[index["sseq"]] if "sseq" in index else "",
+                length=int(values[index["length"]]) if "length" in index else 0,
+                identity=float(values[index["pident"]]) if "pident" in index else 0.0,
             ))
     return hits
 
@@ -159,7 +163,7 @@ def has_close_variants(positions: Sequence[int], window: int = PRIMER_LENGTH) ->
     return any(second - first < window for first, second in zip(positions, positions[1:], strict=False))
 
 
-def _parallel(work: Iterable[tuple], function, threads: int) -> list:
+def parallel(work: Iterable[tuple], function, threads: int) -> list:
     """Run `function(*arguments)` for every item, at most `threads` at a time, keeping the input order."""
     work = list(work)
     if not work:
@@ -186,7 +190,7 @@ def presence_in_genomes(
                           PRESENCE_FIELDS)
         return {hit.query for hit in hits if hit.evalue <= MAX_EVALUE}
 
-    found = _parallel(enumerate(genomes), one, threads)
+    found = parallel(enumerate(genomes), one, threads)
     contigs = _query_names(query)
     presence: dict[str, dict[str, bool]] = {contig: {} for contig in contigs}
     for genome, hits in zip(genomes, found, strict=True):
@@ -210,7 +214,7 @@ def exclusion_variants(
         return parse_hits(blastn(db, query, folder / HITS_NAME, ALIGNMENT_FIELDS), ALIGNMENT_FIELDS)
 
     results: dict[str, ExclusionResult] = {name: ExclusionResult() for name in _query_names(query)}
-    for hits in _parallel(enumerate(genomes), one, threads):
+    for hits in parallel(enumerate(genomes), one, threads):
         per_contig: dict[str, Alignments] = {}
         for hit in hits:
             if hit.evalue > MAX_EVALUE:

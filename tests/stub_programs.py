@@ -123,7 +123,19 @@ def blastn(argv: list[str]) -> int:
     queries = [line[1:].split()[0] for line in Path(argument(argv, "-query")).read_text().splitlines()
                if line.startswith(">")]
     rows: list[list[str]] = []
-    if "qseq" in fields:  # The exclusion step: aligned sequences
+    if "length" in fields and "pident" in fields:
+        # Counting the copies of an amplicon: one row per copy, each covering the whole query
+        lengths, name = {}, None
+        for line in Path(argument(argv, "-query")).read_text().splitlines():
+            if line.startswith(">"):
+                name = line[1:].split()[0]
+                lengths[name] = 0
+            elif name:
+                lengths[name] += len(line.strip())
+        copies = value("amplicon_hits", {}).get(genome, 0)
+        for query in queries:
+            rows.extend([[query, "1e-30", str(lengths.get(query, 100)), "100.0"]] * copies)
+    elif "qseq" in fields:  # The exclusion step: aligned sequences
         hits = value("exclusion_hits", {})
         default = [[query, 1, len(DEFAULT_QSEQ), 1e-30, DEFAULT_QSEQ, DEFAULT_SSEQ] for query in queries]
         for query, qstart, qend, evalue, qseq, sseq in hits.get(genome, default):
@@ -136,8 +148,80 @@ def blastn(argv: list[str]) -> int:
     return 0
 
 
+def primer3_core(argv: list[str]) -> int:
+    """Answer a boulder-IO file the way Primer3 does, placing the oligos where it was told to.
+
+    One pair per record, unless the scenario says otherwise:
+      primer3_pairs   how many pairs to return (0 for "nothing could be designed")
+      primer3_error   a message to put in PRIMER_ERROR
+    A forced 3' end or probe junction is honoured, so that the caller's coordinate handling is tested.
+    """
+    records, current = [], {}
+    for line in Path(argv[0]).read_text().splitlines():
+        if line == "=":
+            records.append(current)
+            current = {}
+        elif "=" in line:
+            key, value = line.split("=", 1)
+            current[key] = value
+
+    pairs = value_of("primer3_pairs", 1)
+    error = value_of("primer3_error", "")
+    out = []
+    for record in records:
+        fields = [f"SEQUENCE_ID={record.get('SEQUENCE_ID', '')}"]
+        template = record.get("SEQUENCE_TEMPLATE", "")
+        if error:
+            fields.append(f"PRIMER_ERROR={error}")
+            out.append("\n".join(fields) + "\n=\n")
+            continue
+        fields.append(f"PRIMER_PAIR_NUM_RETURNED={pairs}")
+        for number in range(pairs):
+            size = 20
+            if "SEQUENCE_FORCE_LEFT_END" in record:
+                left = int(record["SEQUENCE_FORCE_LEFT_END"]) - size + 1
+            else:
+                left = 10 + number
+            if "SEQUENCE_FORCE_RIGHT_END" in record:
+                right_start = int(record["SEQUENCE_FORCE_RIGHT_END"])
+            else:
+                right_start = left + 80
+            if "SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST" in record:
+                probe_start = max(left + size, int(record["SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST"]) - 5)
+            else:
+                probe_start = left + size + 5
+            right_end = right_start + size - 1  # Primer3 reports the rightmost base of a right primer
+            fields += [
+                f"PRIMER_LEFT_{number}={left},{size}",
+                f"PRIMER_LEFT_{number}_SEQUENCE={template[left:left + size] or 'A' * size}",
+                f"PRIMER_LEFT_{number}_TM=60.0",
+                f"PRIMER_LEFT_{number}_GC_PERCENT=50.0",
+                f"PRIMER_RIGHT_{number}={right_end},{size}",
+                f"PRIMER_RIGHT_{number}_SEQUENCE={template[right_start:right_end + 1] or 'T' * size}",
+                f"PRIMER_RIGHT_{number}_TM=60.0",
+                f"PRIMER_RIGHT_{number}_GC_PERCENT=50.0",
+                f"PRIMER_PAIR_{number}_PRODUCT_SIZE={right_end - left + 1}",
+                f"PRIMER_PAIR_{number}_PENALTY={0.5 + number}",
+            ]
+            if value_of("primer3_probe", True):
+                fields += [
+                    f"PRIMER_INTERNAL_{number}={probe_start},{size}",
+                    f"PRIMER_INTERNAL_{number}_SEQUENCE={template[probe_start:probe_start + size] or 'C' * size}",
+                    f"PRIMER_INTERNAL_{number}_TM=68.0",
+                    f"PRIMER_INTERNAL_{number}_GC_PERCENT=55.0",
+                ]
+        out.append("\n".join(fields) + "\n=\n")
+    print("".join(out), end="")
+    return 0
+
+
+def value_of(key: str, default):
+    return scenario().get(key, default)
+
+
 PROGRAMS = {
     "kmc": kmc,
+    "primer3_core": primer3_core,
     "kmc_tools": kmc_tools,
     "skesa": skesa,
     "spades.py": spades,

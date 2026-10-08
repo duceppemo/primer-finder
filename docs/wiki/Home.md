@@ -29,6 +29,7 @@ to how the genomes were assigned to the two groups. Curate the input genomes;
 |---|---|
 | [Installation](Installation) | conda, bioconda, from source, checking the installation |
 | [Usage](Usage) | inputs, every option, choosing the two groups, performance |
+| [Designing assays](Designing-assays) | Primer3 on the regions, how assays are scored, in silico PCR |
 | [Methods](Methods) | what each step does, the filtering rules, limits |
 | [Outputs](Outputs) | every file and field |
 | [Example](Example) | the simulated dataset and its expected result |

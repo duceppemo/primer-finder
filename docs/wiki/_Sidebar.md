@@ -2,6 +2,7 @@
 
 - [Installation](Installation)
 - [Usage](Usage)
+- [Designing assays](Designing-assays)
 - [Methods](Methods)
 - [Outputs](Outputs)
 - [Example](Example)

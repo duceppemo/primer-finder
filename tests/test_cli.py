@@ -174,3 +174,33 @@ def test_the_long_and_short_threshold_options_agree(stubs, genomes, tmp_path):
         assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(out), option, "0.5",
                      "-t", "1", "-m", "2"]) == 0
         assert json.loads((out / "run_info.json").read_text())["parameters"]["min_inclusion"] == 0.5
+
+
+def test_the_design_command(stubs, genomes, tmp_path):
+    """`primer-finder design` reads a finished run and writes the assays."""
+    import json
+
+    inclusion, exclusion = genomes
+    results = tmp_path / "results"
+    results.mkdir()
+    (results / "final_kmers.fasta").write_text(">ctg1 [100, 101]\n" + "A" * 100 + "cg" + "A" * 100 + "\n")
+    (results / "run_info.json").write_text(json.dumps(
+        {"parameters": {"inclusion": str(inclusion), "exclusion": str(exclusion)}}))
+    out = tmp_path / "assays"
+    assert main(["design", str(results), "-o", str(out), "-t", "1"]) == 0
+    assert (out / "assays.tsv").is_file()
+    info = json.loads((out / "design_info.json").read_text())
+    assert info["command_line"][:2] == ["primer-finder", "design"]
+    assert info["parameters"]["product_size"] == "70-150"
+
+
+def test_the_design_command_reports_a_folder_that_is_not_a_run(stubs, tmp_path, caplog):
+    assert main(["design", str(tmp_path / "nothing"), "-o", str(tmp_path / "out")]) == 1
+    assert "finished primer-finder run" in caplog.text
+
+
+def test_design_is_a_command_not_the_default(capsys):
+    """`primer-finder design ...` must not be read as the find command with a stray argument."""
+    from primer_finder.cli import with_default_command
+
+    assert with_default_command(["design", "results/", "-o", "assays/"])[0] == "design"

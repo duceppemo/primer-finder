@@ -125,6 +125,31 @@ it starts writing temporary files to the output folder.
 Runs are not resumable: a repeated command starts again from the kmers. The intermediate files of a finished
 run are deleted unless `--keep-intermediate` is given.
 
+## Designing assays on the regions
+
+`primer-finder design` runs Primer3 on the regions of a finished run, keeps the assays that could tell the
+two groups apart, and writes the primer files [insilicoPCR](https://github.com/duceppemo/insilicoPCR) reads:
+
+```bash
+primer-finder design results/ -o assays/ -t 16
+primer-finder design results/ -o assays/ -t 16 --insilico-pcr /path/to/insilicoPCR-linux-x64
+```
+
+| Option | Default | What it does |
+|---|---|---|
+| `results` | required | The output folder of a finished `find` run. |
+| `-o`, `--output` | required | Folder for the designed assays. |
+| `-i`, `--inclusion`, `-e`, `--exclusion` | what the run recorded | The genome folders, if they have moved. |
+| `-t`, `--threads` | every CPU | For Primer3's blast checks and for insilicoPCR. |
+| `--product-size` | `70-150` | Amplicon size range for Primer3. |
+| `--assays-per-region` | 3 | How many assays Primer3 proposes per request. |
+| `--max-regions` | 50 | Design on this many regions, most promising first. 0 for all of them. |
+| `--insilico-pcr` | off | Run in silico PCR of the assays against both groups. Takes the folder of an extracted portable release, its jar, or a launcher script. |
+| `--mismatches` | 0 | Primer mismatches insilicoPCR should allow (`-m`). |
+
+The answer is `assays/assays.tsv`, the most promising assays first. [Designing assays](Designing-assays)
+explains what the order means and how an assay is judged; [Outputs](Outputs) lists the columns.
+
 ## Converting an IDT order sheet
 
 Once an assay has been designed on a candidate region and ordered, the IDT order sheet can be turned into a

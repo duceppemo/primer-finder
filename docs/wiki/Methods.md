@@ -121,10 +121,10 @@ sequence.
 
 ## Designing the assay
 
-Design the primers and the probe so that the lower-case positions fall in the **primers**, ideally at their
-3' end, rather than in the probe: a mismatch there costs the exclusion template more amplification than one
-under the probe. Primer3 and an in-silico PCR against the exclusion genomes are the natural next steps;
-primer-finder does not do them (yet).
+`primer-finder design` does this part: Primer3 on the regions, a check of what would make each assay
+selective, and the primer files for in silico PCR. See [Designing assays](Designing-assays), which also
+explains how the assays are ordered and why the total number of differences under the primers matters more
+than a single one at the 3' end.
 
 ## Limits
 

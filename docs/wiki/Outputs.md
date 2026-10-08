@@ -99,3 +99,43 @@ Everything needed to repeat or report the run:
 
 The same lines the run printed, with timestamps. With `--debug`, also every command line and the output of
 every program — this is what to attach to a bug report, together with `run_info.json`.
+
+
+## The `design` command
+
+`primer-finder design` writes its own folder:
+
+```
+assays/
+├── assays.tsv              every assay, the usable ones first
+├── assays_qpcr.fasta       the assays that have a probe, for insilicoPCR in qPCR mode
+├── assays_pcr.fasta        every assay, primers only, for insilicoPCR in standard PCR mode
+├── run_insilico_pcr.sh     the in silico PCR of both files against both groups
+├── design_info.json        parameters, programs and versions, counts
+├── primer_finder_design.log
+├── primer3/                what was sent to Primer3 and what came back
+├── amplicons/              the blast checks of each amplicon against both groups
+└── insilico_pcr/           what insilicoPCR wrote, when it was run
+```
+
+### assays.tsv
+
+One row per assay. The usable ones come first, in the order [Designing assays](Designing-assays) explains;
+the ones that would amplify both groups are kept at the end for the record.
+
+| Column | What it is |
+|---|---|
+| `assay` | its name, which is also the prefix of its oligos in the fasta files (`<assay>-F`, `-R`, `-P`) |
+| `region` | the candidate region it was designed in |
+| `specific_by` | `absence` (no exclusion genome holds the amplicon), `difference` (an oligo sits on differing bases), or `nothing` (it would amplify both groups) |
+| `exclusion_genomes_with_amplicon` | how many exclusion genomes hold the amplicon in one piece |
+| `best_terminal_run` | the longest run of differences ending at a primer's 3' end |
+| `inclusion_copies_min`, `inclusion_copies_max` | copies of the amplicon per inclusion genome; above 1 only for a run made with `-d 2` or more |
+| `product_size`, `penalty`, `penalty_band` | the amplicon length and Primer3's pair penalty, with the band the ranking uses |
+| `forward`, `reverse`, `probe` | the sequences, with `_start`, `_tm`, `_gc` and `_variants` (differences covered) for each |
+| `forward_terminal_run`, `forward_near_3prime` | and the same for `reverse`: where those differences sit relative to the 3' end |
+| `inclusion_total`, `exclusion_total` | how many genomes were tested, when in silico PCR was run |
+| `qpcr_inclusion_amplified`, `qpcr_exclusion_amplified`, `qpcr_selective` | what insilicoPCR said in qPCR mode, with the probe |
+| `pcr_inclusion_amplified`, `pcr_exclusion_amplified`, `pcr_selective` | and in standard PCR mode, primers only |
+
+`selective` is `yes` when the assay amplified every inclusion genome and no exclusion genome.

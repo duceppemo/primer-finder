@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 168" width="1180" height="168"
+     role="img" aria-label="primer-finder: group-specific kmers for selective qPCR assays">
+  <title>primer-finder</title>
+  <style>
+    .dna    { fill: #94a3b8; }
+    .target { fill: #2f8f5b; }
+    .gap    { fill: none; stroke: #94a3b8; stroke-width: 2.2; stroke-dasharray: 5 6; }
+    .rule   { stroke: #cbd5e1; stroke-width: 2.5; }
+    .word   { font-family: "DejaVu Sans", "Helvetica Neue", Arial, sans-serif; font-weight: 700; }
+    .tag    { font-family: "DejaVu Sans", "Helvetica Neue", Arial, sans-serif; }
+  </style>
+
+  <!-- Above the line, the genomes an assay must amplify: they share one region, in colour.
+       Below it, the genomes it must not: same backbone, no such region. -->
+  <g transform="translate(44 22)">
+    <g class="dna">
+      <rect x="0" y="0"  width="84" height="10" rx="5"/><rect x="92" y="0"  width="56" height="10" rx="5"/>
+      <rect x="0" y="19" width="48" height="10" rx="5"/><rect x="56" y="19" width="92" height="10" rx="5"/>
+      <rect x="0" y="38" width="70" height="10" rx="5"/><rect x="78" y="38" width="70" height="10" rx="5"/>
+    </g>
+    <g class="target">
+      <rect x="158" y="0"  width="108" height="10" rx="5"/>
+      <rect x="158" y="19" width="108" height="10" rx="5"/>
+      <rect x="158" y="38" width="108" height="10" rx="5"/>
+    </g>
+    <g class="dna">
+      <rect x="276" y="0"  width="44" height="10" rx="5"/>
+      <rect x="276" y="19" width="60" height="10" rx="5"/>
+      <rect x="276" y="38" width="38" height="10" rx="5"/>
+    </g>
+
+    <line class="rule" x1="0" y1="60" x2="336" y2="60"/>
+
+    <g class="dna" opacity=".72">
+      <rect x="0" y="72" width="74" height="10" rx="5"/><rect x="82" y="72" width="66" height="10" rx="5"/>
+      <rect x="0" y="91" width="54" height="10" rx="5"/><rect x="62" y="91" width="86" height="10" rx="5"/>
+      <rect x="0" y="110" width="88" height="10" rx="5"/><rect x="96" y="110" width="52" height="10" rx="5"/>
+      <rect x="276" y="72" width="44" height="10" rx="5"/>
+      <rect x="276" y="91" width="60" height="10" rx="5"/>
+      <rect x="276" y="110" width="38" height="10" rx="5"/>
+    </g>
+    <g class="gap">
+      <rect x="158" y="71.5" width="108" height="11" rx="5.5"/>
+      <rect x="158" y="90.5" width="108" height="11" rx="5.5"/>
+      <rect x="158" y="109.5" width="108" height="11" rx="5.5"/>
+    </g>
+  </g>
+
+  <g transform="translate(424 0)">
+    <text class="word" x="0" y="86" font-size="76" fill="#1d6fb8">primer<tspan fill="#94a3b8">-</tspan><tspan fill="#2f8f5b">finder</tspan></text>
+    <text class="tag" x="4" y="128" font-size="26" fill="#64748b">group-specific kmers for selective (q)PCR assays</text>
+  </g>
+</svg>

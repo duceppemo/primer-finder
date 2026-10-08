@@ -1,4 +1,6 @@
-# primer-finder
+<p align="center">
+  <img src="docs/images/primer-finder-logo.svg" alt="primer-finder" width="680">
+</p>
 
 <p align="center">
   <a href="https://github.com/duceppemo/primer-finder/actions/workflows/ci.yml"><img src="https://github.com/duceppemo/primer-finder/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -19,12 +21,12 @@ carries, that no exclusion genome carries, and whose differences are close enoug
 primer or probe.
 
 ```
-inclusion/ ──┐                                                   ┌──► 1. kmers shared by all inclusion genomes (KMC)
-             ├──► kmers ──► subtract ──► assemble ──► map ──► blast
-exclusion/ ──┘              (KMC)       (SKESA or   (minimap2)  (every genome)
-                                         SPAdes)
-                                                                 └──► final_kmers.fasta: the candidate regions,
-                                                                      with the specific bases in lower case
+inclusion/ ──┐                                                        ┌─► final_kmers.fasta
+             ├─► kmers ─► subtract ─► assemble ─► map ─────► blast ───┤   the candidate regions
+exclusion/ ──┘   (KMC)     (KMC)     (SKESA or   (minimap2)  (every   │
+                                      SPAdes)                genome)  └─► primer-finder design
+                                                                          Primer3 + in silico PCR
+                                                                          ─► assays.tsv
 ```
 
 ## Quick start
@@ -44,6 +46,17 @@ primer-finder -i inclusion/ -e exclusion/ -o results/
 subfolders and symbolic links are followed). The answer is `results/final_kmers.fasta`: one record per
 candidate region, the specific bases in lower case and their positions in the header, the most promising
 first. `results/run_info.json` records the parameters, the genomes and the version of every program used.
+
+To turn those regions into assays, with Primer3 and a check of what would actually make each one selective:
+
+```bash
+primer-finder design results/ -o assays/ --insilico-pcr /path/to/insilicoPCR-linux-x64
+```
+
+`--insilico-pcr` is optional and points at [insilicoPCR](https://github.com/duceppemo/insilicoPCR), a
+separate program: given it, the designed assays are amplified in silico against both groups and each one is
+marked with whether it amplifies every inclusion genome and no exclusion genome. See
+[Designing assays](https://github.com/duceppemo/primer-finder/wiki/Designing-assays).
 
 To install from the source code instead, see
 [Installation](https://github.com/duceppemo/primer-finder/wiki/Installation).
@@ -84,6 +97,7 @@ maintained in [`docs/wiki`](https://github.com/duceppemo/primer-finder/blob/mast
 |---|---|
 | [Installation](https://github.com/duceppemo/primer-finder/wiki/Installation) | conda, bioconda, from source, checking the installation |
 | [Usage](https://github.com/duceppemo/primer-finder/wiki/Usage) | inputs, every option, choosing the two groups, performance |
+| [Designing assays](https://github.com/duceppemo/primer-finder/wiki/Designing-assays) | Primer3 on the regions, how assays are scored, in silico PCR |
 | [Methods](https://github.com/duceppemo/primer-finder/wiki/Methods) | what each step does, the filtering rules, limits |
 | [Outputs](https://github.com/duceppemo/primer-finder/wiki/Outputs) | every file and field |
 | [Example](https://github.com/duceppemo/primer-finder/wiki/Example) | the simulated dataset and its expected result |
@@ -97,7 +111,8 @@ If primer-finder helped your work, please cite it — [doi:10.5281/zenodo.232264
 which always resolves to the latest version (see [CITATION.cff](https://github.com/duceppemo/primer-finder/blob/master/CITATION.cff)) — together with the
 programs it runs: [KMC](https://github.com/refresh-bio/KMC),
 [SKESA](https://github.com/ncbi/SKESA) or [SPAdes](https://github.com/ablab/spades),
-[minimap2](https://github.com/lh3/minimap2) and [BLAST](https://blast.ncbi.nlm.nih.gov/).
+[minimap2](https://github.com/lh3/minimap2), [BLAST](https://blast.ncbi.nlm.nih.gov/) and, for the design
+step, [Primer3](https://primer3.org/) and [insilicoPCR](https://github.com/duceppemo/insilicoPCR).
 
 ## License
 
