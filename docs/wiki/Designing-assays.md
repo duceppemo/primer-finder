@@ -266,16 +266,18 @@ alignment rather than about the assay. `assays.tsv` therefore carries **`qpcr_ex
 a difference sits in the last two bases of a primer. A genome counts only when every amplicon reported for
 it needed the trim — one clean amplicon is a real amplification.
 
-When that number equals `*_exclusion_amplified`, **every** exclusion amplification behind the `no` is one
+When that number equals `*_exclusion_amplified`, **every** exclusion amplification behind the verdict is one
 insilicoPCR could not have refused, and the design is one in silico PCR cannot judge in either direction.
-The command says so as it runs, and on the *Xylella* set it is most of them:
+That gets its own label rather than being lumped in with a cross-reaction: `*_selective` reads
+**`undecided (3' end)`**, and those assays are ranked above the ones this check refused on evidence it can
+defend and below the ones it cleared. On the *Xylella* set it is most of them:
 
-| PCR mode, 465 usable assays | |
-|---|---|
-| selective | 220 |
-| `no`, but every exclusion amplification rests on an uncounted 3'-end difference | **155** |
-| `no`, partly | 7 |
-| `no`, on amplifications the model can defend | 83 |
+| PCR mode, 465 usable assays | `pcr_selective` | |
+|---|---|---|
+| amplifies every inclusion genome, no exclusion genome | `yes` | 220 |
+| every exclusion amplification rests on an uncounted 3'-end difference | `undecided (3' end)` | **155** |
+| some of them do | `no` | 7 |
+| amplifies exclusion genomes on evidence the check can defend | `no` | 83 |
 
 Of those 155, 127 rest on a difference the ranking deliberately put at a 3' end (96 of one base, 22 of two,
 3 of three) and 28 are specific by absence — an off-target amplicon somewhere else in an exclusion genome
@@ -297,7 +299,8 @@ design step reads the `-p` of the run out of its `run_info.json` and applies the
 |---|---|
 | `yes` | amplifies every inclusion genome and no exclusion genome |
 | `partial (88%)` | amplifies 88% of the inclusion genomes — at or above the run's `-p` — and no exclusion genome |
-| `no` | below the threshold, or it amplifies an exclusion genome |
+| `undecided (3' end)` | covers the inclusion group, but it amplifies exclusion genomes only where a difference sits in the last two bases of a primer, which this check cannot see. `undecided (3' end, 88%)` when the inclusion coverage is partial as well. [What that means](#when-a-no-is-the-models-blind-spot) |
+| `no` | below the threshold, or it amplifies an exclusion genome on evidence the check can defend |
 
 The percentage is also in `qpcr_inclusion_percent` and `pcr_inclusion_percent`, and is rounded down so that
 it never overstates the coverage. Amplifying an exclusion genome is never excused, whatever `-p` was. Assays

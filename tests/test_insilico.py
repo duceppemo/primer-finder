@@ -231,6 +231,27 @@ def test_a_verdict_is_selective_only_when_everything_lines_up():
     assert not Verdict(8, 8, 1, 17).selective
 
 
+def test_the_label_of_a_verdict_this_check_cannot_make():
+    """`no` would say the assay amplifies an exclusion genome on evidence worth believing. It does not:
+    every amplification rests on bases insilicoPCR does not count, so the check has no verdict to give."""
+    assert Verdict(8, 8, 3, 17, exclusion_terminal_only=3).label == "undecided (3' end)"
+    assert Verdict(8, 8, 3, 17, exclusion_terminal_only=2).label == "no"   # one is a real amplification
+    assert Verdict(7, 8, 2, 17, threshold=0.75, exclusion_terminal_only=2).label == (
+        "undecided (3' end, 87%)")                                        # and it is short of the group
+    assert Verdict(8, 8, 0, 17).label == "yes"
+    assert Verdict(7, 8, 0, 17, threshold=0.75).label == "partial (87%)"
+
+
+def test_what_the_ranking_takes_from_a_verdict():
+    """An assay this check could not refuse is a better bet than one it refused on evidence it can
+    defend, and a worse one than an assay it cleared."""
+    assert Verdict(8, 8, 0, 17).support == 3
+    assert Verdict(7, 8, 0, 17, threshold=0.75).support == 2
+    assert Verdict(8, 8, 1, 17, exclusion_terminal_only=1).support == 1
+    assert Verdict(8, 8, 1, 17).support == 0
+    assert Verdict(4, 8, 0, 17).support == 0  # does not cover the inclusion group at all
+
+
 def test_the_script_runs_both_groups_and_both_files(tmp_path):
     path = write_script(tmp_path / "run.sh", ["java", "-jar", "x.jar"],
                         [tmp_path / "q.fasta", tmp_path / "p.fasta"],

@@ -202,7 +202,16 @@ genome itself only binds through an ignored terminal mismatch.
 On the inclusion side the question does not arise: of 3,720 assay-and-genome amplifications, none depended
 on a trimmed primer end. Every inclusion genome that counted had at least one clean amplicon.
 
-`assays.tsv` reports this per assay as `qpcr_exclusion_terminal_only` and `pcr_exclusion_terminal_only`.
+`assays.tsv` reports this per assay as `qpcr_exclusion_terminal_only` and `pcr_exclusion_terminal_only`, and
+those assays get a verdict of their own — `undecided (3' end)` rather than `no`, since there was nothing the
+check could refuse. They are ranked above the assays it refused on evidence it can defend. The run's own
+counts, from `design_info.json`:
+
+| `*_selective` | qPCR mode | PCR mode |
+|---|---|---|
+| `yes` | 311 | 220 |
+| `undecided (3' end)` | 105 | 155 |
+| `no` | 49 | 90 |
 
 ## What this does and does not show
 

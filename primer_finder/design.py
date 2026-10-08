@@ -916,10 +916,10 @@ def run(settings: DesignSettings) -> int:
             log.info("The regions were found with -p %g, so an assay counts when it amplifies that share "
                      "of the inclusion genomes", threshold)
         verdicts = run_insilico_pcr(settings, usable, primer_files, inclusion, exclusion, threshold)
-        # Amplifying every inclusion genome comes before merely meeting the threshold
+        # Amplifying every inclusion genome comes before merely meeting the threshold, and an assay this
+        # check could not refuse comes before one it refused on evidence it can defend
         usable = sorted(usable, key=lambda assay: (
-            -sum(2 if verdict.complete else 1 if verdict.selective else 0
-                 for verdict in verdicts[assay.name].values()),
+            -sum(verdict.support for verdict in verdicts[assay.name].values()),
             rank_key(assay)))
     else:
         insilico.write_script(settings.output / insilico.SCRIPT_NAME, None, list(primer_files.values()),
@@ -956,6 +956,8 @@ def run(settings: DesignSettings) -> int:
                                     if kind in modes and modes[kind].complete),
                     "at_threshold": sum(1 for modes in verdicts.values()
                                         if kind in modes and modes[kind].selective),
+                    "undecided": sum(1 for modes in verdicts.values()
+                                     if kind in modes and modes[kind].only_terminal),
                 }
                 for kind in ("qpcr", "pcr")
             } if verdicts else None,

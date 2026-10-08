@@ -21,6 +21,11 @@
   whatever the genomes made it — with the clamp left on there, seven of eight forced-end requests on the
   *Xylella* set returned nothing.
 
+- A verdict of its own, `undecided (3' end)`, for an assay that covers the inclusion group but amplifies
+  exclusion genomes only where a difference sits in the last two bases of a primer. `no` would claim the
+  check had refused it on evidence worth believing, and it has not: those bases are not counted at any
+  tolerance, so there was nothing it could refuse. Those assays rank above the ones refused on evidence the
+  check can defend and below the ones it cleared, and `design_info.json` counts them.
 - `qpcr_exclusion_terminal_only` and `pcr_exclusion_terminal_only` in `assays.tsv`: of the exclusion genomes
   an assay amplified, how many did so only where a difference sits in the last two bases of a primer — the
   bases insilicoPCR does not count. When it equals `*_exclusion_amplified`, every amplification behind the

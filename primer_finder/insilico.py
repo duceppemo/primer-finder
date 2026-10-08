@@ -92,12 +92,28 @@ class Verdict:
 
     @property
     def label(self) -> str:
-        """What the table says: `yes`, `partial (88%)` when it meets a threshold below 1, or `no`."""
+        """What the table says: `yes`, `partial (88%)` when it meets a threshold below 1,
+        `undecided (3' end)` when the only exclusion amplifications are ones this check cannot refuse,
+        or `no`."""
         if self.complete:
             return "yes"
         if self.selective:
             return f"partial ({self.percent}%)"
+        if self.only_terminal:
+            return "undecided (3' end)" if self.percent == 100 else f"undecided (3' end, {self.percent}%)"
         return "no"
+
+    @property
+    def support(self) -> int:
+        """How far this check backs taking the assay to a bench, for the ranking: it amplified the whole
+        inclusion group and nothing else (3), it met the run's threshold and nothing else (2), it amplified
+        exclusion genomes but only through differences this check cannot see (1), or it amplified them on
+        evidence the check can defend (0)."""
+        if self.complete:
+            return 3
+        if self.selective:
+            return 2
+        return 1 if self.only_terminal else 0
 
     def __str__(self) -> str:
         return (f"inclusion {self.inclusion_amplified}/{self.inclusion_total} ({self.percent}%), "
