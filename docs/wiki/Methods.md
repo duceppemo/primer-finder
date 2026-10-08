@@ -62,6 +62,25 @@ A contig is kept when, judged on that cigar string:
 - an end of the contig is clipped over at least 21 bases, which means the aligner could not place a whole
   primer's worth of sequence anywhere in that genome.
 
+Drawn, with a stretch of contig against the exclusion genome it mapped to — `·` where they agree, `X` a
+mismatch, `I` a base the contig has and the exclusion genome does not, `-` the other way round, and `S` an
+end the aligner could not place at all. Each of these is what `is_candidate` actually answers:
+
+```
+  kept    ··········XX··········          a run of two: one oligo covers both
+  kept    ·····X····················X···  20 matching bases between them: a 21-mer still covers both
+  no      ·····X·····················X··  21 between them: no oligo reaches from one to the other
+  kept    ··········X-X·········          either side of a deleted base, which takes up none of the contig
+  kept    ··········III·········          three bases the exclusion genome does not have
+  kept    SSSSSSSSSSSSSSSSSSSSSSS·······  23 bases unplaceable: a whole primer's worth is simply absent
+  no      ··········X···········          one mismatch, and nothing else near it
+  no      ··········I···········          one inserted base, likewise
+  no      SSSSSSSSSSSSSSSSSSSS··         20 clipped: not quite a primer's worth
+```
+
+The last three are the point of the rule. A contig that differs by a single base is *specific* — but no
+oligo placed on it discriminates well enough to be worth designing, so it is not a candidate.
+
 21 bases is about the length of a PCR primer: two differences that close can sit in the same primer or probe,
 which is what makes an assay selective. A single mismatch somewhere in the contig is not enough, because a
 primer carrying one mismatch still amplifies the exclusion template often enough to be useless.

@@ -56,6 +56,19 @@ them fewer than 21 matching bases apart, 21 being about a primer's length
 ([Methods](Methods#3-the-differences-worth-an-assay-minimap2)). A region is selected for that and nothing else; the whole
 reason it is a candidate is that an oligo can be placed to carry two or more mismatches at once.
 
+Drawn — a region with two differences seven bases apart, which is not a run but is well within one oligo:
+
+```
+  region        ··········G······T······················
+  target                  └──────┘                        8 bases, 2 differences
+  left primer                    ▶   its 3' end on the SECOND difference, so both sit under the primer
+  right primer            ◀           its 3' end on the FIRST, since it reads the other way
+  probe                       ╳       straddling the middle of the two
+```
+
+Up to 1.3.0 there was no target here at all: two differences seven apart are two runs of one, so a request
+pinned a 3' end on `G` **or** on `T`, and whichever primer came back carried a single mismatch.
+
 So the design step has to actually do it, and two things make sure of it:
 
 1. **The forced requests aim at a window, not at a run.** Two differences seven bases apart are not
@@ -185,6 +198,66 @@ Assays are ordered by this key, each step breaking the ties of the one before:
 7. **Copies of the amplicon in the inclusion genomes**, since a repeated target usually gives a better limit
    of detection. See [below](#repeated-targets-and--d).
 8. **Differences under the probe**, then the exact penalty, then the names, so that a run is reproducible.
+
+### The cases, drawn
+
+Nine assays, all with the same Primer3 penalty so that only the differences separate them. Each row is a
+20-base forward primer written 5' to 3', with `▶` for the 3' end where the polymerase extends:
+
+```
+ ·   a base the exclusion genomes share with the region — nothing for an oligo to discriminate on
+ G   a base where they differ, written as what THEY have there: the base the primer would mismatch
+ ▶   the 3' end of the primer                 ◀   the 3' end of the reverse primer, which reads the other way
+```
+
+In the order the ranking puts them. The two marked `no` are set aside before the order matters, so
+`assays.tsv` writes them at the end of the file whatever their rank:
+
+| | the primer | diffs | weight | 3' run | kept? |
+|---|---|---|---|---|---|
+| **1** | *the amplicon is missing from every exclusion genome* | — | — | — | yes |
+| **2** | `·················GCG▶` | 3 | 3.0 | 3 | yes |
+| **3** | `··················GC▶` | 2 | 2.0 | 2 | yes |
+| **4** | `···················G▶` and `◀C···················` | 2 | 2.0 | 1 | **no** |
+| **5** | `················G·C·▶` | 2 | 2.0 | 0 | yes |
+| **6** | `·····G······C·······▶` | 2 | 2.0 | 0 | yes |
+| **7** | `··················AT▶` | 2 | 1.0 | 2 | yes |
+| **8** | `···················G▶` | 1 | 1.0 | 1 | **no** |
+| **9** | *no difference under either primer; two under the probe:* `··········GC··········` | 0 | 0 | 0 | yes |
+
+Reading the ladder:
+
+- **1 beats everything.** Nothing to amplify is better than something hard to amplify, and it is the only
+  step that does not depend on how a reaction behaves.
+- **2 beats 3** on the count alone: three differences under one primer rather than two.
+- **3 beats 7** — the one your eye should go to. Both are a run of two at the 3' end; 3's are over a G and
+  a C, 7's over an A and a T. Breaking G:C costs three hydrogen bonds against two, so at an equal count the
+  G/C pair is worth more (step 3 of the key).
+- **5 and 6 also beat 7**, which is the step order showing its hand: *what* the differences replace (step 3)
+  is weighed before *where they sit* (step 4). Two G/C differences in the middle of a primer therefore
+  outrank two A/T differences at its 3' end. 5 beats 6 because its differences are within five bases of the
+  3' end even though neither reaches it (step 5).
+- **9 comes last** of the kept assays: its primers cannot tell the groups apart at all, so it is only ever a
+  qPCR assay, and `pcr_selective` will say so. It survives the filter because the *probe* carries two
+  differences, which is one oligo carrying two.
+
+### The two that are set aside
+
+Rows **4** and **8** are listed in `assays.tsv` but carried no further — not written to the insilicoPCR
+files, not among the candidates — because of
+[`--min-oligo-differences`](#spending-the-differences-on-one-oligo), 2 by default:
+
+- **8** rests on a single difference. One mismatch, even at the 3' end, often does not stop amplification.
+- **4** is the subtle one. It covers **two** differences and its rank key is high — higher than 5, 6 and 7 —
+  but they are one each on two different primers, so **neither oligo carries two**. The region was kept
+  because two differences could sit in *one* oligo, and this assay does not do that. The filter is applied
+  before the order matters, so a high rank does not save it.
+
+Both are kept in the table with `best_oligo_variants` saying what they rest on, and
+`--min-oligo-differences 1` accepts them — a weaker assay rather than no assay.
+
+Row **1** is exempt from the filter: an assay specific by absence rests on no difference at all, so how many
+sit under its oligos is beside the point.
 
 ### Why that order, and how much to trust it
 
