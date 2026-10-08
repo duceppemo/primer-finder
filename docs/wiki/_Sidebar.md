@@ -5,6 +5,7 @@
 - [Methods](Methods)
 - [Outputs](Outputs)
 - [Example](Example)
+- [Validation](Validation)
 - [FAQ](FAQ)
 - [Development](Development)
 

@@ -1,0 +1,7 @@
+# The specific "long-mers" SkIf reported for each target (Dupas et al. 2019, Table 2), as coordinates in
+# the reference genome of that target. primer-finder should report a region that covers the assay, and may
+# report a longer one: its exclusion set is not the same as theirs.
+target	assay	reference	reference_accession	region_start	region_end	region_size
+multiplex	XFM	M12	GCF_000019325.1	1825046	1826705	1660
+fastidiosa	XFF	M23	GCF_000019765.1	2477123	2477638	516
+pauca	XFP	De Donno	GCF_002117875.1	337676	338551	876

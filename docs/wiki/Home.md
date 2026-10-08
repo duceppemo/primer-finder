@@ -32,5 +32,6 @@ to how the genomes were assigned to the two groups. Curate the input genomes;
 | [Methods](Methods) | what each step does, the filtering rules, limits |
 | [Outputs](Outputs) | every file and field |
 | [Example](Example) | the simulated dataset and its expected result |
+| [Validation](Validation) | finding three published qPCR assays in public genomes |
 | [FAQ](FAQ) | troubleshooting, "no contig passed" |
 | [Development](Development) | tests, continuous integration, releases |

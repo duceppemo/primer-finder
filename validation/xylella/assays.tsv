@@ -1,0 +1,8 @@
+# The published qPCR assays of Dupas et al. 2019 (Front. Plant Sci. 10:1732, doi:10.3389/fpls.2019.01732),
+# their Table 3. The primers and probes were designed with SkIf, a kmer-based signature tool, on 58
+# Xylella fastidiosa genomes split into ingroups and outgroups — the same idea as primer-finder. The probe
+# sequences are given without their dye and quencher.
+target	assay	amplicon_bp	forward	reverse	probe
+multiplex	XFM	88	ACGATGTTTGAGCCGTTTGC	TGTCACCCACTACGAAACGG	ACGCAGCCCACCACGATTTAGCCG
+fastidiosa	XFF	100	TTACATCGTTTTCGCGCACG	TCGGTTGATCGCAATACCCA	CCCGACTCGGCGCGGTTCCA
+pauca	XFP	154	TGCGTTTTCCTAGGTGGCAT	GTTGGAACCTTGAATGCGCA	CCAAAGGGCGGCCACCTCGC

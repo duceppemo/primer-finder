@@ -1,0 +1,29 @@
+# Genomes for the Xylella fastidiosa subsp. multiplex validation (see ../README.md).
+# Inclusion: subsp. multiplex, the group the XFM assay must amplify.
+# Exclusion: every other subspecies, which it must not amplify.
+# Only complete RefSeq genomes, chosen by accession so that the set is reproducible; the strains the paper
+# used as references (M12 for the XFM coordinates, CFBP8416 as its test strain, M23, Temecula1, De Donno,
+# MUL0034) are included on purpose.
+group	accession	strain	subspecies
+inclusion	GCF_000019325.1	M12	multiplex
+inclusion	GCF_001971465.3	CFBP_8418	multiplex
+inclusion	GCF_001971475.1	CFBP8416	multiplex
+inclusion	GCF_001971505.2	CFBP_8417	multiplex
+inclusion	GCF_004023385.2	ESVL	multiplex
+inclusion	GCF_004023395.2	IVIA5901	multiplex
+inclusion	GCF_012974105.1	Fillmore	multiplex
+inclusion	GCF_012974125.1	RH1	multiplex
+exclusion	GCF_000019765.1	M23	fastidiosa
+exclusion	GCF_000007245.1	Temecula1	fastidiosa
+exclusion	GCF_000148405.1	GB514	fastidiosa
+exclusion	GCF_003515915.2	IVIA5235	fastidiosa
+exclusion	GCF_004016315.2	CFBP_7970	fastidiosa
+exclusion	GCF_014249995.1	GV230	fastidiosa
+exclusion	GCF_002117875.1	De_Donno	pauca
+exclusion	GCF_029962025.1	ALM4	pauca
+exclusion	GCF_029962045.1	AM2-Angelina	pauca
+exclusion	GCF_029962065.1	OLI17A	pauca
+exclusion	GCF_000698825.1	MUL0034	morus
+exclusion	GCF_021398655.1	Riv16	morus
+exclusion	GCF_000698805.1	Ann-1	sandyi
+exclusion	GCF_004016415.2	CFBP_8356	sandyi
