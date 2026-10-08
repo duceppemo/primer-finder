@@ -40,7 +40,8 @@ Three kinds of request go in for each region, and the results are pooled and de-
 
 The forced requests often come back empty, which is not an error: no oligo of the required length and
 melting temperature may fit there. **A forced request cannot produce a bad oligo** — the constraints below
-are part of every request, forced or not, and Primer3 returns nothing rather than something outside them.
+are part of every request, forced or not, apart from the GC clamp (which cannot be, see below), and Primer3
+returns nothing rather than something outside them.
 The runs are taken longest-first, up to four per region.
 
 ## What an oligo has to satisfy
@@ -107,9 +108,16 @@ told what reaction to predict for, and the defaults are an ordinary TaqMan qPCR:
 | `--probe-conc` | 200 nM | `PRIMER_INTERNAL_DNA_CONC` |
 
 The probe gets its own concentration, since it is normally used below the primers. These are not cosmetic:
-they change both the temperatures reported and which oligos come back at all — on one test region the same
-probe was 57.9 °C under Primer3's bare defaults and 60.0 °C under these, which is the difference between
-failing and passing a 58 °C floor.
+they change both the temperatures reported and which oligos come back at all. Measured on the first assay of
+the *Xylella* run, the same oligos read:
+
+| | bare Primer3 defaults | the reaction above | its floor here |
+|---|---|---|---|
+| its forward primer | 56.1 °C | 60.0 °C | 58 °C |
+| its probe | 54.6 °C | 64.0 °C | 62 °C |
+
+Either oligo is rejected under the bare defaults and accepted under the stated reaction, so this is not a
+cosmetic difference in a reported number: it decides what Primer3 returns.
 
 **Set them to your own master mix** if it differs; the values used are recorded in `design_info.json` under
 `parameters.conditions`, so a table of assays can always be traced back to the reaction it was designed for.
@@ -279,11 +287,12 @@ defend and below the ones it cleared. On the *Xylella* set it is most of them:
 | some of them do | `no` | 7 |
 | amplifies exclusion genomes on evidence the check can defend | `no` | 83 |
 
-Of those 155, 127 rest on a difference the ranking deliberately put at a 3' end (96 of one base, 22 of two,
-3 of three) and 28 are specific by absence — an off-target amplicon somewhere else in an exclusion genome
-that itself only binds through an ignored terminal mismatch, which is a weak off-target rather than a clean
-one. Either way: the column tells you which `no` to argue with, and 83 rather than 245 is the number of
-assays this check actually rejects on its own evidence.
+Of those 155, **121** rest on a difference the ranking deliberately put at a 3' end: 96 of one base, 22 of
+two, 3 of three. Cut the other way, 127 are specific by a difference and 28 by absence — in the second case
+the amplification is an off-target amplicon somewhere else in an exclusion genome, which itself only binds
+through an ignored terminal mismatch, so a weak off-target rather than a clean one. Either way: the column
+tells you which verdict to argue with, and 90 rather than 245 is the number of assays this check rejects on
+its own evidence.
 
 The inclusion side needs no such column. Of 3,720 assay-and-genome amplifications in the inclusion group,
 **none** depended on a trimmed primer end: every inclusion genome that counted had at least one clean

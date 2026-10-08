@@ -88,7 +88,8 @@ def build_parser(max_cpu: int, max_mem: int) -> argparse.ArgumentParser:
                                help=f"Amplicon size range for Primer3. Default {design.DEFAULT_PRODUCT_SIZE}.")
     design_parser.add_argument("--assays-per-region", metavar=str(design.DEFAULT_ASSAYS_PER_REGION),
                                type=int, default=design.DEFAULT_ASSAYS_PER_REGION,
-                               help="How many assays Primer3 should propose per region. Default "
+                               help="How many assays Primer3 should propose per request. A region gets "
+                                    "several requests, so it yields more than this. Default "
                                     f"{design.DEFAULT_ASSAYS_PER_REGION}.")
     design_parser.add_argument("--gc-clamp", metavar=str(design.DEFAULT_GC_CLAMP), type=int,
                                default=design.DEFAULT_GC_CLAMP,

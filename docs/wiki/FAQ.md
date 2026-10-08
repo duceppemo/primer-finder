@@ -82,9 +82,9 @@ exact-match rules cannot tolerate.
 Yes, since 1.2.0: `primer-finder design results/ -o assays/` runs Primer3 on the regions, keeps the assays
 that could tell the two groups apart, and writes the primer files
 [insilicoPCR](https://github.com/duceppemo/insilicoPCR) reads — and runs it for you with `--insilico-pcr`.
-Every oligo it proposes has already passed Primer3's length, melting temperature and GC limits, a G/C clamp
-at the 3' end, and hairpin and dimer limits for the oligo on its own and paired with its partner — so an
-assay that cannot work is not offered. See [Designing assays](Designing-assays), which lists all of those,
+Every oligo it proposes has already passed Primer3's length, melting temperature and GC limits, and
+hairpin and dimer limits for the oligo on its own and paired with its partner; every primer whose 3' end
+Primer3 was free to choose also carries a G or a C there — so an assay that cannot work is not offered. See [Designing assays](Designing-assays), which lists all of those,
 the reaction they are predicted for, and explains how the assays are ordered and how much that order is
 worth.
 

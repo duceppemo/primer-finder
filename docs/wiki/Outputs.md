@@ -133,7 +133,7 @@ the ones that would amplify both groups are kept at the end for the record.
 | `inclusion_copies_min`, `inclusion_copies_max` | copies of the amplicon per inclusion genome; above 1 only for a run made with `-d 2` or more |
 | `product_size`, `penalty`, `penalty_band` | the amplicon length and Primer3's pair penalty, with the band the ranking uses |
 | `forward`, `reverse`, `probe` | the sequences, with `_start`, `_tm`, `_gc` and `_variants` (differences covered) for each |
-| `forward_hairpin_tm`, `forward_self_dimer_tm` | and the same for `reverse` and `probe`: where Primer3 predicts the oligo folds on itself, and where it pairs with a copy of itself, in °C. `0.0` means no structure was predicted; both are below `--max-dimer-tm` / `--max-hairpin-tm` or the oligo was never proposed |
+| `forward_hairpin_tm`, `forward_self_dimer_tm` | and the same for `reverse` and `probe`: where Primer3 predicts the oligo folds on itself, and where it pairs with a copy of itself, in °C. `0.0` means no structure was predicted; they are below `--max-hairpin-tm` and `--max-dimer-tm` respectively or the oligo was never proposed |
 | `pair_dimer_tm`, `pair_dimer_end_tm` | where the two primers pair with each other, over the whole oligo and at their 3' ends, in °C |
 | `primer_variant_weight` | the differences under the primers, weighted by the base each replaces: 1 for a G or C, 0.5 for an A or T, 0.75 when unknown |
 | `forward_strong_variants`, `forward_terminal_run`, `forward_near_3prime` | and the same for `reverse`: how many of its differences replace a G or a C, and where they sit relative to the 3' end |
@@ -155,5 +155,6 @@ bound when blast trims an unmatched base off its 3' end, at every `--mismatches`
 needed that trim is one the tool could not have refused — and the 3' end is exactly where a selective assay
 puts its differences. A genome counts only when *every* amplicon reported for it needed the trim; one clean
 amplicon makes it a real amplification, and the verdict is `no`. On the *Xylella* set, 155 of the 245
-non-selective assays in PCR mode were `undecided`, against 83 refused on evidence the check can defend.
-Those 155 are the assays a bench would have to settle, and they are ranked above the 83.
+non-selective assays in PCR mode were `undecided`; the other 90 are `no`, 83 of them with no terminal
+amplification at all and 7 with a mixture. Those 155 are the assays a bench would have to settle, and they
+are ranked above the 90.

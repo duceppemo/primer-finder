@@ -193,19 +193,21 @@ terminal when every amplicon reported for it needed a base trimmed off a primer'
 | `no`, some of them terminal | 2 | 7 |
 | `no`, on amplifications the model can defend | 47 | 83 |
 
-So in PCR mode the check rejects 83 of 465 assays on its own evidence, not 245. The other 162 it cannot
-judge: the amplifications it reported rest on bases it does not count. Of the 155 fully terminal ones, 127
-are difference-based — 96 with a one-base run at a 3' end, 22 with two, 3 with three, which is the ranking's
-preferred shape — and 28 are specific by absence, where the off-target amplicon elsewhere in the exclusion
-genome itself only binds through an ignored terminal mismatch.
+So in PCR mode the check refuses 90 of 465 assays, and only 83 of those on amplifications with no terminal
+component at all; the 155 fully terminal ones it cannot judge, because every amplification it reported for
+them rests on bases it does not count. Of those 155, **121** carry a run of differences at a 3' end — 96 of
+one base, 22 of two, 3 of three, which is the shape the ranking prefers — and 34 carry none. Cut by what
+makes them selective instead, 127 are difference-based and 28 specific by absence, where the off-target
+amplicon elsewhere in the exclusion genome itself only binds through an ignored terminal mismatch. The two
+cuts cross: of the 127 difference-based, 102 have a terminal run; of the 28 absence-based, 19 do.
 
 On the inclusion side the question does not arise: of 3,720 assay-and-genome amplifications, none depended
 on a trimmed primer end. Every inclusion genome that counted had at least one clean amplicon.
 
 `assays.tsv` reports this per assay as `qpcr_exclusion_terminal_only` and `pcr_exclusion_terminal_only`, and
 those assays get a verdict of their own — `undecided (3' end)` rather than `no`, since there was nothing the
-check could refuse. They are ranked above the assays it refused on evidence it can defend. The run's own
-counts, from `design_info.json`:
+check could refuse. They are ranked above the assays it refused on evidence it can defend. The counts, from
+the run's own `assays.tsv` (`design_info.json` records the first two rows; the third is the remainder):
 
 | `*_selective` | qPCR mode | PCR mode |
 |---|---|---|
@@ -219,8 +221,9 @@ counts, from `design_info.json`:
   of a primer and cannot be made to.
 - It shows the ranking's order is stable across tolerances, and that the absence-based assays — the ones
   the ranking puts first — are the ones that hold up.
-- It shows that most of what this check rejects, it rejects for a reason it cannot defend: 155 of 245 `no`
-  verdicts in PCR mode rest entirely on bases it does not count.
+- It shows that most of what this check does not clear, it does not clear for a reason it cannot defend:
+  of 245 non-selective assays in PCR mode, 155 rest entirely on bases it does not count and only 90 are
+  refusals it can stand behind.
 - It does **not** show that any of these assays works. No assay here has been near a bench, and the
   gradient with the number of differences remains close to a restatement of the model's own rule.
 

@@ -20,7 +20,6 @@
   default. It is never applied to a primer whose 3' end is pinned on a differing base, since that base is
   whatever the genomes made it — with the clamp left on there, seven of eight forced-end requests on the
   *Xylella* set returned nothing.
-
 - A verdict of its own, `undecided (3' end)`, for an assay that covers the inclusion group but amplifies
   exclusion genomes only where a difference sits in the last two bases of a primer. `no` would claim the
   check had refused it on evidence worth believing, and it has not: those bases are not counted at any
@@ -29,10 +28,10 @@
 - `qpcr_exclusion_terminal_only` and `pcr_exclusion_terminal_only` in `assays.tsv`: of the exclusion genomes
   an assay amplified, how many did so only where a difference sits in the last two bases of a primer — the
   bases insilicoPCR does not count. When it equals `*_exclusion_amplified`, every amplification behind the
-  `no` is one the tool could not have refused, so the verdict is the model's blind spot rather than a
+  verdict is one the tool could not have refused, so it is the model's blind spot rather than a
   cross-reaction. A genome counts only when every amplicon reported for it needed the trim. On the *Xylella*
-  set this separates 155 unjudgeable `no` verdicts from 83 the check rejects on its own evidence, and the
-  run says so as it goes.
+  set this separates 155 unjudgeable assays from the 90 the check refuses on its own evidence, and the run
+  says so as it goes.
 
 ### Changed
 

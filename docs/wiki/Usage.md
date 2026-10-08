@@ -155,8 +155,9 @@ primer-finder design results/ -o assays/ -t 16 --insilico-pcr /path/to/insilicoP
 | `--insilico-pcr` | off | Run in silico PCR of the assays against both groups. Takes the folder of an extracted portable release, its jar, or a launcher script. |
 | `--mismatches` | 1 | Mismatches insilicoPCR lets each primer bind through (`-m`). One is often not enough to stop a reaction; 0 assumes any mismatch is, 2 is a stricter check. It never applies to the last two bases of a primer. |
 
-The defaults of the last six are an ordinary TaqMan qPCR; set them to your own master mix if it differs,
-since they change both the melting temperatures Primer3 predicts and which oligos it returns.
+The defaults of `--max-hairpin-tm` through `--probe-conc` are an ordinary TaqMan qPCR; set them to your own
+master mix if it differs, since they change both the melting temperatures Primer3 predicts and which oligos
+it returns.
 
 The answer is `assays/assays.tsv`, the most promising assays first. [Designing assays](Designing-assays)
 explains what an oligo has to satisfy, what the order means and how an assay is judged;

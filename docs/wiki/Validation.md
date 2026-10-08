@@ -3,7 +3,7 @@
 Two different things are checked, and they answer different questions.
 
 **The tests and the example** (`pytest`, `example/run_example.sh`) check that the code does what the
-documentation says: 317 tests with stand-ins for the external programs, and a simulated dataset whose
+documentation says: 325 tests with stand-ins for the external programs, and a simulated dataset whose
 specific region is known, down to which bases must come out in lower case. They run in seconds and the CI
 runs them on every push. See [Development](Development) and [Example](Example).
 
@@ -44,7 +44,7 @@ reports and what the comparison does and does not prove, is in
 [`validation/results/2026-10-08_v1.1.0/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/master/validation/results/2026-10-08_v1.1.0/SUMMARY.md). Earlier records are kept beside it.
 
 What it does not show: that the other hundreds of regions in each run would make working assays, or anything
-about specificity outside those 22 genomes. Those regions are candidates to design on, which is what the
+about specificity outside those 25 genomes. Those regions are candidates to design on, which is what the
 [Methods](Methods) page means by a candidate.
 
 ## Designing assays on those regions
