@@ -11,17 +11,20 @@ pre-commit install
 
 ```
 primer_finder/
-├── cli.py        the command line: `find` (the default) and `idt`
-├── pipeline.py   the steps, in order, and what each writes
+├── cli.py        the command line: `find` (the default), `design` and `idt`
+├── pipeline.py   the steps of `find`, in order, and what each writes
 ├── kmers.py      KMC: counting, subtracting, dumping
 ├── assemble.py   SKESA and SPAdes
 ├── mapping.py    minimap2, cigar strings, which contigs are candidates
-├── blast.py      makeblastdb/blastn, presence and variant positions
+├── blast.py      makeblastdb/blastn, presence, and what differs where
+├── design.py     the steps of `design`: Primer3, the amplicon checks, the order
+├── insilico.py   the primer files insilicoPCR reads, running it, and its report
 ├── idt.py        IDT order sheets (.xlsx without any library, .csv, .tsv)
 ├── seqio.py      fasta reading and writing, gzipped or not
-├── tools.py      running external programs, and their versions
+├── tools.py      running external programs, their versions, and their time limits
 └── system.py     how many CPUs and how much memory may be used
 example/          the simulated dataset, the runner and the checks
+validation/       the published assays this is checked against, and dated records
 tests/            the test suite, with stand-ins for the external programs
 docs/wiki/        the sources of this wiki
 recipe/           a copy of the bioconda recipe
@@ -39,9 +42,10 @@ pytest -m tools                            # only the example, with the real pro
 ruff check .
 ```
 
-`tests/stub_programs.py` holds a stand-in for every external program; the `stubs` fixture puts them first on
-`PATH` and lets each test say what they should produce (the kmers KMC dumps, the contigs the assembler
-writes, the SAM records, the blast hits). The whole pipeline is therefore tested without conda, in seconds,
+`tests/stub_programs.py` holds a stand-in for every external program, and `tests/stub_insilico_pcr.py` one
+for insilicoPCR; the `stubs` fixture puts them first on `PATH` and lets each test say what they should
+produce (the kmers KMC dumps, the contigs the assembler writes, the SAM records, the blast hits, the assays
+Primer3 proposes, which samples amplify). The whole pipeline is therefore tested without conda, in seconds,
 including its error paths. The test marked `tools` runs `example/run_example.sh` with the real programs and
 is skipped when they are not installed.
 

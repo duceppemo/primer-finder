@@ -79,9 +79,14 @@ exact-match rules cannot tolerate.
 
 ## Does it design the primers?
 
-No. It reports the regions, with the specific bases in lower case, and the design is up to you (Primer3 and
-an in-silico PCR against the exclusion genomes). Put the specific bases in the primers, at their 3' end
-rather than in the probe.
+Yes, since 1.2.0: `primer-finder design results/ -o assays/` runs Primer3 on the regions, keeps the assays
+that could tell the two groups apart, and writes the primer files
+[insilicoPCR](https://github.com/duceppemo/insilicoPCR) reads — and runs it for you with `--insilico-pcr`.
+See [Designing assays](Designing-assays), which also explains how the assays are ordered and how much that
+order is worth.
+
+`find` on its own still just reports the regions, with the specific bases in lower case, if you would rather
+design them yourself.
 
 ## Why is the result not exactly the same as in the 2022 version?
 

@@ -16,8 +16,11 @@ Give it two folders of genomes — the ones the assay should amplify (**inclusio
    genome, and its differences must hold up against every exclusion genome, not just the one it was mapped
    to.
 
-The answer is `final_kmers.fasta`: one record per candidate region, with the specific bases in lower case and
-their positions in the header, the most promising first. Design the assay on those bases — ideally with the
+`primer-finder design` then runs Primer3 on those regions and checks what would make each assay selective,
+writing the primer files [insilicoPCR](https://github.com/duceppemo/insilicoPCR) reads.
+
+The answer of `find` is `final_kmers.fasta`: one record per candidate region, with the specific bases in
+lower case and their positions in the header, the most promising first. Design the assay on those bases — ideally with the
 variable positions in the primers, at their 3' end, rather than in the probe.
 
 primer-finder only keeps perfect matches: a kmer must be in **all** the inclusion genomes with no mismatch,

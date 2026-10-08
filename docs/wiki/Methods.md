@@ -137,7 +137,9 @@ than a single one at the 3' end.
 - **One exclusion genome in step 3.** The candidate list depends on which genome that is (`-r`). The
   differences are then re-checked against the whole group, so this affects what gets looked at, not what
   survives.
-- **No assay is designed or tested.** The output is the region to design on, not a primer pair.
+- **`find` designs nothing.** Its output is the region to design on, not a primer pair;
+  [`design`](Designing-assays) is the step that proposes assays, and neither command tests one. Only a
+  laboratory does that.
 - **Plasmids and repeats.** `-d 1` discards anything repeated inside a genome; a kmer carried by a plasmid
   that moves between the two groups will not be specific.
 - **Where the output folder may be.** It must be outside both input folders — they are searched recursively,
