@@ -7,6 +7,14 @@ authors:
     given-names: Marc-Olivier
 version: 1.0.0
 date-released: "2026-10-07"
+doi: 10.5281/zenodo.23226412
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.23226411
+    description: "Concept DOI: resolves to the latest version"
+  - type: doi
+    value: 10.5281/zenodo.23226412
+    description: "Version DOI for 1.0.0"
 license: MIT
 repository-code: "https://github.com/duceppemo/primer-finder"
 url: "https://github.com/duceppemo/primer-finder"

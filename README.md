@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/duceppemo/primer-finder" alt="License: MIT"></a>
   <a href="https://github.com/duceppemo/primer-finder/wiki"><img src="https://img.shields.io/badge/docs-wiki-informational" alt="Documentation"></a>
-  <a href="https://zenodo.org/badge/latestdoi/222737677"><img src="https://zenodo.org/badge/222737677.svg" alt="DOI"></a>
+  <a href="https://doi.org/10.5281/zenodo.23226411"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23226411.svg" alt="DOI"></a>
 </p>
 
 primer-finder finds the sequences that tell one group of genomes from another, so that a selective (q)PCR
@@ -82,7 +82,8 @@ maintained in [`docs/wiki`](docs/wiki):
 
 ## Citation
 
-If primer-finder helped your work, please cite it (see [CITATION.cff](CITATION.cff)) together with the
+If primer-finder helped your work, please cite it — [doi:10.5281/zenodo.23226411](https://doi.org/10.5281/zenodo.23226411),
+which always resolves to the latest version (see [CITATION.cff](CITATION.cff)) — together with the
 programs it runs: [KMC](https://github.com/refresh-bio/KMC),
 [SKESA](https://github.com/ncbi/SKESA) or [SPAdes](https://github.com/ablab/spades),
 [minimap2](https://github.com/lh3/minimap2) and [BLAST](https://blast.ncbi.nlm.nih.gov/).
