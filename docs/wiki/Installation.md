@@ -13,6 +13,16 @@ primer-finder --version
 
 Mamba works the same way (`mamba create ...`) and is much faster.
 
+## From PyPI
+
+`pip install primer-finder` installs the command, but **not** the programs it runs: KMC, SKESA or SPAdes,
+minimap2 and BLAST are not Python packages. Use it inside an environment that already holds them (or install
+them separately); otherwise prefer the bioconda package above, which brings everything.
+
+```bash
+pip install primer-finder   # or: pipx install primer-finder
+```
+
 ## From the source code
 
 The conda environment file brings the external programs in, then pip installs primer-finder itself:

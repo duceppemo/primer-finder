@@ -19,6 +19,8 @@ mapped to one exclusion genome (minimap2) and checked against every genome (blas
 - Gzipped genomes (`.fa.gz`, `.fasta.gz`, `.fna.gz`) work throughout: they are decompressed where blast
   needs plain fasta.
 - A bundled example with simulated genomes and a known answer (`example/run_example.sh`), run by the CI.
+- The package is published to PyPI as well as bioconda (`pip install primer-finder` gives the command, not
+  the programs it runs).
 
 ### Changed
 

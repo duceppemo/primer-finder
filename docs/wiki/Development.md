@@ -56,6 +56,7 @@ Add a test with every fix, and check that it fails without the fix.
 | `ci.yml` | push to `master`, pull requests | `ruff check`, the test suite on Python 3.10-3.13 and on macOS, coverage to Codecov, and the example with the real programs in a micromamba environment built from `environment.yml` |
 | `wiki.yml` | push touching `docs/wiki/**` | copies `docs/wiki/` to the GitHub wiki |
 | `release.yml` | a `v*` tag | builds the wheel and the sdist, checks that the tag matches the version, and creates the GitHub release with the notes taken from `CHANGELOG.md` |
+| `publish.yml` | a published GitHub release, or by hand with a tag | builds the wheel and the sdist again and uploads them to PyPI through a trusted publisher (OpenID Connect, no API token). The `pypi` environment of this repository must match the environment of the publisher registered on PyPI |
 
 The wiki is maintained in `docs/wiki/` in this repository and published by `wiki.yml`. Do not edit the pages
 on GitHub directly: the next push overwrites them.
@@ -67,7 +68,8 @@ on GitHub directly: the next push overwrites them.
    that all five agree.
 2. `pytest` and `bash example/run_example.sh` green; update the tarball version in the README and in
    `docs/wiki/Installation.md`.
-3. Tag and push: `git tag v1.0.1 && git push --tags`. `release.yml` publishes the release.
+3. Tag and push: `git tag v1.0.1 && git push --tags`. `release.yml` publishes the release, and
+   `publish.yml` then uploads the wheel and the sdist to PyPI.
 4. Zenodo archives the release and mints a DOI; add the new version DOI to `CITATION.cff`.
 5. Update the bioconda recipe: bump `version`, recompute the sha256 of the release tarball
    (`curl -sL <url> | sha256sum`), reset `number` to 0, and open a pull request against
