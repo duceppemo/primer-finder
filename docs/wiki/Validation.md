@@ -76,6 +76,55 @@ absence-based assays that amplify something off-target in an exclusion genome; 2
 primer still bind, which is what a deliberate allele-specific design uses to discriminate, so it is offered
 as a stricter second pass; 3 measured nothing 2 did not.
 
+## Thirty published *Listeria monocytogenes* clonal-complex assays
+
+The *Xylella* set asks the right question of small groups: 8 inclusion genomes against 17. A second answer
+key asks it of much larger ones, and of a harder target — clonal complexes *within* one species:
+
+> Félix B. et al. (2023) *Identification by High-Throughput Real-Time PCR of 30 Major Circulating Listeria
+> monocytogenes Clonal Complexes in Europe.* Microbiology Spectrum 11(3):e03954-22.
+> [doi:10.1128/spectrum.03954-22](https://doi.org/10.1128/spectrum.03954-22)
+
+Their 34 TaqMan primer-and-probe sets were designed on kmers found in 954 genomes, at least 15 per clonal
+complex, and checked in silico against 2,388 more. The panel here is every complete RefSeq
+*L. monocytogenes* assembly — 784 genomes, 763 of which the Institut Pasteur MLST scheme places in one of 79
+clonal complexes — which gives inclusion groups of 18 to 86 genomes against exclusion groups of 677 to 745.
+
+### Result, primer-finder 1.5.0
+
+Nine of the 34 assays target a whole clonal complex that has at least 15 complete genomes. (CC1, CC14, CC37
+and CC121 have two assays each, resolving subdivisions *within* the complex, so a complex-wide group is not
+what they detect.)
+
+| Target | Inclusion | Exclusion | Regions | Recovered | Rank |
+|---|---|---|---|---|---|
+| CC4 (at `-p 0.94`) | 19 | 744 | 6 | yes | 1 |
+| CC5 | 22 | 741 | 22 | yes | 9 |
+| CC6 | 36 | 727 | 24 | yes | 5 |
+| CC7 | 47 | 716 | 15 | yes | 1 |
+| CC8 | 52 | 711 | 22 | yes | 2 |
+| CC2, CC3, CC9, CC224 | 18–86 | 677–745 | 0–16 | no | — |
+
+**Five of the nine were recovered**, four at the defaults and CC4 once `-p 0.94` allowed one of its 19
+genomes to lack the region. In all four that were not, an independent blast census of the panel shows the
+published assay is not both present in every genome of its own complex and absent from every other — so
+primer-finder's rule is right to decline them, and for CC3 and CC224 the cross-reaction it declines on is
+one the paper itself predicts in silico.
+
+The full record, including the two limitations this panel exposed — an inclusion-specific island shorter than
+200 bases is invisible, because that is SKESA's minimum contig length, and a published amplicon may straddle
+the edge of such an island — is in
+[`validation/results/2026-10-10_v1.5.0/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-10_v1.5.0/SUMMARY.md).
+
+It needs one more environment, because a clonal complex is not in the NCBI metadata and has to come from the
+MLST profile:
+
+```bash
+conda create -n primer-finder_listeria -c conda-forge -c bioconda mlst ncbi-datasets-cli "perl>=5.32"
+conda activate primer-finder_listeria
+bash validation/listeria/run.sh /path/to/work 32 64
+```
+
 ### Running it
 
 ```bash
