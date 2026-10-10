@@ -9,7 +9,7 @@
   <a href="https://anaconda.org/bioconda/primer-finder"><img src="https://img.shields.io/conda/vn/bioconda/primer-finder?label=bioconda" alt="Bioconda"></a>
   <a href="https://pypi.org/project/primer-finder/"><img src="https://img.shields.io/pypi/v/primer-finder?label=pypi" alt="PyPI"></a>
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+">
-  <a href="https://github.com/duceppemo/primer-finder/blob/master/LICENSE"><img src="https://img.shields.io/github/license/duceppemo/primer-finder" alt="License: MIT"></a>
+  <a href="https://github.com/duceppemo/primer-finder/blob/main/LICENSE"><img src="https://img.shields.io/github/license/duceppemo/primer-finder" alt="License: MIT"></a>
   <a href="https://github.com/duceppemo/primer-finder/wiki"><img src="https://img.shields.io/badge/docs-wiki-informational" alt="Documentation"></a>
   <a href="https://doi.org/10.5281/zenodo.23226411"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23226411.svg" alt="DOI"></a>
 </p>
@@ -97,7 +97,7 @@ primer-finder idt order.xlsx assays.fasta my_target
 ## Documentation
 
 Everything else is in the [wiki](https://github.com/duceppemo/primer-finder/wiki), whose sources are
-maintained in [`docs/wiki`](https://github.com/duceppemo/primer-finder/blob/master/docs/wiki):
+maintained in [`docs/wiki`](https://github.com/duceppemo/primer-finder/blob/main/docs/wiki):
 
 | Page | Contents |
 |---|---|
@@ -114,7 +114,7 @@ maintained in [`docs/wiki`](https://github.com/duceppemo/primer-finder/blob/mast
 ## Citation
 
 If primer-finder helped your work, please cite it — [doi:10.5281/zenodo.23226411](https://doi.org/10.5281/zenodo.23226411),
-which always resolves to the latest version (see [CITATION.cff](https://github.com/duceppemo/primer-finder/blob/master/CITATION.cff)) — together with the
+which always resolves to the latest version (see [CITATION.cff](https://github.com/duceppemo/primer-finder/blob/main/CITATION.cff)) — together with the
 programs it runs: [KMC](https://github.com/refresh-bio/KMC),
 [SKESA](https://github.com/ncbi/SKESA) or [SPAdes](https://github.com/ablab/spades),
 [minimap2](https://github.com/lh3/minimap2), [BLAST](https://blast.ncbi.nlm.nih.gov/) and, for the design
@@ -122,4 +122,4 @@ step, [Primer3](https://primer3.org/) and [insilicoPCR](https://github.com/ducep
 
 ## License
 
-[MIT](https://github.com/duceppemo/primer-finder/blob/master/LICENSE)
+[MIT](https://github.com/duceppemo/primer-finder/blob/main/LICENSE)

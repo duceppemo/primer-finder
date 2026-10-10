@@ -27,4 +27,4 @@ pre-commit install
   compared with the current one on real data before it replaces it.
 - User-visible changes go in `CHANGELOG.md`; options and outputs are documented in `docs/wiki/`.
 - `bash example/run_example.sh` must still end with "All checks passed".
-- Open the pull request against `master`.
+- Open the pull request against `main`.

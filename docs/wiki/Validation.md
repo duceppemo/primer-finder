@@ -41,7 +41,7 @@ length.
 Every amplicon came out exactly the published length, and each recovered region aligned to the paper's
 reference genome at 100% identity. The full record, including how far each region overlaps the one the paper
 reports and what the comparison does and does not prove, is in
-[`validation/results/2026-10-08_v1.1.0/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/master/validation/results/2026-10-08_v1.1.0/SUMMARY.md). Earlier records are kept beside it.
+[`validation/results/2026-10-08_v1.1.0/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-08_v1.1.0/SUMMARY.md). Earlier records are kept beside it.
 
 What it does not show: that the other hundreds of regions in each run would make working assays, or anything
 about specificity outside those 25 genomes. Those regions are candidates to design on, which is what the

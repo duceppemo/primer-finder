@@ -367,7 +367,7 @@ Three reasons not to read that as a result about PCR:
 So: the ranking is a sensible order to work through, supported by what others have published about
 mismatches, and the in silico numbers are a consistency check on one dataset. They are not a measurement of
 how these assays behave in a tube. The full sweep is in
-[`validation/results/2026-10-08_v1.3.0/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/master/validation/results/2026-10-08_v1.3.0/SUMMARY.md).
+[`validation/results/2026-10-08_v1.3.0/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-08_v1.3.0/SUMMARY.md).
 
 One thing in that record is **not** circular, and is worth acting on: of the 178 assays that are specific by
 absence — no designed mismatch anywhere, their amplicon simply missing from the exclusion genomes — 30
@@ -403,7 +403,7 @@ An assay is `selective` in a mode when it amplifies **every** inclusion genome a
 insilicoPCR takes a mismatch tolerance, and primer-finder passes `--mismatches 1` by default. What that
 governs was measured rather than assumed — a primer pair in a synthetic template, the template mutated one
 base at a time at a known distance from the primer's 3' end, run at tolerances from 0 to 10
-([`mismatch_zones.py`](https://github.com/duceppemo/primer-finder/blob/master/validation/results/2026-10-08_v1.3.0/mismatch_zones.py)).
+([`mismatch_zones.py`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-08_v1.3.0/mismatch_zones.py)).
 A primer turns out to have three zones, and the tolerance only controls one:
 
 | Where the mismatch is | What insilicoPCR does |

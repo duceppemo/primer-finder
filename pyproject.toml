@@ -27,7 +27,7 @@ test = ["pytest>=7", "pytest-cov>=5", "ruff", "pre-commit"]
 [project.urls]
 Homepage = "https://github.com/duceppemo/primer-finder"
 Documentation = "https://github.com/duceppemo/primer-finder/wiki"
-Changelog = "https://github.com/duceppemo/primer-finder/blob/master/CHANGELOG.md"
+Changelog = "https://github.com/duceppemo/primer-finder/blob/main/CHANGELOG.md"
 
 [project.scripts]
 primer-finder = "primer_finder.cli:main"

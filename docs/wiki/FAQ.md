@@ -95,7 +95,7 @@ design them yourself.
 ## Why is the result not exactly the same as in the 2022 version?
 
 Several rules were fixed; they are listed in
-[CHANGELOG.md](https://github.com/duceppemo/primer-finder/blob/master/CHANGELOG.md). The ones that change
+[CHANGELOG.md](https://github.com/duceppemo/primer-finder/blob/main/CHANGELOG.md). The ones that change
 which contigs come out:
 
 - the exclusion kmers are now really all subtracted. The old command line passed `-cx1e9` to KMC, which KMC
