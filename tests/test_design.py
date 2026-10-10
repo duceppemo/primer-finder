@@ -9,7 +9,7 @@ import pytest
 
 from primer_finder import PrimerFinderError
 from primer_finder.design import (
-    DEFAULT_MIN_OLIGO_DIFFERENCES,
+    DEFAULT_MIN_PRIMER_DIFFERENCES,
     DEFAULT_MISMATCHES,
     DEFAULT_PRODUCT_SIZE,
     STRONG_BASE_WEIGHT,
@@ -701,41 +701,63 @@ def test_an_assay_resting_on_one_difference_is_set_aside(stubs, tmp_path, genome
     only one of them is the weak case that rule was there to avoid, so it is not carried further -- and
     when that is every assay, the error says which option accepts them."""
     results = one_difference_run(tmp_path, genomes, stubs)
-    with pytest.raises(PrimerFinderError, match="min-oligo-differences 1"):
+    with pytest.raises(PrimerFinderError, match="min-primer-differences 1"):
         run(design_settings(results, tmp_path / "strict"))
 
 
 def test_the_weaker_assay_can_be_asked_for(stubs, tmp_path, genomes):
     results = one_difference_run(tmp_path, genomes, stubs)
     output = tmp_path / "loose"
-    assert run(design_settings(results, output, min_oligo_differences=1)) == 0
+    assert run(design_settings(results, output, min_primer_differences=1)) == 0
     rows = list(iter_rows(output / "assays.tsv"))
-    assert rows and all(row["best_oligo_variants"] == "1" for row in rows)
+    assert rows and all(row["best_primer_variants"] == "1" for row in rows)
     assert rows[0]["assay"] in (output / "assays_pcr.fasta").read_text()
 
 
-def test_the_default_asks_for_two_differences_under_one_oligo():
-    assert DEFAULT_MIN_OLIGO_DIFFERENCES == 2
-    assert DesignSettings(results=Path("r"), output=Path("o"), threads=1).min_oligo_differences == 2
+def test_the_default_asks_for_two_differences_under_one_primer():
+    assert DEFAULT_MIN_PRIMER_DIFFERENCES == 2
+    assert DesignSettings(results=Path("r"), output=Path("o"), threads=1).min_primer_differences == 2
+
+
+def test_a_probes_differences_do_not_qualify_an_assay():
+    """The probe is longer and hotter than a primer, so two mismatches under it are no evidence it will
+    not bind: a conventional TaqMan probe still gave signal through five (Yao et al. 2006). Its
+    differences are reported and break ties in the ranking, but they cannot carry an assay."""
+    probe_only = assay(probe=oligo(140, 22, variants=[150, 151]))
+    assert probe_only.probe_variants_covered == 2
+    assert probe_only.best_primer_variants == 0
+
+    on_a_primer = assay(forward=oligo(start=100, length=20, variants=[118, 119]))
+    assert on_a_primer.best_primer_variants == 2
+
+
+def test_one_difference_on_each_primer_does_not_qualify_either():
+    """Two differences, but neither primer carries two: the region was kept because two could sit in one
+    oligo, and this assay does not do that."""
+    split = assay(forward=oligo(start=100, length=20, variants=[119]),
+                  reverse=oligo(200, variants=[200], reverse=True))
+    assert split.primer_variants_covered == 2
+    assert split.best_primer_variants == 1
 
 
 def test_an_assay_specific_by_absence_is_not_asked_for_differences(stubs, finished_run, tmp_path, genomes):
     """It does not rest on a difference at all: there is nothing in the exclusion genomes to amplify, so
-    the number of differences under its oligos is beside the point."""
+    the number of differences under its primers is beside the point."""
     output = tmp_path / "assays"
-    assert run(design_settings(finished_run, output, min_oligo_differences=4)) == 0
+    assert run(design_settings(finished_run, output, min_primer_differences=4)) == 0
     rows = list(iter_rows(output / "assays.tsv"))
     kept = [row for row in rows if row["assay"] in (output / "assays_pcr.fasta").read_text()]
     assert kept and all(row["specific_by"] == "absence" for row in kept)
 
 
-def test_how_many_differences_the_best_oligo_covers_is_reported(tmp_path):
+def test_how_many_differences_the_best_primer_covers_is_reported(tmp_path):
     one = assay(forward=oligo(start=100, length=20, variants=[115, 119]),
-                probe=oligo(start=140, length=22, variants=[150]))
+                probe=oligo(start=140, length=22, variants=[150, 151, 152]))
     path = tmp_path / "assays.tsv"
     write_assays(path, [one])
-    assert next(iter_rows(path))["best_oligo_variants"] == "2"   # the forward primer's two, not the three
-                                                                 # its oligos cover between them
+    row = next(iter_rows(path))
+    assert row["best_primer_variants"] == "2"   # the forward primer's two, not the probe's three
+    assert row["probe_variants"] == "3"         # which is still reported, just not what qualifies
 
 
 def test_the_structure_temperatures_survive_a_whole_run(stubs, finished_run, tmp_path, genomes):

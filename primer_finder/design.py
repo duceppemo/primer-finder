@@ -45,12 +45,21 @@ DEFAULT_GC_CLAMP = 1
 # assuming it does would flatter an assay. See docs/wiki/Designing-assays.md.
 DEFAULT_MISMATCHES = 1
 
-# How many differences one oligo must cover, for an assay that rests on differences rather than on absence.
-# The `find` command keeps a region because its differences could sit in one oligo -- a run of them, or two
-# fewer than a primer's length apart -- so an assay inside it that spends only one of them is not what was
-# selected for. Two mismatches under one primer also discriminate far better than one
-# (Lefever et al. 2019, doi:10.1038/s41598-019-38581-z). Assays below it are listed but carried no further.
-DEFAULT_MIN_OLIGO_DIFFERENCES = 2
+# How many differences one *primer* must cover, for an assay that rests on differences rather than on
+# absence. The `find` command keeps a region because its differences could sit in one oligo -- a run of them,
+# or two fewer than a primer's length apart -- so an assay inside it that spends only one of them is not what
+# was selected for. Two mismatches under one primer also discriminate far better than one
+# (Lefever et al. 2019, doi:10.1038/s41598-019-38581-z).
+#
+# The probe is deliberately not counted. It is longer than a primer (18-27 bases here against 18-25) and its
+# melting temperature is higher (62-72 C against 58-63), so it carries much more binding energy into a
+# reaction run near 60 C and a couple of mismatches need not stop it hybridising or being cleaved. A
+# conventional TaqMan probe still gave a detectable signal with up to five mismatches, and neither it nor an
+# MGB probe was sequence-specific under standard conditions (Yao et al. 2006, doi:10.1016/j.mcp.2006.03.003).
+# Discrimination by a probe comes from making it short, not from counting mismatches: a 12-base MGB probe has
+# the same melting temperature as an unmodified 27-base one (Kutyavin et al. 2000, Nucleic Acids Res
+# 28:655-661). See docs/wiki/Designing-assays.md.
+DEFAULT_MIN_PRIMER_DIFFERENCES = 2
 
 # Primer3 models hairpins and dimers thermodynamically and refuses an oligo whose structure melts above
 # these temperatures, so the worst candidates never reach the ranking. These are its own defaults, set
@@ -252,15 +261,19 @@ class Assay:
         return len(self.probe.variants) if self.probe else 0
 
     @property
-    def best_oligo_variants(self) -> int:
-        """The most differences any one of its oligos covers.
+    def best_primer_variants(self) -> int:
+        """The most differences either primer covers on its own.
 
         This is the number the `find` command's rule is about: it keeps a region whose differences could
         sit in one oligo, and two mismatches under one primer discriminate far better than one mismatch
         each under two. An assay can be designed inside such a region and still spend only one of them,
-        which `--min-oligo-differences` is there to set aside.
+        which `--min-primer-differences` is there to set aside.
+
+        The probe is not counted, however many differences it covers: it is longer and hotter than a
+        primer, so two mismatches under it are no evidence that it will not bind. See
+        `DEFAULT_MIN_PRIMER_DIFFERENCES` for the measurements that say so.
         """
-        return max((len(oligo.variants) for oligo in self.oligos), default=0)
+        return max(len(self.forward.variants), len(self.reverse.variants))
 
     @property
     def primer_variant_weight(self) -> float:
@@ -759,7 +772,7 @@ DEFAULT_MAX_REGIONS = 50
 COLUMNS = (
     "assay", "region", "specific_by", "exclusion_genomes_with_amplicon", "best_terminal_run",
     "inclusion_copies_min", "inclusion_copies_max", "product_size", "penalty", "penalty_band",
-    "best_oligo_variants", "primer_variant_weight", "pair_dimer_tm", "pair_dimer_end_tm",
+    "best_primer_variants", "primer_variant_weight", "pair_dimer_tm", "pair_dimer_end_tm",
     "forward", "forward_start", "forward_tm", "forward_gc", "forward_variants",
     "forward_hairpin_tm", "forward_self_dimer_tm",
     "forward_strong_variants", "forward_terminal_run", "forward_near_3prime",
@@ -789,7 +802,7 @@ class DesignSettings:
     assays_per_region: int = DEFAULT_ASSAYS_PER_REGION
     gc_clamp: int = DEFAULT_GC_CLAMP
     conditions: Conditions = field(default_factory=Conditions)
-    min_oligo_differences: int = DEFAULT_MIN_OLIGO_DIFFERENCES
+    min_primer_differences: int = DEFAULT_MIN_PRIMER_DIFFERENCES
     max_regions: int = DEFAULT_MAX_REGIONS  # 0 for every region
     insilico_pcr: Path | None = None
     mismatches: int = DEFAULT_MISMATCHES
@@ -813,7 +826,7 @@ def assay_row(assay: Assay, verdict: dict[str, object] | None = None) -> dict[st
         "inclusion_copies_max": max(assay.inclusion_copies) if assay.inclusion_copies else 0,
         "product_size": assay.product_size, "penalty": f"{assay.penalty:.4f}",
         "penalty_band": assay.penalty_band,
-        "best_oligo_variants": assay.best_oligo_variants,
+        "best_primer_variants": assay.best_primer_variants,
         "primer_variant_weight": f"{assay.primer_variant_weight:g}",
         "pair_dimer_tm": f"{assay.pair_dimer_tm:.1f}",
         "pair_dimer_end_tm": f"{assay.pair_dimer_end_tm:.1f}",
@@ -947,17 +960,18 @@ def run(settings: DesignSettings) -> int:
                  "usually improves the limit of detection", repeated)
     ranked = rank(assays)
     usable = telling = [assay for assay in ranked if assay.usable]
-    if settings.min_oligo_differences > 1:
+    if settings.min_primer_differences > 1:
         # A region is kept by `find` because its differences could sit in one oligo. An assay designed in
-        # it can still spend only one of them, which is the weak case that rule was there to avoid.
+        # it can still spend only one of them, which is the weak case that rule was there to avoid. The
+        # probe does not count towards this: see DEFAULT_MIN_PRIMER_DIFFERENCES.
         kept = [assay for assay in usable
                 if assay.specific_by_absence
-                or assay.best_oligo_variants >= settings.min_oligo_differences]
+                or assay.best_primer_variants >= settings.min_primer_differences]
         thin = len(usable) - len(kept)
         if thin:
-            log.info("%d assay(s) rest on fewer than %d difference(s) under a single oligo and are listed "
-                     "but not carried further (--min-oligo-differences)", thin,
-                     settings.min_oligo_differences)
+            log.info("%d assay(s) rest on fewer than %d difference(s) under a single primer and are listed "
+                     "but not carried further (--min-primer-differences)", thin,
+                     settings.min_primer_differences)
         usable = kept
     carried = {id(assay) for assay in usable}
     by_absence = sum(1 for assay in usable if assay.specific_by_absence)
@@ -969,9 +983,9 @@ def run(settings: DesignSettings) -> int:
         log.info("%d assay(s) would amplify both groups and are listed but not carried further", dropped)
     if not usable and telling:
         raise PrimerFinderError(
-            f"Every assay Primer3 proposed rests on fewer than {settings.min_oligo_differences} "
-            "difference(s) under a single oligo. --assays-per-region above the default gives Primer3 more "
-            "tries at the differences; --min-oligo-differences 1 accepts an assay that spends only one of "
+            f"Every assay Primer3 proposed rests on fewer than {settings.min_primer_differences} "
+            "difference(s) under a single primer. --assays-per-region above the default gives Primer3 more "
+            "tries at the differences; --min-primer-differences 1 accepts an assay that spends only one of "
             "them, which is a weaker assay rather than no assay."
         )
     if not usable:
@@ -1021,7 +1035,7 @@ def run(settings: DesignSettings) -> int:
             "gc_clamp": settings.gc_clamp,
             "conditions": vars(settings.conditions),
             "mismatches": settings.mismatches,
-            "min_oligo_differences": settings.min_oligo_differences,
+            "min_primer_differences": settings.min_primer_differences,
             "threads": settings.threads,
             "min_inclusion": threshold_of(settings),
         },

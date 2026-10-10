@@ -151,7 +151,7 @@ primer-finder design results/ -o assays/ -t 16 --insilico-pcr /path/to/insilicoP
 | `--dntp` | 0.8 mM | Total dNTPs (0.2 mM of each). |
 | `--primer-conc` | 250 nM | Primer concentration. |
 | `--probe-conc` | 200 nM | Probe concentration. |
-| `--min-oligo-differences` | 2 | Differences one oligo must cover, for an assay resting on differences rather than on absence — what the find step selected the region for. Below it an assay is listed but carried no further. 1 keeps them. |
+| `--min-primer-differences` | 2 | Differences one **primer** must cover, for an assay resting on differences rather than on absence — what the find step selected the region for. The probe does not count, however many it covers: it is longer and hotter, so two mismatches under it are no evidence it will not bind. Below this an assay is listed but carried no further. 1 keeps them. `--min-oligo-differences` is accepted as the old name. |
 | `--max-regions` | 50 | Design on this many regions, most promising first. 0 for all of them. |
 | `--insilico-pcr` | off | Run in silico PCR of the assays against both groups. Takes the folder of an extracted portable release, its jar, or a launcher script. |
 | `--mismatches` | 1 | Mismatches insilicoPCR lets each primer bind through (`-m`). One is often not enough to stop a reaction; 0 assumes any mismatch is, 2 is a stricter check. It never applies to the last two bases of a primer. |

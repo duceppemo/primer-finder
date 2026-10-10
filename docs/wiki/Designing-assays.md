@@ -77,20 +77,73 @@ So the design step has to actually do it, and two things make sure of it:
    the 20 regions designed on hold such a pair, and 8 hold nothing else. Aiming at any 25-base window
    instead raised the share of difference-based assays whose best single oligo covers two or more
    differences **from 43% to 77%**, on the same regions with everything else unchanged.
-2. **`--min-oligo-differences`, 2 by default, sets aside the rest.** An assay that rests on differences and
-   spends only one of them is the weak case the `find` rule exists to avoid — a single mismatch, even at a
-   3' end, often does not stop amplification
+2. **`--min-primer-differences`, 2 by default, sets aside the rest.** An assay that rests on differences
+   and spends only one of them is the weak case the `find` rule exists to avoid — a single mismatch, even at
+   a 3' end, often does not stop amplification
    ([Lefever et al. 2019](https://doi.org/10.1038/s41598-019-38581-z)). Those assays are still listed, with
-   `best_oligo_variants` saying how many the best oligo carries, but they are not written to the
-   insilicoPCR files and not carried further. `--min-oligo-differences 1` keeps them, which is a weaker
+   `best_primer_variants` saying how many the better primer carries, but they are not written to the
+   insilicoPCR files and not carried further. `--min-primer-differences 1` keeps them, which is a weaker
    assay rather than no assay.
 
 An assay that is **specific by absence** is exempt: it does not rest on a difference at all, so how many
-sit under its oligos is beside the point.
+sit under its primers is beside the point.
 
-On the *Xylella* set the two together take the 509 assays Primer3 proposed to 436 carried forward (195 by
-absence, 241 by difference) and set 68 aside. The ranking is unchanged: it still prefers more differences in
-total, and does not take a view on whether two under one primer beat one under each.
+### Why the probe does not count towards it
+
+`--min-primer-differences` looks at the **primers only**, however many differences the probe covers. That is
+deliberate, and it is the one place where the reasoning behind this filter does not carry over from a primer
+to an oligo in general.
+
+A probe here is longer than a primer — 18 to 27 bases against 18 to 25, 22 optimal against 20 — and its
+melting temperature is higher, 62–72 °C against 58–63 °C, because the extra length is how that temperature
+is reached. In a reaction annealing near 60 °C it therefore starts with far more binding energy in hand, and
+two mismatches spread over a long duplex need not stop it hybridising or being cleaved. Three findings say
+so more precisely than the argument does:
+
+- **A conventional TaqMan probe still gave a detectable signal through five mismatches**, and under standard
+  conditions neither it nor an MGB probe was sequence-specific
+  ([Yao, Nellåker & Karlsson 2006](https://doi.org/10.1016/j.mcp.2006.03.003)). Whatever a small number of
+  mismatches under a probe is evidence of, it is not evidence of discrimination.
+- **A probe discriminates by being short, not by carrying more mismatches.** A 12-base MGB probe has the
+  same melting temperature, 65 °C, as an unmodified 27-base one (Kutyavin et al. 2000, *Nucleic Acids Res*
+  28:655–661, [PMC102528](https://pmc.ncbi.nlm.nih.gov/articles/PMC102528)). Shortening the duplex is what
+  makes one mismatch a large fraction of its stability, which is why SNP genotyping uses short MGB or LNA
+  probes with the difference near the middle.
+- **In a 5'-nuclease assay the discrimination lives in the primers.** A single mismatch in a primer's 3'
+  region shifts the quantification cycle by anything from under 1.5 to over 7 cycles depending on which base
+  pair it is, and by up to sevenfold between master mixes
+  ([Stadhouders et al. 2010](https://pmc.ncbi.nlm.nih.gov/articles/PMC2797725); see also Lefever et al.
+  2013, *Clin Chem* 59:1470–1480). The probe reports the amplification; it does not gate it.
+
+So an assay whose only differences sit under its probe is set aside like any other that no primer can tell
+apart. Its probe differences are still counted in `probe_variants`, and they still break ties in the
+ranking (step 8), but they cannot qualify it.
+
+**If the probe is meant to do the discriminating**, primer-finder cannot give you what that needs: order it
+as a shortened MGB or LNA probe with the difference near its centre, and raise the annealing temperature.
+What the design step can do is stop presenting a 27-mer as though it were specific.
+
+#### What this evidence does not settle
+
+- Yao et al. is one study, one target, from 2006, under "standard conditions". "A detectable signal" is not
+  the same as "indistinguishable": a probe mismatch that delays the cycle by several cycles may still
+  discriminate if you set a threshold for it and validate that threshold.
+- Every number above is condition-dependent. Stadhouders' sevenfold spread between master mixes is the point
+  rather than a footnote: the same oligo behaves differently in a different mix, at a different annealing
+  temperature, with a different polymerase.
+- **In silico PCR cannot settle it either way**, in either direction. It decides whether an oligo binds by
+  counting mismatches, so it will report a probe with two mismatches as not binding — which is exactly the
+  assumption in question. In the *Xylella* sweep every one of the 58 probe-only assays came out "selective"
+  in qPCR mode and none of them in PCR mode; that gap was the model trusting the probe, not evidence about
+  it.
+
+So this is a reason to stop treating two mismatches under a probe as qualification, not a demonstration that
+such a probe never discriminates. `--min-primer-differences 1` accepts those assays if you would rather
+judge them yourself.
+
+On the *Xylella* set the two changes together take the 511 assays Primer3 proposed to 363 carried forward
+(195 by absence, 168 by difference), setting 141 aside and dropping the 7 that would amplify both groups. The ranking is unchanged: it still prefers more
+differences in total, and does not take a view on whether two under one primer beat one under each.
 
 ## What an oligo has to satisfy
 
@@ -223,7 +276,7 @@ In the order the ranking puts them. The two marked `no` are set aside before the
 | **6** | `·····G······C·······▶` | 2 | 2.0 | 0 | yes |
 | **7** | `··················AT▶` | 2 | 1.0 | 2 | yes |
 | **8** | `···················G▶` | 1 | 1.0 | 1 | **no** |
-| **9** | *no difference under either primer; two under the probe:* `··········GC··········` | 0 | 0 | 0 | yes |
+| **9** | *no difference under either primer; two under the probe:* `··········GC··········` | 0 | 0 | 0 | **no** |
 
 Reading the ladder:
 
@@ -237,27 +290,29 @@ Reading the ladder:
   is weighed before *where they sit* (step 4). Two G/C differences in the middle of a primer therefore
   outrank two A/T differences at its 3' end. 5 beats 6 because its differences are within five bases of the
   3' end even though neither reaches it (step 5).
-- **9 comes last** of the kept assays: its primers cannot tell the groups apart at all, so it is only ever a
-  qPCR assay, and `pcr_selective` will say so. It survives the filter because the *probe* carries two
-  differences, which is one oligo carrying two.
+- **9 comes last**, and is set aside: its primers cannot tell the groups apart at all. Two differences under
+  a probe are not evidence that the probe will not bind — see
+  [why the probe does not count](#why-the-probe-does-not-count-towards-it).
 
-### The two that are set aside
+### The three that are set aside
 
-Rows **4** and **8** are listed in `assays.tsv` but carried no further — not written to the insilicoPCR
-files, not among the candidates — because of
-[`--min-oligo-differences`](#spending-the-differences-on-one-oligo), 2 by default:
+Rows **4**, **8** and **9** are listed in `assays.tsv` but carried no further — not written to the
+insilicoPCR files, not among the candidates — because of
+[`--min-primer-differences`](#spending-the-differences-on-one-oligo), 2 by default:
 
 - **8** rests on a single difference. One mismatch, even at the 3' end, often does not stop amplification.
 - **4** is the subtle one. It covers **two** differences and its rank key is high — higher than 5, 6 and 7 —
-  but they are one each on two different primers, so **neither oligo carries two**. The region was kept
+  but they are one each on two different primers, so **neither primer carries two**. The region was kept
   because two differences could sit in *one* oligo, and this assay does not do that. The filter is applied
   before the order matters, so a high rank does not save it.
+- **9** has two differences under one oligo, but that oligo is the **probe**, which does not count:
+  [here is why](#why-the-probe-does-not-count-towards-it).
 
-Both are kept in the table with `best_oligo_variants` saying what they rest on, and
-`--min-oligo-differences 1` accepts them — a weaker assay rather than no assay.
+All three are kept in the table with `best_primer_variants` saying what they rest on, and
+`--min-primer-differences 1` accepts them — a weaker assay rather than no assay.
 
 Row **1** is exempt from the filter: an assay specific by absence rests on no difference at all, so how many
-sit under its oligos is beside the point.
+sit under its primers is beside the point.
 
 ### Why that order, and how much to trust it
 

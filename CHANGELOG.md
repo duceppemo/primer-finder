@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **The differences a probe covers no longer qualify an assay.** `--min-oligo-differences` is now
+  `--min-primer-differences` (the old name is still accepted) and looks at the primers only, however many
+  differences the probe carries. The 2-difference rule was argued from work on primers, and that argument
+  does not carry over: a probe here is longer than a primer (18–27 bases against 18–25) and hotter (62–72 °C
+  against 58–63 °C), so in a reaction annealing near 60 °C it has far more binding energy in hand.
+  Measured, rather than argued: a conventional TaqMan probe still gave a detectable signal through **five**
+  mismatches, and under standard conditions neither it nor an MGB probe was sequence-specific
+  ([Yao et al. 2006](https://doi.org/10.1016/j.mcp.2006.03.003)); a probe discriminates by being short, a
+  12-base MGB probe melting at the same temperature as an unmodified 27-base one (Kutyavin et al. 2000,
+  *Nucleic Acids Res* 28:655–661); and in a 5'-nuclease assay the discrimination sits in the primers, where
+  one 3'-region mismatch moves the quantification cycle by under 1.5 to over 7 cycles depending on the base
+  pair, and by up to sevenfold between master mixes
+  ([Stadhouders et al. 2010](https://pmc.ncbi.nlm.nih.gov/articles/PMC2797725)). An assay whose only
+  differences sit under its probe is therefore set aside like any other no primer can tell apart; the probe
+  count is still reported and still breaks ties in the ranking. On the *Xylella* set this moves 73 more
+  assays to the set-aside list, 40 of them with no primer difference at all. What the evidence does and does
+  not settle is set out in the wiki.
+- `best_oligo_variants` in `assays.tsv` is renamed **`best_primer_variants`** and now reports the most
+  differences either primer covers on its own, which is what the filter reads. `probe_variants` already
+  reported the probe's own count.
+
 ## 1.4.0
 
 ### Changed

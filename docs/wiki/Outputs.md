@@ -135,7 +135,7 @@ the ones that would amplify both groups are kept at the end for the record.
 | `forward`, `reverse`, `probe` | the sequences, with `_start`, `_tm`, `_gc` and `_variants` (differences covered) for each |
 | `forward_hairpin_tm`, `forward_self_dimer_tm` | and the same for `reverse` and `probe`: where Primer3 predicts the oligo folds on itself, and where it pairs with a copy of itself, in °C. `0.0` means no structure was predicted; they are below `--max-hairpin-tm` and `--max-dimer-tm` respectively or the oligo was never proposed |
 | `pair_dimer_tm`, `pair_dimer_end_tm` | where the two primers pair with each other, over the whole oligo and at their 3' ends, in °C |
-| `best_oligo_variants` | the most differences any one of its oligos covers. Two under one primer is what the `find` rule selects a region for, and `--min-oligo-differences` (2 by default) sets aside the assays below it |
+| `best_primer_variants` | the most differences either **primer** covers on its own. Two under one primer is what the `find` rule selects a region for, and `--min-primer-differences` (2 by default) sets aside the assays below it. The probe is not counted here however many it covers, and `probe_variants` reports it separately — [why](Designing-assays#why-the-probe-does-not-count-towards-it) |
 | `primer_variant_weight` | the differences under the primers, weighted by the base each replaces: 1 for a G or C, 0.5 for an A or T, 0.75 when unknown |
 | `forward_strong_variants`, `forward_terminal_run`, `forward_near_3prime` | and the same for `reverse`: how many of its differences replace a G or a C, and where they sit relative to the 3' end |
 | `inclusion_total`, `exclusion_total` | how many genomes were tested, when in silico PCR was run |

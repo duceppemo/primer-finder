@@ -87,7 +87,8 @@ primer carrying one mismatch still amplifies the exclusion template often enough
 
 `primer-finder design` is built to spend them that way: it aims its Primer3 requests at the stretch of at
 most one oligo's width holding the most differences, and by default sets aside an assay that covers fewer
-than two of them under any single oligo. See
+than two of them under a single **primer**. The probe does not count towards that, since it is longer and
+hotter than a primer and two mismatches under it are no evidence it will not bind. See
 [Designing assays](Designing-assays#spending-the-differences-on-one-oligo).
 
 The kept contigs are written to `best_kmers.fasta`, the ones with the most differing bases first — which puts

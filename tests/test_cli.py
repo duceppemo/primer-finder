@@ -259,16 +259,15 @@ def test_the_gc_clamp_reaches_the_design_run_except_where_an_end_is_pinned(stubs
     assert set(pinned) == {"PRIMER_GC_CLAMP=0"}
 
 
-def test_the_minimum_differences_under_one_oligo_reaches_the_design_run(stubs, genomes, tmp_path):
+def test_the_minimum_differences_under_one_primer_reaches_the_design_run(stubs, genomes, tmp_path):
     import json
 
     results = a_finished_run(tmp_path, genomes)
-    for asked in (1, 3):
+    for asked, flag in ((1, "--min-primer-differences"), (3, "--min-oligo-differences")):
         out = tmp_path / f"assays{asked}"
-        assert main(["design", str(results), "-o", str(out), "-t", "1",
-                     "--min-oligo-differences", str(asked)]) == 0
+        assert main(["design", str(results), "-o", str(out), "-t", "1", flag, str(asked)]) == 0
         recorded = json.loads((out / "design_info.json").read_text())["parameters"]
-        assert recorded["min_oligo_differences"] == asked
+        assert recorded["min_primer_differences"] == asked   # the old name still works
     # These assays are specific by absence, which the filter does not apply to, so asking for three
     # differences under one oligo takes none of them away
     assert len(list(iter_rows(tmp_path / "assays1" / "assays.tsv"))) == \
