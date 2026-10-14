@@ -147,6 +147,41 @@ def write_primer_fasta(assays: Sequence[Assay], path: Path, kind: str) -> int:
     return len(chosen)
 
 
+STAGED = "insilico_genomes"
+
+
+def stage_genomes(folder: Path, into: Path) -> int:
+    """Lay a genome folder out the way insilicoPCR needs it: one flat folder of plain fasta files.
+
+    It reads only the top level of what it is given, and hands each file to its own blast as it stands, so
+    a genome in a subfolder is silently skipped and a gzipped one makes that blast call fail -- which takes
+    the whole run with it. primer-finder accepts both, and the bundled example holds a `.fasta.gz`, so the
+    genomes are staged rather than passed through: subfolders are flattened, gzipped genomes are written
+    out plain, and a name used twice is numbered so that two files in different subfolders stay two
+    samples.
+
+    Returns how many genomes were staged, which is what the verdicts are counted against.
+    """
+    into.mkdir(parents=True, exist_ok=True)
+    used: set[str] = set()
+    for path in seqio.find_genomes(folder):
+        stem = seqio.base_name(path)
+        name, number = stem, 1
+        while name in used:
+            number += 1
+            name = f"{stem}_{number}"
+        used.add(name)
+        target = into / f"{name}.fasta"
+        if target.is_symlink() or target.exists():
+            target.unlink()
+        if path.suffix == ".gz":
+            with seqio.open_text(path) as source, target.open("w") as plain:
+                shutil.copyfileobj(source, plain)
+        else:
+            target.symlink_to(path.resolve())
+    return len(used)
+
+
 def resolve(given: Path) -> list[str]:
     """The command that starts insilicoPCR, from what the user pointed at: the folder of an extracted
     portable release, its jar, or a launcher script."""

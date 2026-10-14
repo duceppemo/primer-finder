@@ -19,6 +19,7 @@ from primer_finder.insilico import (
     read_terminal_only,
     resolve,
     run,
+    stage_genomes,
     verdicts,
     write_primer_fasta,
     write_script,
@@ -371,3 +372,44 @@ def test_verdicts_pass_the_threshold_on(tmp_path):
     found = verdicts([assay("a")], inclusion, exclusion, {"a_assay0": {"g0", "g1", "g2"}}, {},
                      threshold=0.75)
     assert found["a_assay0"].label == "partial (75%)"
+
+
+def test_staging_flattens_subfolders_and_decompresses(tmp_path):
+    """insilicoPCR reads only the top level of the folder it is given and hands each file to blast as it
+    stands, so a genome in a subfolder would be skipped and a gzipped one would fail."""
+    import gzip
+
+    source = tmp_path / "inclusion"
+    (source / "batch1").mkdir(parents=True)
+    (source / "plain.fasta").write_text(">chr\nACGT\n")
+    (source / "batch1" / "nested.fasta").write_text(">chr\nTTTT\n")
+    with gzip.open(source / "packed.fasta.gz", "wt") as fh:
+        fh.write(">chr\nGGGG\n")
+
+    staged = tmp_path / "staged"
+    assert stage_genomes(source, staged) == 3
+    assert sorted(path.name for path in staged.iterdir()) == ["nested.fasta", "packed.fasta", "plain.fasta"]
+    assert (staged / "packed.fasta").read_text() == ">chr\nGGGG\n"  # written out plain, not a link
+    assert (staged / "plain.fasta").is_symlink()
+
+
+def test_two_genomes_with_the_same_name_stay_two_samples(tmp_path):
+    """Flattening brings together names that were unique only within their own subfolder. Letting one
+    overwrite the other would quietly shrink the panel the verdicts are counted against."""
+    source = tmp_path / "exclusion"
+    for sample in ("a", "b"):
+        (source / sample).mkdir(parents=True)
+        (source / sample / "contigs.fasta").write_text(f">chr\n{sample.upper() * 4}\n")
+
+    staged = tmp_path / "staged"
+    assert stage_genomes(source, staged) == 2
+    assert sorted(path.name for path in staged.iterdir()) == ["contigs.fasta", "contigs_2.fasta"]
+
+
+def test_staging_can_be_run_again_over_the_same_folder(tmp_path):
+    source = tmp_path / "inclusion"
+    source.mkdir()
+    (source / "g.fasta").write_text(">chr\nACGT\n")
+    staged = tmp_path / "staged"
+    stage_genomes(source, staged)
+    assert stage_genomes(source, staged) == 1

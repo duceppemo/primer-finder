@@ -79,11 +79,15 @@ def to_records(rows: list[dict[str, str]], prefix: str = "") -> list[Record]:
 
 
 def _whole_number(value: str) -> str:
-    """"123", "123.0" and "123 bp" all give "123"; anything else is kept as it is."""
-    match = re.search(r"\d+(?:\.\d+)?", value)
+    """"123", "123.0", "123 bp" and "1,234" all give the number; anything else is kept as it is.
+
+    The thousands separator matters: without it "1,234" matched only the "1" and the oligo was named after
+    a 1 bp amplicon.
+    """
+    match = re.search(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?", value)
     if not match:
         return value
-    return str(int(float(match.group())))
+    return str(int(float(match.group().replace(",", ""))))
 
 
 def read_table(path: Path) -> list[dict[str, str]]:

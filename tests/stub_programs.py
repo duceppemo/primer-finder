@@ -4,6 +4,7 @@ Each stub writes the files the real program would write. The `stubs` fixture put
 every program on PATH; what they produce is read from the PRIMER_FINDER_STUBS environment variable (JSON):
 
     kmers            the kmers "kmc_tools transform ... dump" writes (an empty list writes an empty file)
+    shared_kmers     the kmers the inclusion database holds, if not the same as `kmers`
     contigs          {name: sequence} for the assembler to write
     sam              [[query name, flag, cigar], ...] for minimap2 to write
     presence         {genome: [contig, ...]} the contigs blastn finds in each inclusion genome
@@ -60,7 +61,11 @@ def kmc_tools(argv: list[str]) -> int:
         return 0
     if "dump" in argv:
         out_file = Path(argv[argv.index("dump") + 1])
-        kmers = value("kmers", DEFAULT_KMERS)
+        # The inclusion database is dumped too, to tell the two causes of an empty result apart. Unless a
+        # scenario says otherwise, both dumps hold the same kmers.
+        database = Path(argv[argv.index("transform") + 1])
+        key = "kmers" if database.name.endswith("_specific") else "shared_kmers"
+        kmers = value(key, value("kmers", DEFAULT_KMERS))
         out_file.write_text("".join(f"{kmer}\t2\n" for kmer in kmers))
         return 0
     return 1  # pragma: no cover

@@ -44,6 +44,15 @@ def test_an_assay_without_an_amplicon_size():
     assert [record.name for record in to_records(rows)] == ["0-F", "0-P", "0-R"]
 
 
+def test_an_amplicon_size_with_a_thousands_separator():
+    """IDT writes sizes over 999 as "1,234". Reading only the "1" named the oligos after a 1 bp
+    amplicon."""
+    rows = [row | {"amplicon": "1,234"} for row in ROWS]
+    assert [record.name for record in to_records(rows)] == ["0_1234bp-F", "0_1234bp-P", "0_1234bp-R"]
+    rows = [row | {"amplicon": "1,234.0 bp"} for row in ROWS]
+    assert to_records(rows)[0].name == "0_1234bp-F"
+
+
 def test_rows_that_are_not_oligos_are_ignored():
     rows = [{"type": "Plate", "sequence": "ACGT", "amplicon": ""}, *ROWS]
     assert len(to_records(rows)) == 3

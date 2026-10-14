@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+### Fixed
+
+- **`design --insilico-pcr` could not check a gzipped or nested genome folder, and failed the whole run
+  when it met one.** insilicoPCR reads only the top level of the folder it is given and hands each file to
+  its own BLAST as it stands, so a genome in a subfolder was silently skipped and a `.fasta.gz` made that
+  BLAST call fail, which took the command down with it. primer-finder accepts both everywhere else, and
+  the bundled example holds a `.fasta.gz`, so the documented quick start was the case that broke. Both
+  groups are now staged into `insilico_genomes/` as one flat folder of plain fasta per group — subfolders
+  flattened, gzipped genomes written out plain, a name used twice numbered so two samples stay two — and
+  the script written for running the check later points at the same folders.
+- **A failure in the in-silico PCR check discarded the whole design run.** Everything before the check is
+  the expensive part of the command, so `assays.tsv` is now written without the verdict columns and the
+  command exits 1 with the reason, rather than raising and leaving nothing behind.
+- **A run that stopped short left its KMC databases behind**, and an exclusion database for a few hundred
+  genomes is a gigabyte. Clean-up now happens on the way out either way, not only after a run that
+  finished.
+- **`-m 1` was refused by KMC at run time.** Its own help says `-m` takes 1 to 1024, but 1 gives "min
+  memory must be at least 2GB", so the floor is now 2 — which also keeps a tight control group or a small
+  machine from computing a default of 1 and failing on the first KMC call.
+- **An empty kmer result blamed the exclusion genomes even when the inclusion genomes shared nothing to
+  begin with.** The two causes want opposite advice, so they now give different messages: the inclusion
+  group may be too diverse for this kmer size, or the exclusion group really does hold every shared kmer.
+  The count that tells them apart is only taken when the result is empty.
+- **An IDT order sheet whose amplicon size reads "1,234" named its oligos after a 1 bp amplicon**, because
+  only the "1" was read. The thousands separator is now part of the number.
+- **`design` accepted an output path containing a space**, then failed part way through on a BLAST call
+  that cannot quote one — `find` had refused it up front since 1.1.0. It also now refuses `-t` below 1 and
+  caps `-t` at the number of CPUs, as `find` does.
+
 ### Changed
 
 - **The find step keeps a contig when two of its differences could sit under one primer, which now means a

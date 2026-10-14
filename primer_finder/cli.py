@@ -208,6 +208,12 @@ def main(argv: list[str] | None = None) -> int:
             idt.convert(args.table, args.output, args.prefix)
             return 0
         if args.command == "design":
+            if args.threads < 1:
+                parser.error("-t/--threads must be 1 or more")
+            if args.threads > max_cpu:
+                log.warning("Asked for %d threads but only %d CPU(s) are available; using %d",
+                            args.threads, max_cpu, max_cpu)
+                args.threads = max_cpu
             checked = design.check_product_size(args.product_size)
             if checked != args.product_size:
                 parser.error(checked)

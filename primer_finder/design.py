@@ -959,6 +959,13 @@ def genome_folders(settings: DesignSettings) -> tuple[Path, Path]:
 def run(settings: DesignSettings) -> int:
     """Design assays on the regions of a finished run, and check them. Returns 0, or raises."""
     started = time.time()
+    # blast reopens a database by absolute path and cannot quote whitespace, and the amplicon checks build
+    # their databases under the output folder. `find` refuses this up front; so must this
+    if any(character.isspace() for character in str(settings.output)):
+        raise PrimerFinderError(
+            f"The output folder path contains a space, which BLAST cannot use: {settings.output}. "
+            "Choose an output folder whose path has no space (the input folders may have one)."
+        )
     final = settings.results / "final_kmers.fasta"
     if not final.is_file():
         raise PrimerFinderError(
@@ -1068,19 +1075,41 @@ def run(settings: DesignSettings) -> int:
             primer_files[kind] = path
             log.info("%d assay(s) written for %s: %s", written, kind, path)
 
+    # insilicoPCR reads only the top level of a genome folder and cannot read a gzipped genome, so both
+    # groups are laid out flat and plain for it -- here rather than inside the run, because the script
+    # written for running it later needs the same folders
+    staged = settings.output / insilico.STAGED
+    inclusion_staged, exclusion_staged = staged / "inclusion", staged / "exclusion"
+    staged_counts = (insilico.stage_genomes(inclusion, inclusion_staged),
+                     insilico.stage_genomes(exclusion, exclusion_staged))
+    # Worth saying out loud: these are the numbers the verdicts are counted against, and a genome folder
+    # with subfolders in it does not always hold as many files as the user has in mind
+    log.info("Staged %d inclusion and %d exclusion genome(s) for in silico PCR in %s",
+             *staged_counts, staged)
+
     verdicts = None
+    checked = True
     if settings.insilico_pcr is not None:
         threshold = threshold_of(settings)
         if threshold < 1:
             log.info("The regions were found with -p %g, so an assay counts when it amplifies that share "
                      "of the inclusion genomes", threshold)
-        verdicts = run_insilico_pcr(settings, usable, primer_files, inclusion, exclusion, threshold)
-        # Amplifying every inclusion genome comes before merely meeting the threshold, and an assay this
-        # check could not refuse comes before one it refused on evidence it can defend
-        usable = sorted(usable, key=lambda assay: (-support_of(verdicts[assay.name]), rank_key(assay)))
+        try:
+            verdicts = run_insilico_pcr(settings, usable, primer_files,
+                                        inclusion_staged, exclusion_staged, threshold)
+        except (PrimerFinderError, tools.ToolError) as error:
+            # Everything above this point is the expensive part of the command. Losing it because an
+            # optional check failed would be the wrong trade, so the table is written without the verdicts
+            # and the command still reports the failure
+            log.error("In silico PCR failed, so the assays are written without its verdicts: %s", error)
+            checked = False
+        else:
+            # Amplifying every inclusion genome comes before merely meeting the threshold, and an assay
+            # this check could not refuse comes before one it refused on evidence it can defend
+            usable = sorted(usable, key=lambda assay: (-support_of(verdicts[assay.name]), rank_key(assay)))
     else:
         insilico.write_script(settings.output / insilico.SCRIPT_NAME, None, list(primer_files.values()),
-                              inclusion, exclusion, settings.threads, settings.mismatches)
+                              inclusion_staged, exclusion_staged, settings.threads, settings.mismatches)
         log.info("In silico PCR was not run. To check the assays against both groups: %s",
                  settings.output / insilico.SCRIPT_NAME)
 
@@ -1124,6 +1153,10 @@ def run(settings: DesignSettings) -> int:
         "seconds": round(time.time() - started, 1),
     }, indent=2) + "\n")
     log.info("Assays: %s", settings.output / ASSAYS_NAME)
+    if not checked:
+        log.error("The assays are in %s, but without in silico PCR verdicts: see the error above",
+                  settings.output / ASSAYS_NAME)
+        return 1
     return 0
 
 

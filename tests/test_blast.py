@@ -23,7 +23,6 @@ from primer_finder.blast import (
     presence_in_genomes,
     shared_variants,
     variant_bases,
-    variant_positions,
 )
 
 
@@ -90,26 +89,13 @@ def test_variant_bases_are_upper_case_whatever_the_alignment_says():
     assert variant_bases(hit(1, 4, "ACGT", "acga")) == {3: "A"}
 
 
-def test_variant_positions_are_contig_coordinates():
-    # The hit starts at base 5 of the contig (1-based), so the first aligned base is position 4
-    assert variant_positions(hit(5, 12, "ACGTACGT", "ACCTACGA")) == [6, 11]
-
-
-def test_variant_positions_of_an_insertion_in_the_contig():
-    assert variant_positions(hit(1, 8, "ACGTTTACGT", "ACGT--ACGT")) == [4, 5]
-
-
-def test_variant_positions_of_a_deletion_in_the_contig():
-    """The exclusion genome has bases the contig lacks: the position where they would fit is a variant."""
-    assert variant_positions(hit(1, 8, "ACGT--ACGT", "ACGTTTACGT")) == [4]
-
-
-def test_lower_case_sequences_are_not_variants():
-    assert variant_positions(hit(1, 4, "acgt", "ACGT")) == []
+def test_a_masked_contig_base_is_not_a_difference():
+    """blast lower-cases what it masks on either side; the bases still match."""
+    assert variant_bases(hit(1, 4, "acgt", "ACGT")) == {}
 
 
 def test_aligned_sequences_of_unequal_length_do_not_crash():
-    assert variant_positions(hit(1, 4, "ACGT", "AC")) == []
+    assert variant_bases(hit(1, 4, "ACGT", "AC")) == {}
 
 
 def test_has_close_variants():

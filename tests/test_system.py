@@ -71,6 +71,16 @@ def test_a_control_group_limit_caps_the_default(monkeypatch):
     assert system.default_memory_gb() == 3  # 85% of 4 GB
 
 
+def test_a_tight_control_group_still_gives_kmc_enough(monkeypatch):
+    """KMC refuses -m below 2, so a small machine or a tight cgroup must not produce 1. This holds the
+    floor here to the one KMC actually enforces."""
+    from primer_finder.kmers import MIN_MEMORY_GB
+
+    monkeypatch.setattr(system, "cgroup_memory_limit", lambda *_: 10**9)  # 1 GB: 85% of it is 0 GB
+    assert system.default_memory_gb() == MIN_MEMORY_GB
+    assert MIN_MEMORY_GB == 2
+
+
 def test_a_machine_whose_memory_cannot_be_read(monkeypatch):
     monkeypatch.setattr(system, "total_memory", lambda: None)
     assert system.default_memory_gb() == 8

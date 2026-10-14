@@ -296,6 +296,30 @@ def test_a_product_size_range_primer3_cannot_read_stops_the_design_command(stubs
     assert "runs backwards" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("asked", ["0", "-1"])
+def test_the_design_command_refuses_a_thread_count_below_one(stubs, tmp_path, capsys, asked):
+    """The find command checks this; the design command runs blast and Primer3 too, so it checks it too."""
+    with pytest.raises(SystemExit) as exit_code:
+        main(["design", str(tmp_path / "anything"), "-o", str(tmp_path / "out"), "-t", asked])
+    assert exit_code.value.code == 2
+    assert "must be 1" in capsys.readouterr().err
+
+
+def test_the_design_command_caps_the_thread_count(stubs, genomes, tmp_path, caplog):
+    import json
+
+    inclusion, exclusion = genomes
+    results = tmp_path / "results"
+    results.mkdir()
+    (results / "final_kmers.fasta").write_text(">ctg1 [100, 101]\n" + "A" * 100 + "cg" + "A" * 100 + "\n")
+    (results / "run_info.json").write_text(json.dumps(
+        {"parameters": {"inclusion": str(inclusion), "exclusion": str(exclusion)}}))
+    out = tmp_path / "assays"
+    assert main(["design", str(results), "-o", str(out), "-t", "100000"]) == 0
+    assert "only" in caplog.text
+    assert json.loads((out / "design_info.json").read_text())["parameters"]["threads"] == usable_cpus()
+
+
 def test_the_design_command_reports_a_folder_that_is_not_a_run(stubs, tmp_path, caplog):
     assert main(["design", str(tmp_path / "nothing"), "-o", str(tmp_path / "out")]) == 1
     assert "finished primer-finder run" in caplog.text

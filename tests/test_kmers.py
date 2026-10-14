@@ -18,7 +18,9 @@ from primer_finder.kmers import (
 
 
 def test_kmc_memory_stays_in_the_range_kmc_accepts():
-    assert kmc_memory(0) == 1
+    """KMC's help says -m takes 1 to 1024, but it refuses 1 at run time, so the floor here is 2."""
+    assert kmc_memory(0) == 2
+    assert kmc_memory(1) == 2
     assert kmc_memory(64) == 64
     assert kmc_memory(5000) == 1024
 

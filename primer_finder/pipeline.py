@@ -63,6 +63,15 @@ class Settings:
 
 def run(settings: Settings) -> int:
     """Run the whole pipeline. Returns 0, or raises PrimerFinderError."""
+    try:
+        return _run(settings)
+    finally:
+        # On the way out either way: a run that ends at "no contig differs enough" used to leave its KMC
+        # databases behind, and an exclusion database for a few hundred genomes is a gigabyte
+        clean_up(settings)
+
+
+def _run(settings: Settings) -> int:
     started = time.time()
     inclusion, exclusion, reference = check(settings)
     settings.output.mkdir(parents=True, exist_ok=True)
@@ -104,7 +113,6 @@ def run(settings: Settings) -> int:
 
     info["seconds"] = round(time.time() - started, 1)
     (settings.output / RUN_INFO_NAME).write_text(json.dumps(info, indent=2) + "\n")
-    clean_up(settings)
     log.info("Final number of contigs: %d", counts["final"])
     log.info("Results: %s", final)
     if counts["final"] == 0:
@@ -220,7 +228,13 @@ def find_specific_kmers(settings: Settings, inclusion: list[Path], exclusion: li
     log.info("Subtracting the exclusion kmers from the inclusion ones...")
     specific_db = kmers.subtract(inclusion_db, exclusion_db, folder / "inclusion_specific", settings.threads)
 
-    dump_file = kmers.dump(specific_db, folder / "kmers.txt", settings.threads)
+    # An empty result can be the fault of either group, so if nothing is left, count what the inclusion
+    # group shared before the subtraction to say which of the two it was
+    dump_file = kmers.dump(
+        specific_db, folder / "kmers.txt", settings.threads,
+        count_shared=lambda: kmers.count_in_db(inclusion_db, folder / "inclusion_kmers.txt",
+                                               settings.threads),
+    )
     kmer_fasta = folder / f"inclusion_specific_{settings.kmer_size}mers.fasta"
     count = kmers.dump_to_fasta(dump_file, kmer_fasta)
     log.info("Found %d inclusion-specific %d-mers", count, settings.kmer_size)
@@ -375,7 +389,8 @@ def clean_up(settings: Settings) -> None:
     for name in ("inclusion", "exclusion", "inclusion_specific"):
         for suffix in (".kmc_pre", ".kmc_suf"):
             (folder / KMER_FOLDER / (name + suffix)).unlink(missing_ok=True)
-    (folder / KMER_FOLDER / "kmers.txt").unlink(missing_ok=True)
+    for name in ("kmers.txt", "inclusion_kmers.txt"):
+        (folder / KMER_FOLDER / name).unlink(missing_ok=True)
     (folder / CANDIDATE_FOLDER / "mapping.sam").unlink(missing_ok=True)
     shutil.rmtree(folder / BLAST_FOLDER / "inclusion_db", ignore_errors=True)
     shutil.rmtree(folder / BLAST_FOLDER / "exclusion_db", ignore_errors=True)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from primer_finder import PrimerFinderError, tools
@@ -11,9 +11,12 @@ from primer_finder import PrimerFinderError, tools
 log = logging.getLogger(__name__)
 
 MIN_KMER_SIZE, MAX_KMER_SIZE = 1, 256  # What KMC accepts
-MIN_MEMORY_GB, MAX_MEMORY_GB = 1, 1024  # What KMC accepts (-m)
-# KMC counts up to 255 unless -cs says otherwise, so with more than 255 inclusion genomes -ci<N> would
-# match nothing at all.
+# What KMC accepts for -m. Its own help says "from 1 to 1024", but 1 is refused at run time with
+# "min memory must be at least 2GB", so the floor here is 2 -- measured, not read off the help.
+MIN_MEMORY_GB, MAX_MEMORY_GB = 2, 1024
+# KMC stores a count in one byte unless -cs says otherwise, so a kmer seen more than 255 times is reported
+# as 255. It applies -ci/-cx to the true count before saturating, so a high -ci still matches; what the
+# ceiling would cost is the count itself, which the max_count check below needs to be exact.
 DEFAULT_COUNTER_MAX = 255
 # KMC's largest accepted kmer count: enough to mean "no upper limit" for the exclusion group.
 NO_MAX_COUNT = 1_000_000_000
@@ -70,15 +73,43 @@ def subtract(minuend: Path, subtrahend: Path, db_prefix: Path, threads: int) -> 
     return require_db(db_prefix, "KMC could not subtract the exclusion kmers")
 
 
-def dump(db_prefix: Path, dump_file: Path, threads: int) -> Path:
-    """Write a KMC database as text: one kmer and its count per line."""
+def dump(db_prefix: Path, dump_file: Path, threads: int,
+         count_shared: Callable[[], int] | None = None) -> Path:
+    """Write a KMC database as text: one kmer and its count per line.
+
+    An empty result has two quite different causes and they want different advice, so `count_shared` --
+    how many kmers the inclusion group had before the subtraction -- decides which is given. Blaming the
+    exclusion group when the inclusion genomes never shared a kmer in the first place sends the reader
+    after the wrong problem. It is called only when the result is empty: counting means dumping the whole
+    inclusion database, which is not worth doing on a run that found something.
+    """
     tools.run(["kmc_tools", f"-t{threads}", "transform", db_prefix, "dump", dump_file])
     if not dump_file.exists() or dump_file.stat().st_size == 0:
+        if count_shared is not None and count_shared() == 0:
+            raise PrimerFinderError(
+                "No kmer at all is shared by the inclusion genomes, so there was nothing to subtract the "
+                "exclusion group from. They may be too diverse for this kmer size: a smaller -k, or "
+                "-p below 1 so that a kmer need not be in every one of them, would give it room."
+            )
         raise PrimerFinderError(
             "No inclusion-specific kmer was found: every kmer shared by the inclusion genomes is also "
-            "present in an exclusion genome. A smaller kmer size (-k) or a higher -d may help."
+            "present in an exclusion genome. A smaller kmer size (-k) may help, or -p below 1 to let a "
+            "kmer through that most of the inclusion genomes share."
         )
     return dump_file
+
+
+def count_in_db(db_prefix: Path, dump_file: Path, threads: int) -> int:
+    """How many kmers a KMC database holds, by dumping it and counting the lines.
+
+    Only used to tell the two causes of an empty result apart, so it is worth the dump: the alternative is
+    parsing KMC's own statistics, which it prints rather than returns.
+    """
+    tools.run(["kmc_tools", f"-t{threads}", "transform", db_prefix, "dump", dump_file])
+    if not dump_file.exists():
+        return 0
+    with dump_file.open() as fh:
+        return sum(1 for line in fh if line.strip())
 
 
 def require_db(db_prefix: Path, message: str) -> Path:

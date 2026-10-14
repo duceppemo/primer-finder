@@ -56,6 +56,20 @@ def test_intermediate_files_are_removed(stubs, settings):
     assert (scenario.output / "primer_finder.log").read_text().count("[INFO]") > 5
 
 
+def test_a_run_that_gives_up_still_removes_its_databases(stubs, settings):
+    """A KMC database for a few hundred exclusion genomes is a gigabyte, and the run that stopped short is
+    exactly the one whose folder nobody goes back to tidy."""
+    stubs(kmers=[], shared_kmers=["ACGT" * 5])
+    scenario = settings()
+    with pytest.raises(PrimerFinderError):
+        run(scenario)
+    folder = scenario.output / "1_kmers"
+    assert not (folder / "exclusion.kmc_pre").exists()
+    assert not (folder / "inclusion_specific.kmc_suf").exists()
+    assert not (folder / "kmc_work").exists()
+    assert not (folder / "inclusion_kmers.txt").exists()
+
+
 def test_keep_intermediate(stubs, settings):
     scenario = settings(keep_intermediate=True)
     run(scenario)
@@ -203,8 +217,17 @@ def test_no_contig_in_all_inclusion_genomes(stubs, settings):
 
 
 def test_no_specific_kmer(stubs, settings):
-    stubs(kmers=[])
+    """The inclusion genomes share kmers, but the exclusion group has every one of them."""
+    stubs(kmers=[], shared_kmers=["ACGT" * 5])
     with pytest.raises(PrimerFinderError, match="No inclusion-specific kmer"):
+        run(settings())
+
+
+def test_inclusion_genomes_that_share_no_kmer_at_all_say_so(stubs, settings):
+    """A different problem from the one above, and the advice that fits it is different too: there was
+    nothing for the subtraction to remove."""
+    stubs(kmers=[], shared_kmers=[])
+    with pytest.raises(PrimerFinderError, match="No kmer at all is shared by the inclusion genomes"):
         run(settings())
 
 

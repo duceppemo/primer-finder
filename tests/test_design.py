@@ -254,6 +254,18 @@ def test_another_tolerance_reaches_insilico_pcr(stubs, finished_run, tmp_path, g
     assert all(" -m 2" in line for line in asked), asked
 
 
+def test_a_failed_check_keeps_the_assays_but_reports_the_failure(stubs, finished_run, tmp_path,
+                                                                 insilico_pcr, caplog):
+    """Everything before the check is the expensive part of the command. Throwing it away because an
+    optional check failed would be the wrong trade, so the table is written and the exit code says so."""
+    stubs(insilico_fail=True)
+    output = tmp_path / "assays"
+    assert run(design_settings(finished_run, output, insilico_pcr=insilico_pcr)) == 1
+    assert "without its verdicts" in caplog.text
+    rows = list(iter_rows(output / "assays.tsv"))
+    assert rows and "pcr_inclusion_amplified" not in rows[0]  # No verdict to report, so no column
+
+
 # Every field distinct, so that a tag fed from the wrong one cannot pass. The dimer limit covers six tags
 # and the hairpin limit two, which is why they are kept apart here: at the defaults both are 47 °C, and a
 # test written against the defaults cannot tell them apart.
@@ -670,6 +682,13 @@ def test_a_run_without_run_info(finished_run, tmp_path):
     (finished_run / "run_info.json").unlink()
     with pytest.raises(PrimerFinderError, match="Give them with -i and -e"):
         genome_folders(design_settings(finished_run, tmp_path / "out"))
+
+
+def test_an_output_path_with_a_space_is_refused(stubs, finished_run, tmp_path):
+    """blast reopens a database by absolute path and cannot quote whitespace. The design command builds
+    databases under its output folder, so it refuses the path up front rather than failing part way in."""
+    with pytest.raises(PrimerFinderError, match="contains a space"):
+        run(design_settings(finished_run, tmp_path / "with space"))
 
 
 def test_design_writes_the_assays_and_the_primer_files(stubs, finished_run, tmp_path):

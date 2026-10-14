@@ -81,4 +81,7 @@ def default_memory_gb() -> int:
     total = total_memory()
     if total is None:  # pragma: no cover
         return 8
-    return max(1, int(total * MEMORY_FRACTION / 1e9))
+    # KMC refuses anything under 2 GB, so a small machine or a tight cgroup must not produce 1. The floor
+    # is kmers.MIN_MEMORY_GB; it is written out here rather than imported to keep this module free of the
+    # pipeline, and a test holds the two together.
+    return max(2, int(total * MEMORY_FRACTION / 1e9))

@@ -165,11 +165,6 @@ def variant_bases(hit: Hit) -> dict[int, str]:
     return bases
 
 
-def variant_positions(hit: Hit) -> list[int]:
-    """The positions of the contig (0-based) that differ from this exclusion sequence."""
-    return sorted(variant_bases(hit))
-
-
 def has_close_variants(positions: Sequence[int], window: int = MAX_PRIMER_SPAN) -> bool:
     """True if at least two of these positions are less than `window` bases apart."""
     return any(second - first < window for first, second in zip(positions, positions[1:], strict=False))
