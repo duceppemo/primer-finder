@@ -89,7 +89,17 @@ but it does not get a *B. suis* sensu lato assay out of primer-finder 1.7.0. The
    *B. melitensis*. This is the same wall as the three published species assays, and it is not about
    settings.
 
-The locus is in `suis_lato_stretches.fasta`, and `-a unitig` now assembles it in the run itself. An assay there
+The locus is in `suis_lato_stretches.fasta`, and the run now reports it on its own: `-a unitig` builds
+the stretch from those 15 kmers and the last-resort pass keeps it on its single difference, as
+
+```
+>unitig_1 [178] inclusion=193/193 last_resort        215 bases
+```
+
+Position 178 counted from 0 is the base measured by hand above. Two of the three obstacles are therefore
+gone, and the third stands: the region is reported **only** because the last-resort rule accepted one
+difference, which is what the mark says, and an assay on it would rest on that single base. See
+[`../2026-10-14_v1.7.0_unitig/SUMMARY.md`](../2026-10-14_v1.7.0_unitig/SUMMARY.md). An assay there
 would discriminate *B. suis* and *B. canis* from *B. abortus* on **a single base at position 179** — the
 same class of assay as the published BA, and the same reason primer-finder declines to propose it.
 

@@ -8,6 +8,10 @@ Each record of a validation run is kept in `validation/results/<date>_v<version>
 produced. Records are never rewritten: a later run that contradicts one gets its own record, and the old one
 keeps an erratum pointing at it.
 
+Not every record is about an assay. `2026-10-14_v1.7.0_unitig/` measures what a change to the code does to
+a panel whose answer is already known — the question any change to the find or assembly rules has to
+answer before it can become a default.
+
 ## xylella: four published subspecies assays
 
 `validation/xylella/` reproduces the target selection of

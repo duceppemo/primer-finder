@@ -1,0 +1,13 @@
+panel	target	k	p	regions	recovered	rank	was_regions
+listeria	CC2	99	1.0	4	False	-	4
+listeria	CC3	99	1.0	59	False	-	59
+listeria	CC4	99	1.0	8	False	-	8
+listeria	CC5	99	1.0	84	True	15	84
+listeria	CC6	99	1.0	67	True	5	67
+listeria	CC7	99	1.0	85	True	1	85
+listeria	CC8	99	1.0	83	True	2	83
+listeria	CC9	99	1.0	29	False	-	29
+listeria	CC224	99	1.0	47	False	-	47
+brucella	suis_lato	201	0.95	1	-	-	0
+brucella	abortus	51	0.994	4	-	-	4
+brucella	melitensis	31	0.994	81	-	-	81
