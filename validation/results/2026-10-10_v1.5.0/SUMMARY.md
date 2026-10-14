@@ -19,6 +19,13 @@ answer key rather than a comparison.
 
 primer-finder 1.5.0, KMC 3.2.4, SKESA 2.5.1, minimap2 2.31, blast 2.17.0+; mlst 2.33.1 for the typing.
 
+> **Note, 2026-10-14.** Two later records supersede the region counts here, though not the conclusions:
+> [`../2026-10-13_v1.6.0/SUMMARY.md`](../2026-10-13_v1.6.0/SUMMARY.md) re-runs these nine targets with the
+> 200-base contig floor removed, and [`../2026-10-14_v1.6.0/SUMMARY.md`](../2026-10-14_v1.6.0/SUMMARY.md)
+> again with the two-differences rule widened to a 25-base span. The same five assays are recovered after
+> both, and CC5's rank moved from 9 to 10. Everything here about *why* the other four are not recovered
+> still stands.
+
 ## The panel
 
 Every complete RefSeq *L. monocytogenes* assembly on 2026-10-10: **784 genomes**. Each was given a sequence

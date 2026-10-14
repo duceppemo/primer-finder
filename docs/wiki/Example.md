@@ -58,7 +58,7 @@ what an assay would be designed on.
 - the lower-case bases, mapped back to `inclusion_1.fasta`, are **exactly** the planted variants — no
   others, none missing. This is what catches marks that are shifted, on the wrong strand, or taken from the
   wrong coordinates;
-- three of the planted mismatches are marked within 21 bases of each other;
+- three of the planted mismatches are marked within 25 bases of each other;
 - the contig is a substring of all four inclusion genomes, in either orientation, and of none of the
   exclusion genomes;
 - `run_info.json` counts one final contig, and the first exclusion genome was used as the reference.

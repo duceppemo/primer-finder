@@ -43,6 +43,11 @@ downloading. The pieces:
 | `check_assay.py` | looks for the oligos in `final_kmers.fasta` and decides whether the assay was recovered |
 | `check_region.py` | says where a recovered region sits in the paper's reference genome, as context |
 
+`check_region.py` is deliberately not a pass or fail: the region primer-finder reports is not the same object
+as the paper's long-mer. The exclusion genomes are not the same ones, and a region here is a contig assembled
+from inclusion-specific kmers rather than a sequence bounded by the outgroup. Whether the assay sits inside
+the region is the question that matters, and `check_assay.py` answers it.
+
 ## listeria: 30 published clonal-complex assays, and much larger groups
 
 `validation/listeria/` asks the same question of groups one to two orders of magnitude larger, against
@@ -81,8 +86,3 @@ genome and differs from every exclusion genome, so an assay the census shows is 
 its own complex, or present in one genome of another, cannot be reported — and should not be. On this panel
 that is true of four of the nine complex-wide assays, which is why they are not recovered. The record sets
 out which, and why.
-
-`check_region.py` is deliberately not a pass or fail: the region primer-finder reports is not the same object
-as the paper's long-mer. The exclusion genomes are not the same ones, and a region here is a contig assembled
-from inclusion-specific kmers rather than a sequence bounded by the outgroup. Whether the assay sits inside
-the region is the question that matters, and `check_assay.py` answers it.

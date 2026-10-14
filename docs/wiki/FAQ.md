@@ -22,7 +22,7 @@ order:
 
 ## "No contig differs enough from the exclusion genome"
 
-Inclusion-specific kmers were found and assembled, but none of the contigs has two differences within 21
+Inclusion-specific kmers were found and assembled, but none of the contigs has two differences within 25
 bases of each other when mapped to the exclusion genome. The region is specific, but by a single mismatch
 here and there, which does not make a selective assay. Try another exclusion genome as the reference (`-r`),
 or shorter kmers so that other regions come through.
@@ -60,8 +60,10 @@ reported that no inclusion-specific kmer existed.
 
 ## Which kmer size should I use?
 
-99 is a good default for bacteria: long enough to be specific, short enough to be found. Shorter kmers (31,
-51) give more and shorter candidates and tolerate variation better; longer ones are stricter. The kmer size
+99 is a good default for bacteria: long enough to be specific, short enough to be found. Shorter kmers
+(31, 51) give **fewer** candidates, not more, and at 51 and below whole runs start coming back empty — the
+measurement is in [Methods](Methods#1-the-kmers-only-the-inclusion-group-has-kmc). Longer ones are stricter
+and more sensitive to assembly error. The kmer size
 also sets the minimum length of a specific region that can be found at all: a region shorter than `k` cannot
 yield a kmer of its own.
 
@@ -105,8 +107,9 @@ which contigs come out:
   repeated;
 - the variant positions in the headers are positions in the contig, not in the blast alignment;
 - contigs that map to the minus strand have the right bases marked;
-- "two differences within 21 bases" now covers insertions and deletions, differences that touch, and
-  clipped ends of at least 21 bases;
+- the two-differences rule covers insertions and deletions, differences that touch, and clipped ends. It
+  was "within 21 bases" in 1.0.0; since 1.6.0 the pair may span 25 bases, the widest primer, while the
+  clipped end is still 21;
 - a position has to differ in every copy of the region a given exclusion genome holds, and genomes that do
   not hold the region at all no longer count towards the 90%;
 - two shared variant positions are enough to keep a contig; the old code needed four because of an

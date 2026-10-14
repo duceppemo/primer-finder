@@ -54,7 +54,8 @@ returns nothing rather than something outside them.
 
 This is the point the whole pipeline turns on, so it is worth stating plainly. `primer-finder find` keeps a
 region when its differences from an exclusion genome **could sit in one oligo** — a run of them, or two of
-them fewer than 21 matching bases apart, 21 being about a primer's length
+them at most 23 matching bases apart, which is a span of 25 bases counting the differences themselves: the
+widest primer Primer3 may return
 ([Methods](Methods#3-the-differences-worth-an-assay-minimap2)). A region is selected for that and nothing else; the whole
 reason it is a candidate is that an oligo can be placed to carry two or more mismatches at once.
 
@@ -86,7 +87,8 @@ So the design step has to actually do it, and two things make sure of it:
    `best_primer_variants` saying how many the better primer carries, but they are not written to the
    insilicoPCR files and not carried further. `--min-primer-differences 1` asks for only one difference
    under a primer, which is a weaker assay rather than no assay — but still a difference under a *primer*,
-   so an assay whose only differences are under its probe is set aside at any setting.
+   so an assay whose only differences are under its probe is set aside at any setting above 0.
+   `--min-primer-differences 0` turns the filter off altogether and accepts those too.
 
 An assay that is **specific by absence** is exempt: it does not rest on a difference at all, so how many
 sit under its primers is beside the point.
@@ -313,7 +315,8 @@ insilicoPCR files, not among the candidates — because of
 
 All three are kept in the table with `best_primer_variants` saying what they rest on.
 `--min-primer-differences 1` accepts rows 4 and 8 — a weaker assay rather than no assay — but not row 9:
-one difference under a *primer* is still asked for at any setting.
+one difference under a *primer* is still asked for at any setting above 0. `--min-primer-differences 0`
+turns the filter off and accepts row 9 as well.
 
 Row **1** is exempt from the filter: an assay specific by absence rests on no difference at all, so how many
 sit under its primers is beside the point.
@@ -522,7 +525,7 @@ that occur several times inside a single genome, which is why it is not the defa
 |---|---|
 | `assays.tsv` | every assay, the usable ones first, with the numbers behind the order (see [Outputs](Outputs)) |
 | `assays_qpcr.fasta` | the assays that have a probe, for insilicoPCR in qPCR mode |
-| `assays_pcr.fasta` | every assay, primers only, for insilicoPCR in standard PCR mode |
+| `assays_pcr.fasta` | every assay carried forward, primers only, for insilicoPCR in standard PCR mode. The ones `--min-primer-differences` set aside are in `assays.tsv` alone |
 | `run_insilico_pcr.sh` | the in silico PCR of both files against both groups, to run later |
 | `design_info.json` | the parameters, the programs and their versions, and the counts |
 | `primer3/` | exactly what was sent to Primer3 and what came back |
@@ -537,9 +540,11 @@ that occur several times inside a single genome, which is why it is not the defa
   one organism, 25 genomes and 20 regions. They are consistent with what is known about 3' mismatches, but
   they are not a universal law — and in silico PCR cannot see a difference in the last two bases of a
   primer at all, so it can never confirm the step of the ranking that cares most about it.
-- **Only the first 50 regions are designed on by default** (`--max-regions`), because the regions are already
-  ordered most-promising-first and in silico PCR of thousands of assays takes a while. `--max-regions 0`
-  does all of them.
+- **Only the first 50 regions with room for a product are designed on by default** (`--max-regions`),
+  because the regions are already ordered most-promising-first and in silico PCR of thousands of assays
+  takes a while. A region shorter than the smallest product of `--product-size` cannot hold an assay and is
+  left out before the count is taken, so none of the 50 places is spent on one. `--max-regions 0` designs
+  on every region that has room.
 - **The structure predictions are predictions.** Primer3's thermodynamic model is the same one behind its
   melting temperatures; it is good enough to throw out the obvious failures, not a substitute for looking at
   a candidate before ordering it.

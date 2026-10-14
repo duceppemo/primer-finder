@@ -88,7 +88,7 @@ Everything needed to repeat or report the run:
 |---|---|
 | `version` | the version of primer-finder |
 | `command_line` | the command as it was typed |
-| `parameters` | the input folders, output folder, `kmer_size`, `duplication`, `assembler`, `threads`, `memory_gb` after capping |
+| `parameters` | the input folders, output folder, `kmer_size`, `duplication`, `min_inclusion`, `min_region`, `inclusion_genomes_required`, `assembler`, `threads`, `memory_gb` after capping |
 | `inclusion_genomes`, `exclusion_genomes` | every genome file used, in the order they were given to KMC |
 | `reference` | the exclusion genome the contigs were mapped to |
 | `programs` | what each program reported as its version |
@@ -109,7 +109,7 @@ every program — this is what to attach to a bug report, together with `run_inf
 assays/
 ├── assays.tsv              every assay, the usable ones first
 ├── assays_qpcr.fasta       the assays that have a probe, for insilicoPCR in qPCR mode
-├── assays_pcr.fasta        every assay, primers only, for insilicoPCR in standard PCR mode
+├── assays_pcr.fasta        every assay carried forward, primers only, for insilicoPCR in PCR mode
 ├── run_insilico_pcr.sh     the in silico PCR of both files against both groups
 ├── design_info.json        parameters, programs and versions, counts
 ├── primer_finder_design.log
@@ -149,7 +149,8 @@ The structure temperatures are predicted for the reaction the run was given (`--
 `selective` is `yes` when the assay amplified every inclusion genome and no exclusion genome, `partial
 (88%)` when it reached the `-p/--min-inclusion` the regions were found with but not all of them,
 `undecided (3' end)` when every exclusion genome it amplified did so only through a difference in the last
-two bases of a primer, and `no` otherwise.
+two bases of a primer — or `undecided (3' end, 88%)` when that is true and the inclusion coverage is partial
+as well — and `no` otherwise.
 
 **`undecided (3' end)` is not a near miss, it is the absence of a verdict.** insilicoPCR calls a primer
 bound when blast trims an unmatched base off its 3' end, at every `--mismatches`, so an amplification that

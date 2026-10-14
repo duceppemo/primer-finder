@@ -51,8 +51,8 @@ while read -r genome; do ln -sf "$genome" exclusion/; done < exclusion.list
 | `-o`, `--output` | required | Folder for the results; it is created if needed. It must be outside both input folders, and its path must not contain a space (a BLAST limitation). |
 | `-t`, `--threads` | every CPU | CPUs for KMC, the assembler, minimap2, and how many genomes are blasted at a time. |
 | `-m`, `--memory` | 85% of the memory | Memory in GB, passed to KMC and the assembler. |
-| `-k`, `--kmer_size`, `--kmer-size` | 99 | Kmer size for KMC, 1-256. A shorter kmer finds **fewer** regions, not more, and below about 50 whole runs come back empty — see [Methods](Methods#1-the-kmers-only-the-inclusion-group-has-kmc) for the measurement. Longer is more sensitive to assembly errors. |
-| `--min-region` | the kmer size | The shortest candidate region to report. Both assemblers stop at 200 bases of their own accord, which would hide every specific stretch shorter than that — and those are commonest where the two groups are closely related. |
+| `-k`, `--kmer_size`, `--kmer-size` | 99 | Kmer size for KMC, 1-256. A shorter kmer finds **fewer** regions, not more, and at 51 and below whole runs start coming back empty — see [Methods](Methods#1-the-kmers-only-the-inclusion-group-has-kmc) for the measurement. Longer is more sensitive to assembly errors. |
+| `--min-region` | the kmer size | The shortest candidate region to report. An assembler stops at 200 bases of its own accord, which would hide every specific stretch shorter than that — and those are commonest where the two groups are closely related. Only SKESA can be asked for less; `-a spades` warns and still stops at 200. |
 | `-d`, `--duplication` | 1 | How many times a kmer may occur in each inclusion genome. 1 discards repeated regions, which make poor assays. |
 | `-p`, `--min-inclusion` | 1.0 | The fraction of the inclusion genomes a kmer has to be in, rounded up to a whole number of genomes. 1.0 means every one of them. |
 | `-r`, `--reference` | the first exclusion genome, alphabetically | Which exclusion genome the contigs are mapped to, to find their differences. It must be one of the genomes in the exclusion folder. |
@@ -93,7 +93,7 @@ than the threshold.
 A run prints what it is doing and ends with the number of candidate regions:
 
 ```
-10:21:33 [INFO] primer-finder 1.0.0
+10:21:33 [INFO] primer-finder 1.6.0
 10:21:33 [INFO] 12 inclusion genome(s), 40 exclusion genome(s)
 10:21:33 [INFO] Counting the 99-mers shared by the 12 inclusion genomes...
 10:22:04 [INFO] Counting the 99-mers of the 40 exclusion genomes...
@@ -102,7 +102,7 @@ A run prints what it is doing and ends with the number of candidate regions:
 10:23:48 [INFO] Assembling the kmers with skesa...
 10:23:55 [INFO] Assembled 34 contig(s)
 10:23:55 [INFO] Mapping the contigs to the exclusion genome exclusion_01.fasta...
-10:23:56 [INFO] Keeping the contigs with at least two differences within 21 bases...
+10:23:56 [INFO] Keeping the contigs with at least two differences within 25 bases...
 10:23:56 [INFO] 21 contig(s) could carry a selective assay
 10:23:56 [INFO] Checking the candidates against the 12 inclusion genomes...
 10:24:09 [INFO] 17 contig(s) are present in all inclusion genomes
@@ -152,7 +152,7 @@ primer-finder design results/ -o assays/ -t 16 --insilico-pcr /path/to/insilicoP
 | `--dntp` | 0.8 mM | Total dNTPs (0.2 mM of each). |
 | `--primer-conc` | 250 nM | Primer concentration. |
 | `--probe-conc` | 200 nM | Probe concentration. |
-| `--min-primer-differences` | 2 | Differences one **primer** must cover, for an assay resting on differences rather than on absence — what the find step selected the region for. The probe does not count, however many it covers: it is longer and hotter, so two mismatches under it are no evidence it will not bind. Below this an assay is listed but carried no further. 1 still asks for a difference under a primer, so an assay whose only differences are under its probe is set aside at any setting. `--min-oligo-differences` is accepted as the old name. |
+| `--min-primer-differences` | 2 | Differences one **primer** must cover (0 turns the filter off), for an assay resting on differences rather than on absence — what the find step selected the region for. The probe does not count, however many it covers: it is longer and hotter, so two mismatches under it are no evidence it will not bind. Below this an assay is listed but carried no further. 1 still asks for a difference under a primer, so an assay whose only differences are under its probe is set aside at any setting. `--min-oligo-differences` is accepted as the old name. |
 | `--max-regions` | 50 | Design on this many regions, most promising first. 0 for all of them. |
 | `--insilico-pcr` | off | Run in silico PCR of the assays against both groups. Takes the folder of an extracted portable release, its jar, or a launcher script. |
 | `--mismatches` | 1 | Mismatches insilicoPCR lets each primer bind through (`-m`). One is often not enough to stop a reaction; 0 assumes any mismatch is, 2 is a stricter check. It never applies to the last two bases of a primer. |

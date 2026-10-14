@@ -3,7 +3,7 @@
 Two different things are checked, and they answer different questions.
 
 **The tests and the example** (`pytest`, `example/run_example.sh`) check that the code does what the
-documentation says: 325 tests with stand-ins for the external programs, and a simulated dataset whose
+documentation says: 380 tests with stand-ins for the external programs, and a simulated dataset whose
 specific region is known, down to which bases must come out in lower case. They run in seconds and the CI
 runs them on every push. See [Development](Development) and [Example](Example).
 
@@ -90,20 +90,23 @@ complex, and checked in silico against 2,388 more. The panel here is every compl
 *L. monocytogenes* assembly — 784 genomes, 763 of which the Institut Pasteur MLST scheme places in one of 79
 clonal complexes — which gives inclusion groups of 18 to 86 genomes against exclusion groups of 677 to 745.
 
-### Result, primer-finder 1.5.0
+### Result, primer-finder 1.6.0
 
 Nine of the 34 assays target a whole clonal complex that has at least 15 complete genomes. (CC1, CC14, CC37
 and CC121 have two assays each, resolving subdivisions *within* the complex, so a complex-wide group is not
 what they detect.)
 
+These are what 1.6.0 reports; the region counts and CC5's rank have moved since the first run, as the
+records below set out.
+
 | Target | Inclusion | Exclusion | Regions | Recovered | Rank |
 |---|---|---|---|---|---|
-| CC4 (at `-p 0.94`) | 19 | 744 | 6 | yes | 1 |
-| CC5 | 22 | 741 | 22 | yes | 9 |
-| CC6 | 36 | 727 | 24 | yes | 5 |
-| CC7 | 47 | 716 | 15 | yes | 1 |
-| CC8 | 52 | 711 | 22 | yes | 2 |
-| CC2, CC3, CC9, CC224 | 18–86 | 677–745 | 0–16 | no | — |
+| CC4 (at `-p 0.94`) | 19 | 744 | 10 | yes | 1 |
+| CC5 | 22 | 741 | 57 | yes | 10 |
+| CC6 | 36 | 727 | 53 | yes | 5 |
+| CC7 | 47 | 716 | 60 | yes | 1 |
+| CC8 | 52 | 711 | 62 | yes | 2 |
+| CC2, CC3, CC9, CC224 | 18–86 | 677–745 | 1–40 | no | — |
 
 **Five of the nine were recovered**, four at the defaults and CC4 once `-p 0.94` allowed one of its 19
 genomes to lack the region. In all four that were not, an independent blast census of the panel shows the

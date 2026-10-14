@@ -42,6 +42,10 @@ nine clonal complexes against the other 78:
 | **99** | **306** | **0** | **4 of 9** |
 | 127 | 319 | 0 | 4 of 9 |
 
+All four were measured under the span rule of the time — a 22-base pair rather than the 25 of step 3 below —
+so the comparison between kmer sizes holds, but the absolute counts run a little under what the shipped code
+gives: at `-k 99` it now reports 332 regions over those nine targets rather than 306.
+
 Which assays are recovered does not change, so the kmer size buys candidates rather than answers. 99 is a
 good starting point for bacteria: it is near the top of the yield, and below it whole runs start coming back
 empty. 127 adds 4% more candidates and nothing else. A longer kmer is also more sensitive to assembly
@@ -68,7 +72,8 @@ then never leave this step, and no later step could recover it — it would simp
 in the output to say so. Those short stretches are exactly what is left when the two groups are closely
 related. In the [*Listeria* validation](Validation#thirty-published-listeria-monocytogenes-clonal-complex-assays),
 where the groups are clonal complexes of one species, one run went from 67 assembled contigs to 398 and
-from 25 reported regions to 66, of which 41 are shorter than 200 bases. `--min-region` sets the floor to
+from 25 reported regions to 66, of which 41 are shorter than 200 bases (that run used `-p 0.93`, which
+CC121 needs). `--min-region` sets the floor to
 something else.
 
 **Only SKESA can be asked for less.** `--min_contig` tells SKESA what to report. SPAdes has no such option
@@ -130,7 +135,8 @@ because a primer carrying one mismatch still amplifies the exclusion template of
 The span and the clipped length are **different quantities and are not tied together**: the first is how far
 apart two differences may be, the second is how much unplaceable sequence is worth keeping on its own. The
 span follows the design step's widest primer, which is what it means for both to sit under one. Making it 25
-rather than 21 gained 5% more candidate regions on the *Listeria* panel and changed no verdict —
+rather than a span of 22 gained 8.5% more candidate regions on the *Listeria* panel and changed no
+verdict —
 [the record](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-14_v1.6.0/SUMMARY.md)
 has the numbers. The clipped length keeps the 21 it has always had, since raising it would only throw
 regions away.
