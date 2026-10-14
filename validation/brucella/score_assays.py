@@ -30,6 +30,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 PARTS = ("forward", "reverse", "probe")
 CLASSICAL = ("abortus", "melitensis", "suis", "canis", "ceti", "ovis", "neotomae", "microti")
+CLASSICAL_EXTRA = ("pinnipedialis", "amazoniensis", "vulpis", "inopinata")
 
 
 def read_tsv(path: Path) -> list[dict[str, str]]:
@@ -91,18 +92,19 @@ def main(argv: list[str] | None = None) -> int:
                  "one_contig\texclusion_exact\texclusion_species\theld_out_exact\n")
         for assay in assays:
             name, target = assay["assay"], assay["target"]
-            mine = CLASSICAL if target == "genus" else (target,)
+            mine = (CLASSICAL if target == "genus" else
+                    CLASSICAL + CLASSICAL_EXTRA if target == "genus_wide" else (target,))
+            theirs = () if target.startswith("genus") else tuple(n for n in CLASSICAL if n != target)
             parts = [part for part in PARTS if assay.get(part)]
             found: dict[str, set[str]] = {}
             for accession in where:
                 contigs = [exact[(name, part)].get(accession, set()) for part in parts]
                 if all(contigs):
                     found[accession] = set.intersection(*contigs)
-            inclusion = [a for a in found
-                         if where[a]["species"] in mine and where[a]["group"] != "held_out"]
+            inclusion = [a for a in found if where[a]["species"] in mine]
             exclusion = [a for a in found if where[a]["group"] == "non_classical"
-                         or (where[a]["species"] in CLASSICAL and where[a]["species"] not in mine)]
-            held = [a for a in found if where[a]["group"] == "held_out"]
+                         or where[a]["species"] in theirs]
+            held = [a for a in found if a not in set(inclusion) | set(exclusion)]
             total = sum(by_species[one] for one in mine)
             together = [a for a in inclusion if found[a]]
             species = sorted({where[a]["species"] for a in exclusion})

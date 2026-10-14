@@ -19,10 +19,11 @@ Two corrections are applied, both from the paper:
   the B. suis amplicon split across two contigs, so no PCR can amplify them, and the census is what should
   say so.
 
-A species in neither list -- "Brucella sp.", and the classical-clade species the paper's panel does not
-hold (B. pinnipedialis, B. inopinata, B. vulpis, B. papionis, B. amazoniensis) -- is downloaded and
-labelled `held_out`. It goes in neither group: it might be the target, and putting it in the exclusion
-group would throw away real regions. The census reports it separately.
+The classical-clade species the paper's panel does not hold -- B. pinnipedialis, B. amazoniensis,
+B. vulpis and B. inopinata -- are labelled `classical_extra`. The `genus` target ignores them, as the
+paper's panel did; the `genus_wide` target puts them in the inclusion group. "Brucella sp." is labelled
+`held_out` and goes in neither group whatever the target: it is unidentified, and roughly half of those
+assemblies are former Ochrobactrum. The census reports it separately.
 """
 
 from __future__ import annotations
@@ -38,6 +39,12 @@ from pathlib import Path
 
 # The eight classical Brucella species the paper's in-silico panel holds (its Table S2).
 CLASSICAL = ("abortus", "melitensis", "suis", "canis", "ceti", "ovis", "neotomae", "microti")
+
+# The other species of the classical clade, which the paper's panel does not hold. They are labelled
+# `classical_extra` rather than held out, so that the `genus_wide` target can ask what a genus assay would
+# have to cover to span the whole clade. The eight-species `genus` target is left exactly as it was, so
+# the record of the published assays stays reproducible.
+CLASSICAL_EXTRA = ("pinnipedialis", "amazoniensis", "vulpis", "inopinata")
 
 # The non-classical groups it used as negatives. "Brucella (Ochrobactrum)" is the former genus
 # Ochrobactrum, which NCBI now files under Brucella: every Brucella species name below is one of those.
@@ -108,6 +115,8 @@ def label(row: dict[str, str]) -> tuple[str, str]:
         return f"{genus.lower()}_{species}", "non_classical"
     if species in CLASSICAL:
         return species, species
+    if species in CLASSICAL_EXTRA:
+        return species, "classical_extra"
     if species in OCHROBACTRUM:
         return f"ochrobactrum_{species}", "non_classical"
     return species or "sp.", "held_out"
@@ -174,12 +183,15 @@ def main(argv: list[str] | None = None) -> int:
     for row in kept:
         counts[row["species"]] = counts.get(row["species"], 0) + 1
     classical = sum(counts.get(name, 0) for name in CLASSICAL)
+    extra = sum(counts.get(name, 0) for name in CLASSICAL_EXTRA)
     negative = sum(1 for row in kept if row["group"] == "non_classical")
     held = sum(1 for row in kept if row["group"] == "held_out")
-    print(f"{out}: {len(kept)} genome(s) -- {classical} classical Brucella, {negative} non-classical, "
-          f"{held} held out")
+    print(f"{out}: {len(kept)} genome(s) -- {classical} classical Brucella of the paper's eight species, "
+          f"{extra} of the other four classical-clade species, {negative} non-classical, {held} held out")
     for name in CLASSICAL:
         print(f"  B. {name}: {counts.get(name, 0)}")
+    for name in CLASSICAL_EXTRA:
+        print(f"  B. {name}: {counts.get(name, 0)} (classical_extra)")
     if lost:
         print(f"{len(lost)} accession(s) NCBI would not give us (suppressed since): {', '.join(lost[:5])}",
               file=sys.stderr)

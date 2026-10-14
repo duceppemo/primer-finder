@@ -227,3 +227,5 @@ panel will differ from this one as RefSeq grows; `panel.tsv.gz` pins what was us
 
 [`ALTERNATIVES.md`](ALTERNATIVES.md) beside this file asks the other question — what primer-finder proposes
 of its own on the same genomes, and whether any of it beats the published assays.
+[`WHOLE_CLADE.md`](WHOLE_CLADE.md) then puts the four remaining classical-clade species into the genus
+group and asks it again.

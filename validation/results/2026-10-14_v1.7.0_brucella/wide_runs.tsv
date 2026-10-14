@@ -1,0 +1,4 @@
+target	panel	p	inclusion	exclusion	required	status	regions	recovered	rank	region_bp	seconds
+genus_wide	as_labelled	1.0	1393	315	1393	ok	56	False	-	-	78
+genus_wide	as_labelled	0.996	1393	315	1388	ok	2103	False	-	-	140
+genus_wide	as_labelled	0.99	1393	315	1380	ok	5137	True	3954	127	282

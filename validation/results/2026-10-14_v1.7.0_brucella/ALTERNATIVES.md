@@ -148,8 +148,12 @@ Where this does point somewhere useful:
    `genus:Contig_193_65.5561_assay0` is the candidate with the cleanest predicted structure.
 2. **If full genus coverage matters**, neither the published assay nor any single candidate reaches it.
    all three *B. inopinata* assemblies are covered only by `Contig_590` and `Contig_678` (and one of the
-   three by `Contig_228`); *B. vulpis* only by those two candidates and the published assay. Putting *B. pinnipedialis*, *B. vulpis*, *B. amazoniensis* and *B. inopinata* into the
-   inclusion group and re-running would ask the question properly, and is the obvious next run.
+   three by `Contig_228`); *B. vulpis* only by those two candidates and the published assay. Putting
+   *B. pinnipedialis*, *B. vulpis*, *B. amazoniensis* and *B. inopinata* into the inclusion group and
+   re-running would ask the question properly, and is the obvious next run.
+   **Done: [`WHOLE_CLADE.md`](WHOLE_CLADE.md).** It changes this file's conclusion for the genus assay —
+   with all twelve species in the group, one proposal covers every one of the 1,393 genomes with no
+   predicted structure at all, and gives up nothing measured here.
 3. **A *B. suis* assay needs the groups redrawn**, because *B. canis* is inside *B. suis*.
 4. **The hairpin default rejects working assays.** Worth remembering before trusting `design` to have
    found everything.

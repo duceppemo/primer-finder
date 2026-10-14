@@ -28,6 +28,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 PARTS = ("forward", "reverse", "probe")
 CLASSICAL = ("abortus", "melitensis", "suis", "canis", "ceti", "ovis", "neotomae", "microti")
+CLASSICAL_EXTRA = ("pinnipedialis", "amazoniensis", "vulpis", "inopinata")
 
 
 def read_tsv(path: Path) -> list[dict[str, str]]:
@@ -51,7 +52,22 @@ def panel_fasta(genomes: list[dict[str, str]], out: Path) -> None:
 
 
 def inclusion_species(target: str) -> tuple[str, ...]:
-    return CLASSICAL if target == "genus" else (target,)
+    """Which species the inclusion group of a target is made of."""
+    if target == "genus":
+        return CLASSICAL
+    if target == "genus_wide":
+        return CLASSICAL + CLASSICAL_EXTRA
+    return (target,)
+
+
+def exclusion_species(target: str) -> tuple[str, ...]:
+    """Which species its exclusion group is made of, besides the non-classical genomes. A species target
+    is set against the other seven of the paper's eight; the four `classical_extra` species are in neither
+    group there, because the paper's panel did not have them and putting them in would change the
+    question."""
+    if target in ("genus", "genus_wide"):
+        return ()
+    return tuple(name for name in CLASSICAL if name != target)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -109,13 +125,16 @@ def main(argv: list[str] | None = None) -> int:
                 contigs = [exact[(target, part)].get(accession, set()) for part in PARTS]
                 if all(contigs):
                     found[accession] = set.intersection(*contigs)
-            inclusion = [a for a in found if where[a]["species"] in mine and where[a]["group"] != "held_out"]
+            theirs = exclusion_species(target)
+            inclusion = [a for a in found if where[a]["species"] in mine]
             exclusion = [a for a in found if where[a]["group"] == "non_classical"
-                         or (where[a]["species"] in CLASSICAL and where[a]["species"] not in mine)]
-            held = [a for a in found if where[a]["group"] == "held_out"]
+                         or where[a]["species"] in theirs]
+            # Whatever is in neither group: unidentified Brucella sp., and for a species target the four
+            # classical_extra species as well. Counted as the remainder so that nothing vanishes.
+            held = [a for a in found if a not in set(inclusion) | set(exclusion)]
             total = sum(by_species[name] for name in mine)
             missing = sorted(a for a, row in where.items()
-                             if row["species"] in mine and row["group"] != "held_out" and a not in found)
+                             if row["species"] in mine and a not in found)
             together = [a for a in inclusion if found[a]]
             others = sorted({where[a]["species"] for a in exclusion})
             out.write("\t".join([

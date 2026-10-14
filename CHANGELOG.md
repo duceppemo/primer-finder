@@ -4,6 +4,26 @@
 
 ### Added
 
+- **A `genus_wide` target, and a proposed genus assay that spans the whole classical clade**
+  (record in `validation/results/2026-10-14_v1.7.0_brucella/WHOLE_CLADE.md`). The four classical-clade
+  species the paper's panel does not hold — *B. pinnipedialis*, *B. amazoniensis*, *B. vulpis* and
+  *B. inopinata* — are now labelled `classical_extra` by `panel.py` instead of being held out, and
+  `group_genomes.py` has a target that puts all twelve species in the inclusion group. The eight-species
+  `genus` target is unchanged, so the record of the published assays stays reproducible.
+
+  At the default `-p 1.0`, **56 regions** are present in every one of the 1,393 genomes and absent from
+  all 315 relatives, where the eight-species group gives 398: adding 17 genomes of four species removes
+  86% of the candidates, most of it *B. inopinata*. `design` proposed 334 assays on them, and
+  **`Contig_83_60.1233_assay19` carries all three oligos exactly in all 1,393 genomes of all twelve
+  species, in none of the 315 relatives, with no predicted hairpin or dimer at all.** The published
+  genus assay scores 1,388 of 1,393 on the same group.
+
+  This reverses the conclusion of `ALTERNATIVES.md` for the genus assay: asked the eight-species
+  question, every candidate that reached 100% gave up species outside the panel, so none was worth
+  acting on; asked the twelve-species question, one gives up nothing measured. It still has no wet-lab
+  data, and its primers are more AT-rich than the published ones, which is the kind of difference only a
+  reaction settles.
+
 - **Two more tools in the *Brucella* harness, and a record of what primer-finder proposes of its own**
   (`validation/brucella/score_assays.py`, `thermo.py`, record in
   `validation/results/2026-10-14_v1.7.0_brucella/ALTERNATIVES.md`). `score_assays.py` puts any set of

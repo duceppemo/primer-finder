@@ -10,8 +10,9 @@
 # published amplicon lengths against a real genome, takes an independent blast census of where each assay
 # actually occurs, and then for each of the four targets:
 #
-#   - builds the inclusion group (the species, or every classical species for the genus assay) and the
-#     exclusion group (the other classical species and the non-classical relatives),
+#   - builds the inclusion group (the species; the paper's eight for `genus`; all twelve classical-clade
+#     species for `genus_wide`) and the exclusion group (the other classical species of the paper's eight
+#     for a species target, and the non-classical relatives in every case),
 #   - runs primer-finder,
 #   - looks for the published primers and probe in the regions it reports.
 #
@@ -30,7 +31,7 @@ threads="${2:-16}"
 memory="${3:-32}"
 python_bin="${PYTHON:-$(command -v python || command -v python3 || true)}"
 
-targets=(genus abortus melitensis suis)
+targets=(genus genus_wide abortus melitensis suis)
 
 "${python_bin}" "${here}/panel.py" "${work}"
 "${python_bin}" "${here}/verify_amplicon.py" "${work}"

@@ -123,7 +123,7 @@ bash validation/brucella/run.sh /path/to/work 48 128
 | `verify_amplicon.py` | measures each published amplicon in a real genome before it is trusted as a key |
 | `census.py` | blasts every published oligo against every genome: the ceiling on what could be recovered |
 | `mislabelled.txt` | the assemblies whose RefSeq species label the census shows cannot be right |
-| `group_genomes.py` | builds the inclusion and exclusion folders of one target |
+| `group_genomes.py` | builds the inclusion and exclusion folders of one target, `genus_wide` included |
 | `check_assay.py` | looks for the oligos in `final_kmers.fasta` and decides whether the assay was recovered |
 | `check_design.py` | asks whether `design` proposes the published oligos on the region that holds them |
 | `score_assays.py` | any set of assays against the whole panel on one yardstick: published and proposed alike |
@@ -134,6 +134,11 @@ assemblies per species, not their accessions, so `panel.py` applies the same rul
 assembly of the eight classical species the paper's panel holds, and of the four non-classical groups it
 used as negatives. RefSeq has grown since October 2020, so the groups are larger than the paper's — 1,376
 classical against 315 non-classical, where the paper had 1,160 against 194.
+
+There are five targets: `genus` (the eight classical species the paper's panel holds), `genus_wide` (those
+plus *B. pinnipedialis*, *B. amazoniensis*, *B. vulpis* and *B. inopinata*, which the paper's panel had
+none of), and one for each of the three species. The eight-species target is kept as it was so that the
+record of the published assays stays reproducible.
 
 **Read `census.tsv` beside the results**, as in the *Listeria* record, and `mislabelled.txt` beside that.
 Eight assemblies of this panel carry all three oligos of exactly one species assay and it is not the assay

@@ -1,0 +1,16 @@
+assay	target	probe	amplicon_bp	group_genomes	inclusion_exact	inclusion_pct	one_contig	exclusion_exact	exclusion_species	held_out_exact
+Bru_genus	genus_wide	yes	93	1393	1388	99.64	1388	0	-	49
+wide:Contig_82_35.5227_assay2	genus_wide	yes	80	1393	1391	99.86	1391	0	-	59
+wide:Contig_7_48.7232_assay0	genus_wide	yes	78	1393	1388	99.64	1388	0	-	45
+wide:Contig_20_47.1239_assay2	genus_wide	yes	84	1393	1389	99.71	1389	0	-	57
+wide:Contig_51_46.9535_assay0	genus_wide	yes	87	1393	1388	99.64	1388	0	-	34
+wide:Contig_9_43.557_assay0	genus_wide	yes	71	1393	1390	99.78	1390	0	-	59
+wide:Contig_12_49.9895_assay0	genus_wide	yes	71	1393	1388	99.64	1388	0	-	35
+wide:Contig_75_18.6543_assay0	genus_wide	yes	79	1393	1393	100.00	1393	0	-	56
+wide:Contig_8_39.7727_assay0	genus_wide	yes	90	1393	1392	99.93	1392	0	-	51
+wide:Contig_2_62.497_assay0	genus_wide	yes	135	1393	1390	99.78	1390	0	-	48
+wide:Contig_56_55.6441_assay2	genus_wide	yes	77	1393	1388	99.64	1388	0	-	34
+wide:Contig_45_46.9535_assay1	genus_wide	yes	87	1393	1388	99.64	1388	0	-	33
+wide:Contig_91_27.642_assay0	genus_wide	yes	89	1393	1391	99.86	1391	0	-	45
+wide:Contig_1_51.44_assay0	genus_wide	yes	75	1393	1390	99.78	1390	0	-	41
+wide:Contig_30_44.9753_assay0	genus_wide	yes	75	1393	1392	99.93	1392	0	-	50
