@@ -7,14 +7,16 @@ authors:
     given-names: Marc-Olivier
 version: 1.7.0
 date-released: "2026-10-14"
-# The concept DOI until Zenodo has archived this release: its webhook timed out on the v1.6.0 tag, and
-# neither 1.6.0 nor 1.7.0 has a version DOI of its own yet. The concept DOI resolves to the latest
-# archived version.
-doi: 10.5281/zenodo.23226411
+doi: 10.5281/zenodo.23372916
 identifiers:
   - type: doi
     value: 10.5281/zenodo.23226411
     description: "Concept DOI: resolves to the latest version"
+  - type: doi
+    value: 10.5281/zenodo.23372916
+    description: "Version DOI for 1.7.0"
+  # 1.6.0 has no version DOI: every delivery of the Zenodo webhook timed out on that tag, and it cannot be
+  # redelivered after the fact. Cite the concept DOI, or 1.7.0, for that release.
   - type: doi
     value: 10.5281/zenodo.23282261
     description: "Version DOI for 1.5.0"
