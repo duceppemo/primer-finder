@@ -26,8 +26,26 @@ For the exclusion group, every kmer counts, however rare: `kmers_subtract` then 
 set every kmer seen anywhere in the exclusion group. What is left is the inclusion-specific kmers, written as
 a fasta file (`kmer_0`, `kmer_1`, ...).
 
-A shorter `-k` finds shorter specific regions and more of them; a longer one is more specific and more
-sensitive to assembly errors. 99 is a good starting point for bacteria.
+A shorter `-k` finds **fewer** regions, not more, which is the opposite of what one might expect and worth
+being clear about. A kmer survives the subtraction only if no exclusion genome holds it, so for a region
+that does exist in the exclusion genomes the kmer has to *span a difference*. A long kmer spans one more
+often, so more kmers survive and the specific stretches they assemble into are longer. A short kmer
+survives only sitting almost on top of a difference.
+
+Measured on the [*Listeria* panel](Validation#thirty-published-listeria-monocytogenes-clonal-complex-assays),
+nine clonal complexes against the other 78:
+
+| `-k` | regions over the nine runs | runs with no region at all | published assays recovered |
+|---|---|---|---|
+| 31 | 70 | 2 | 4 of 9 |
+| 51 | 160 | 1 | 4 of 9 |
+| **99** | **306** | **0** | **4 of 9** |
+| 127 | 319 | 0 | 4 of 9 |
+
+Which assays are recovered does not change, so the kmer size buys candidates rather than answers. 99 is a
+good starting point for bacteria: it is near the top of the yield, and below it whole runs start coming back
+empty. 127 adds 4% more candidates and nothing else. A longer kmer is also more sensitive to assembly
+errors, since one wrong base spoils every kmer covering it.
 
 ## 2. Assembling the kmers (SKESA or SPAdes)
 

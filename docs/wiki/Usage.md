@@ -51,7 +51,7 @@ while read -r genome; do ln -sf "$genome" exclusion/; done < exclusion.list
 | `-o`, `--output` | required | Folder for the results; it is created if needed. It must be outside both input folders, and its path must not contain a space (a BLAST limitation). |
 | `-t`, `--threads` | every CPU | CPUs for KMC, the assembler, minimap2, and how many genomes are blasted at a time. |
 | `-m`, `--memory` | 85% of the memory | Memory in GB, passed to KMC and the assembler. |
-| `-k`, `--kmer_size`, `--kmer-size` | 99 | Kmer size for KMC, 1-256. Shorter kmers find shorter specific regions, and more of them; longer kmers are more specific. |
+| `-k`, `--kmer_size`, `--kmer-size` | 99 | Kmer size for KMC, 1-256. A shorter kmer finds **fewer** regions, not more, and below about 50 whole runs come back empty — see [Methods](Methods#1-the-kmers-only-the-inclusion-group-has-kmc) for the measurement. Longer is more sensitive to assembly errors. |
 | `--min-region` | the kmer size | The shortest candidate region to report. Both assemblers stop at 200 bases of their own accord, which would hide every specific stretch shorter than that — and those are commonest where the two groups are closely related. |
 | `-d`, `--duplication` | 1 | How many times a kmer may occur in each inclusion genome. 1 discards repeated regions, which make poor assays. |
 | `-p`, `--min-inclusion` | 1.0 | The fraction of the inclusion genomes a kmer has to be in, rounded up to a whole number of genomes. 1.0 means every one of them. |
