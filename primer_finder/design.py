@@ -443,7 +443,7 @@ def difference_targets(seq: str, span: int = MAX_PRIMER_SIZE,
 
     `limit` stops after that many, which is what the caller wants: measuring the rest costs time and
     nothing reads it. 0 returns all of them, which only the tests ask for -- on a 20 kb region holding
-    5,000 differences that is 834 targets and well over a minute.
+    5,000 differences that is over 800 targets where four were wanted.
 
     This is what the `find` command's rule selects regions for: it keeps a region whose differences could
     sit **in one oligo**, which means a run of them or two of them fewer than a primer's length apart
@@ -516,8 +516,9 @@ def forced_requests(record: seqio.Record, product_size: str, how_many: int,
                 "SEQUENCE_INCLUDED_REGION": window(record, left_end, product_size),
             }, gc_clamp=0, conditions=conditions))
         # A right primer ending here needs its own length ahead, and the amplicon has to fit behind its
-        # 5' end -- again up to MAX_PRIMER_SIZE - 1 bases past the 3' end that is pinned
-        if start + MAX_PRIMER_SIZE >= smallest_product and start + MIN_PRIMER_SIZE <= length:
+        # 5' end -- again up to MAX_PRIMER_SIZE - 1 bases past the 3' end that is pinned, but no further
+        # than the region goes
+        if min(start + MAX_PRIMER_SIZE, length) >= smallest_product and start + MIN_PRIMER_SIZE <= length:
             requests.append(build_request(record, product_size, how_many, {
                 "SEQUENCE_ID": f"{record.name}{FORCE_SEP}right{start}",
                 "SEQUENCE_FORCE_RIGHT_END": start,
@@ -596,6 +597,22 @@ def design(regions: Iterable[seqio.Record], work_dir: Path, product_size: str = 
     holding up the rest.
     """
     regions = list(regions)
+    # A region shorter than the smallest product cannot hold an assay, and Primer3 answers such a request
+    # with PRIMER_ERROR rather than an empty result -- which `one()` below treats as fatal, so one short
+    # region would end the run. They became common when `find` started reporting regions down to one kmer
+    smallest = minimum_product(product_size)
+    long_enough = [record for record in regions if len(record.seq) >= smallest]
+    if len(long_enough) < len(regions):
+        log.info("%d of %d region(s) are shorter than the %d-base smallest product of --product-size %s "
+                 "and cannot hold an assay; they are not designed on",
+                 len(regions) - len(long_enough), len(regions), smallest, product_size)
+    if not long_enough:
+        raise PrimerFinderError(
+            f"Every region is shorter than the {smallest}-base smallest product of --product-size "
+            f"{product_size}, so none of them can hold an assay. A lower --product-size, or a larger "
+            "-k on the find run, would give regions with room in them."
+        )
+    regions = long_enough
     work_dir.mkdir(parents=True, exist_ok=True)
     work: list[tuple[int, seqio.Record, str, float]] = []
     for index, record in enumerate(regions):
@@ -986,8 +1003,11 @@ def run(settings: DesignSettings) -> int:
         raise PrimerFinderError(
             f"Every assay Primer3 proposed rests on fewer than {settings.min_primer_differences} "
             "difference(s) under a single primer. --assays-per-region above the default gives Primer3 more "
-            "tries at the differences; --min-primer-differences 1 accepts an assay that spends only one of "
-            "them, which is a weaker assay rather than no assay."
+            "tries at the differences; "
+            + ("--min-primer-differences 1 accepts an assay that spends only one of them, which is a "
+               "weaker assay rather than no assay." if settings.min_primer_differences > 1 else
+               "--min-primer-differences 0 turns this off altogether, which accepts an assay whose only "
+               "differences are under its probe -- and a probe is poor evidence of specificity.")
         )
     if not usable:
         raise PrimerFinderError(

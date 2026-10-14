@@ -143,7 +143,9 @@ def build_parser(max_cpu: int, max_mem: int) -> argparse.ArgumentParser:
                                     "oligo. The probe does not count, however many it covers -- it is "
                                     "longer and hotter than a primer, so two mismatches under it are no "
                                     "evidence it will not bind. Assays below this are listed but carried "
-                                    "no further; 1 keeps them.")
+                                    "no further. 1 still asks for a difference under a primer, so an assay "
+                                    "whose only differences are under its probe is set aside at any "
+                                    "setting; 0 turns the filter off.")
     design_parser.add_argument("--max-regions", metavar=str(design.DEFAULT_MAX_REGIONS), type=int,
                                default=design.DEFAULT_MAX_REGIONS,
                                help="Design on this many regions, the most promising first. 0 for every "

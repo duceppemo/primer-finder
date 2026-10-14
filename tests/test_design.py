@@ -172,6 +172,14 @@ def test_a_pin_with_no_room_for_an_amplicon_is_still_skipped():
     assert forced_requests(region, "120-200", 1) == []
 
 
+def test_a_right_pin_cannot_run_past_the_end_of_the_region():
+    """The amplicon may start up to a primer's length past the pinned 3' end, but not past the region:
+    without the clamp this asks Primer3 for a product longer than the template it was given."""
+    region = Record("ctg1", "", "A" * 95 + "cg" + "A" * 18)   # 115 bases, differences at 95 and 96
+    assert len(region.seq) == 115
+    assert forced_requests(region, "120-200", 1) == []
+
+
 def test_a_region_that_is_all_differences_gets_no_pinned_request():
     """Nothing to aim at: minimap2 could not place it in the exclusion genomes at all, so it is specific
     by absence and pinning an end on an arbitrary base of it only spends requests."""
@@ -770,16 +778,76 @@ def test_the_weaker_assay_can_be_asked_for(stubs, tmp_path, genomes):
     assert rows[0]["assay"] in (output / "assays_pcr.fasta").read_text()
 
 
-def test_one_difference_under_a_primer_is_still_asked_for_at_the_lowest_setting(stubs, tmp_path, genomes):
+def probe_only_run(tmp_path, genomes, stubs) -> Path:
+    """A finished run whose one difference falls under the stub's probe (35-54) and outside its plain
+    left primer (10-29), so the plain request yields assays no primer can discriminate with."""
+    inclusion, exclusion = genomes
+    results = tmp_path / "results"
+    results.mkdir()
+    region = "A" * 40 + "c" + "A" * 159
+    (results / "final_kmers.fasta").write_text(f">ctg1 [40]\n{region}\n")
+    (results / "run_info.json").write_text(json.dumps(
+        {"parameters": {"inclusion": str(inclusion), "exclusion": str(exclusion)}}))
+    stubs(amplicon_hits={path.name.split(".")[0]: 1 for path in exclusion.glob("*.fasta")})
+    return results
+
+
+def test_an_assay_with_no_primer_difference_is_set_aside_at_the_lowest_setting(stubs, tmp_path, genomes):
     """`--min-primer-differences 1` means one difference under a *primer*, not one under any oligo: an
     assay whose only differences are under its probe is set aside however low the setting goes."""
-    results = one_difference_run(tmp_path, genomes, stubs)
+    results = probe_only_run(tmp_path, genomes, stubs)
     output = tmp_path / "loose"
     assert run(design_settings(results, output, min_primer_differences=1)) == 0
+    rows = list(iter_rows(output / "assays.tsv"))
+    probe_only = [row for row in rows if row["best_primer_variants"] == "0"]
+    assert probe_only, "the scenario is pointless without an assay no primer can discriminate with"
+    assert any(row["best_primer_variants"] != "0" for row in rows), "nor without one that a primer can"
     carried = (output / "assays_pcr.fasta").read_text()
-    for row in iter_rows(output / "assays.tsv"):
-        if row["assay"] in carried:
-            assert int(row["best_primer_variants"]) >= 1, row["assay"]
+    for row in probe_only:
+        assert row["assay"] not in carried, row["assay"]
+
+
+def test_turning_the_filter_off_accepts_them(stubs, tmp_path, genomes):
+    """0 is the only way back to the older, looser rule, and the error says so when everything is set
+    aside."""
+    results = probe_only_run(tmp_path, genomes, stubs)
+    output = tmp_path / "off"
+    assert run(design_settings(results, output, min_primer_differences=0)) == 0
+    carried = (output / "assays_pcr.fasta").read_text()
+    probe_only = [row for row in iter_rows(output / "assays.tsv")
+                  if row["best_primer_variants"] == "0"]
+    assert probe_only and all(row["assay"] in carried for row in probe_only)
+
+
+def test_a_region_too_short_for_the_product_range_is_skipped_not_fatal(stubs, tmp_path, genomes, caplog):
+    """Primer3 answers a request whose template is shorter than the smallest product with an error, not
+    with an empty result, and the command treats a Primer3 error as fatal. One short region would
+    therefore end a run over hundreds of good ones -- and short regions became common when `find` started
+    reporting them down to one kmer."""
+    inclusion, exclusion = genomes
+    results = tmp_path / "results"
+    results.mkdir()
+    (results / "final_kmers.fasta").write_text(
+        ">tiny [40]\n" + "A" * 40 + "c" + "A" * 59 + "\n"          # 100 bases, under the 120 floor
+        ">roomy [40]\n" + "A" * 40 + "c" + "A" * 259 + "\n")       # 300 bases, over it
+    (results / "run_info.json").write_text(json.dumps(
+        {"parameters": {"inclusion": str(inclusion), "exclusion": str(exclusion)}}))
+    output = tmp_path / "assays"
+    with caplog.at_level("INFO"):
+        assert run(design_settings(results, output, product_size="120-200")) == 0
+    assert "1 of 2 region(s) are shorter than the 120-base smallest product" in caplog.text
+    assert {row["region"] for row in iter_rows(output / "assays.tsv")} == {"roomy"}
+
+
+def test_every_region_too_short_says_what_to_change(stubs, tmp_path, genomes):
+    inclusion, exclusion = genomes
+    results = tmp_path / "results"
+    results.mkdir()
+    (results / "final_kmers.fasta").write_text(">tiny [40]\n" + "A" * 40 + "c" + "A" * 59 + "\n")
+    (results / "run_info.json").write_text(json.dumps(
+        {"parameters": {"inclusion": str(inclusion), "exclusion": str(exclusion)}}))
+    with pytest.raises(PrimerFinderError, match="Every region is shorter than"):
+        run(design_settings(results, tmp_path / "assays", product_size="120-200"))
 
 
 def test_the_default_asks_for_two_differences_under_one_primer():

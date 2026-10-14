@@ -40,6 +40,18 @@
   there is nothing to aim at, and the eight requests spent on each were the slowest kind.
 - `--min-region` refuses a negative value up front instead of failing in the assembler after KMC has counted
   every genome. Dead code removed: `variant_runs`, left behind when targets replaced runs.
+- **One region shorter than the smallest product ended the whole design run.** Primer3 answers such a
+  request with an error rather than an empty result, and `design` treats a Primer3 error as fatal. Reaching
+  it needed a region shorter than `--product-size`'s floor, which is exactly what reporting regions down to
+  one kmer produced: `primer-finder design` on a *Listeria* run with `--product-size 120-200` died on the
+  first of 57 regions. Regions with no room for a product are now skipped, with a line saying how many and
+  why, and it is only an error when none is left.
+- The room guard for a pinned reverse primer did not stop at the end of the region, so it could ask Primer3
+  for a product longer than the template. Harmless in practice — the plain request for such a region
+  failed first — but wrong on its own terms.
+- `--min-primer-differences 0` turns the filter off, which is what the "everything was set aside" error now
+  suggests when the setting is already 1. The option's help said "1 keeps them", which stopped being true
+  when 1 began asking for a difference under a primer.
 
 ## 1.5.0
 
