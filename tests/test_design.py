@@ -106,6 +106,25 @@ def test_a_lone_difference_beside_a_richer_target_is_still_aimed_at():
     assert difference_targets("".join(seq)) == [(24, 7, 2), (0, 1, 1)]
 
 
+def test_only_the_targets_that_will_be_used_are_measured():
+    """Measuring the rest costs real time on a region dense with differences, and nothing reads it. The
+    limit must not change which targets come first, and the whole thing must stay quick: measuring every
+    target of a region like this one took over a minute before the window scan became a bisect."""
+    import random
+    import time
+
+    random.seed(1)
+    bases = list("A" * 20000)
+    for position in random.sample(range(20000), 5000):
+        bases[position] = "a"
+    seq = "".join(bases)
+    started = time.monotonic()
+    four = difference_targets(seq, limit=4)
+    elapsed = time.monotonic() - started
+    assert four == difference_targets(seq, limit=0)[:4]
+    assert elapsed < 2.0, f"{elapsed:.1f}s for four targets of a dense region"
+
+
 def test_a_difference_too_far_from_the_next_is_its_own_target():
     """Past the width of the widest oligo there is no placement that covers both, so they are separate
     targets and each is worth only itself."""

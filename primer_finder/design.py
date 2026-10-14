@@ -15,6 +15,7 @@ dropped: it would amplify both groups.
 
 from __future__ import annotations
 
+import bisect
 import json
 import logging
 import re
@@ -435,9 +436,14 @@ def assays_of(record: seqio.Record, fields: dict[str, str]) -> list[Assay]:
     return assays
 
 
-def difference_targets(seq: str, span: int = MAX_PRIMER_SIZE) -> list[tuple[int, int, int]]:
+def difference_targets(seq: str, span: int = MAX_PRIMER_SIZE,
+                       limit: int = 0) -> list[tuple[int, int, int]]:
     """The stretches of at most `span` bases that hold the most differences, as `(start, length, count)`,
     richest first, then narrowest, then leftmost, with no two of them overlapping.
+
+    `limit` stops after that many, which is what the caller wants: measuring the rest costs time and
+    nothing reads it. 0 returns all of them, which only the tests ask for -- on a 20 kb region holding
+    5,000 differences that is 834 targets and well over a minute.
 
     This is what the `find` command's rule selects regions for: it keeps a region whose differences could
     sit **in one oligo**, which means a run of them or two of them fewer than a primer's length apart
@@ -454,11 +460,12 @@ def difference_targets(seq: str, span: int = MAX_PRIMER_SIZE) -> list[tuple[int,
     """
     left = [position for position, base in enumerate(seq) if base.islower()]
     targets: list[tuple[int, int, int]] = []
-    while left:
+    while left and (not limit or len(targets) < limit):
         windows = []
         for index, first in enumerate(left):
-            inside = [position for position in left[index:] if position - first < span]
-            windows.append((first, inside[-1] - first + 1, len(inside)))
+            # `left` is sorted, so the window ends where the positions pass `first + span`
+            last = bisect.bisect_right(left, first + span - 1, index) - 1
+            windows.append((first, left[last] - first + 1, last - index + 1))
         start, width, count = min(windows, key=lambda w: (-w[2], w[1], w[0]))
         targets.append((start, width, count))
         left = [position for position in left if not start <= position < start + width]
@@ -497,7 +504,7 @@ def forced_requests(record: seqio.Record, product_size: str, how_many: int,
         # the exclusion genomes having nothing like it, and pinning an end on an arbitrary base of it only
         # spends requests -- the slowest kind, since a pinned probe makes Primer3 search the whole template
         return requests
-    for start, run, _ in difference_targets(record.seq)[:MAX_FORCED_RUNS]:
+    for start, run, _ in difference_targets(record.seq, limit=MAX_FORCED_RUNS):
         left_end = start + run - 1
         # A left primer ending here needs its own length behind it, and the amplicon has to fit from where
         # that primer *starts* -- up to MAX_PRIMER_SIZE - 1 bases before its 3' end, not from the 3' end
