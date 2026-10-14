@@ -303,15 +303,25 @@ def check_the_contigs(settings: Settings, assembly: Path, reference: Path, inclu
             raise
         reason = str(error)
 
-    log.warning("Nothing met the usual rule of two differences within %d bases: %s", MAX_PRIMER_SPAN, reason)
-    log.warning("Trying again as a last resort, accepting a region with a single difference. An assay "
-                "resting on one mismatch is the harder one to make work, so everything this reports is "
-                "marked %r and should be treated as a lead rather than a result. --no-last-resort skips "
-                "this.", LAST_RESORT_TAG)
-    final = pass_at(mapping.LAST_RESORT_DIFFERENCES)
+    # Deliberately not "nothing met the two-differences rule": any of the three steps can empty the run,
+    # and when it is step 4 the contigs did meet that rule and were simply not in every inclusion genome.
+    # The reason says which, so the sentence around it must not claim to know.
+    log.warning("The run has nothing to report at the usual stringency. %s", reason)
+    log.warning("Trying again as a last resort, accepting a region with a single difference instead of "
+                "two close enough to share a primer. An assay resting on one mismatch is the harder one "
+                "to make work, so everything this reports is marked %r and should be treated as a lead "
+                "rather than a result. --no-last-resort skips this.", LAST_RESORT_TAG)
+    try:
+        final = pass_at(mapping.LAST_RESORT_DIFFERENCES)
+    except NothingSelectiveEnough as error:
+        # Otherwise this is word for word the error the strict pass gives, and nothing in it says that a
+        # second, weaker attempt has already been made
+        raise NothingSelectiveEnough(f"The last-resort pass found nothing either. {error}") from error
     if counts["final"] > 0:
         log.warning("%d region(s) found only by the last-resort rule, each marked %r in %s",
                     counts["final"], LAST_RESORT_TAG, final.name)
+    else:
+        log.warning("The last-resort pass found nothing either: no region is left to design on.")
     return final, mapping.LAST_RESORT_DIFFERENCES
 
 

@@ -112,9 +112,6 @@ synthetic stretch, stretches of 150, 180 and 199 bases are already missing from 
 and says so in a warning rather than quietly dropping them; the floor is applied to its output only so that
 it does not report contigs the run asked to leave out.
 
-The last-resort pass of step 3 reaches this step too: at that stringency a single shared variant position
-is enough here, where two close together are normally wanted.
-
 Lifting the floor only puts the short stretches in front of the later steps; it does not excuse them from
 anything. The 145-base stretch carrying a published *Listeria* probe now reaches the candidate stage and is
 then turned down by the exclusion check in step 5, which is a decision about the sequence rather than about
@@ -245,6 +242,11 @@ which only makes the assay more selective. A contig is kept when:
 
 The survivors are `final_kmers.fasta`, with those positions listed in the header and in lower case in the
 sequence.
+
+**The last-resort pass of step 3 reaches this step too.** At that stringency a single kept position
+anywhere is enough here, where two close together are normally wanted, and every region the pass reports
+is marked `last_resort` in its header — including one no exclusion genome hits at all, which got through
+step 3 on one difference even though step 5 has nothing to hold against it.
 
 ## Designing the assay
 

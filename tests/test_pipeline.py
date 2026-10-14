@@ -263,6 +263,68 @@ def test_the_last_resort_pass_still_needs_a_difference(stubs, settings):
         run(settings())
 
 
+def test_the_pass_also_rescues_a_run_that_step_four_emptied(stubs, settings, caplog):
+    """The retry is not only for step 3. Here contigs do meet the two-differences rule but are not in
+    every inclusion genome, while a single-difference contig is -- so the second pass has something to
+    report, and the warning must not claim the rule was what failed."""
+    stubs(contigs={"ctg1": "ACGT" * 25, "ctg2": "TTGG" * 25},
+          sam=[["ctg1", 0, "40=1X7=1X50="], ["ctg2", 0, "50=1X69="]],
+          presence={"inclusion_1": ["ctg1", "ctg2"], "inclusion_2": ["ctg2"]},
+          exclusion_hits={genome: [["ctg2", 1, 20, 1e-30, "ACGTACGTACGTACGTACGT",
+                                    "ACGTAAGTACGTACGTACGT"]]
+                          for genome in ("exclusion_1", "exclusion_2")})
+    scenario = settings()
+    assert run(scenario) == 0
+    records = list(iter_records(scenario.output / "final_kmers.fasta"))
+    assert [record.name for record in records] == ["ctg2"]
+    assert "last_resort" in records[0].desc
+    # The reason quoted is step 4's, and the sentence around it does not blame the span rule. Step 3's
+    # own INFO line does mention the rule, so this looks at the warnings only.
+    warnings = " ".join(record.getMessage() for record in caplog.records
+                        if record.levelname == "WARNING")
+    assert "No candidate contig is present in all the inclusion genomes" in warnings
+    assert "nothing to report at the usual stringency" in warnings
+    assert "two differences within" not in warnings
+
+
+def test_a_last_resort_region_absent_from_every_exclusion_genome_is_marked_too(stubs, settings):
+    """The other branch of step 5: a contig no exclusion genome holds is specific on its own, and in a
+    last-resort pass it still only got through step 3 on one difference. It carries the mark."""
+    stubs(sam=[["ctg1", 0, "50=1X69="]], exclusion_hits={"exclusion_1": [], "exclusion_2": []})
+    scenario = settings()
+    assert run(scenario) == 0
+    records = list(iter_records(scenario.output / "final_kmers.fasta"))
+    assert len(records) == 1
+    assert "last_resort" in records[0].desc.split()
+
+
+def test_a_last_resort_pass_that_finds_nothing_says_so_and_claims_nothing(stubs, settings, caplog):
+    """`min_differences` records the rule the run ended on; `last_resort` records whether any region came
+    back under it. A pass that reports nothing leaves the second false and the file empty."""
+    import json
+
+    stubs(sam=[["ctg1", 0, "50=1X69="]],
+          exclusion_hits={genome: [["ctg1", 1, 20, 1e-30, "ACGTACGTACGTACGTACGT",
+                                    "ACGTACGTACGTACGTACGT"]]
+                          for genome in ("exclusion_1", "exclusion_2")})
+    scenario = settings()
+    assert run(scenario) == 0
+    assert list(iter_records(scenario.output / "final_kmers.fasta")) == []
+    info = json.loads((scenario.output / "run_info.json").read_text())
+    assert info["parameters"]["min_differences"] == 1
+    assert info["last_resort"] is False
+    assert "found nothing either" in caplog.text
+
+
+def test_a_second_pass_that_fails_says_a_weaker_rule_was_already_tried(stubs, settings):
+    """Otherwise the error is word for word the one the strict pass gives, and the user cannot tell that
+    anything else was attempted."""
+    stubs(contigs={"ctg1": "ACGT" * 25}, sam=[["ctg1", 0, "50=1X69="]],
+          presence={"inclusion_1": ["ctg1"], "inclusion_2": []})
+    with pytest.raises(PrimerFinderError, match="last-resort pass found nothing either"):
+        run(settings())
+
+
 def test_variant_in_only_one_exclusion_genome_is_dropped(stubs, settings):
     """A position has to differ in at least 90% of the exclusion genomes the contig hits."""
     stubs(exclusion_hits={

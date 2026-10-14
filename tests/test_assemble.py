@@ -185,3 +185,91 @@ def test_the_error_from_an_assembler_for_reads_points_at_the_unitig_walk(stubs, 
     stubs(contigs={})
     with pytest.raises(PrimerFinderError, match="-a unitig"):
         assemble(kmer_fasta, tmp_path / "assembly.fasta", "skesa", threads=1, memory_gb=1)
+
+def every_kmer_once(kmers: list[str], built: list[str]) -> None:
+    """The two invariants that define a correct decomposition, which no single example pins down:
+
+    - every kmer given appears in exactly one stretch, in one orientation or the other;
+    - every k-base window of every stretch is a kmer that was given.
+
+    The first says nothing was lost or duplicated, the second that nothing was invented.
+    """
+    canonical = {min(one, reverse_complement(one)) for one in (kmer.upper() for kmer in kmers)}
+    k = len(next(iter(canonical)))
+    for key in canonical:
+        holding = [one for one in built if key in one or reverse_complement(key) in one]
+        assert len(holding) == 1, f"{key} is in {len(holding)} stretch(es), not 1"
+    for one in built:
+        for at in range(len(one) - k + 1):
+            window = min(one[at:at + k], reverse_complement(one[at:at + k]))
+            assert window in canonical, f"{one} spells out {window}, which was never given"
+
+
+def test_a_hairpin_does_not_lose_kmers():
+    """A kmer whose last k-1 bases are their own reverse complement leads back into itself the other way
+    round. Backing up through it used to leave the seed in no stretch at all: of these four kmers -- two,
+    once reverse complements are collapsed -- the walk returned one, and the other was simply gone.
+    `ACGTAT` is the palindrome."""
+    kmers = ["ACGTATC", "TACGTAT", "ATACGTA", "GATACGT"]
+    built = unitigs(kmers)
+    every_kmer_once(kmers, built)
+    assert built == ["TACGTATC"]
+
+
+def test_a_palindromic_kmer_is_its_own_stretch():
+    """With an even k a kmer can be its own reverse complement. It has to come back, once."""
+    kmers = ["ACGT", "CGTA", "GTAC"]
+    built = unitigs(kmers)
+    every_kmer_once(kmers, built)
+
+
+# Twelve arbitrary seeds for general cover, and three found by searching 400 of them for a graph the
+# pre-fix walk got wrong: 203, 245 and 309 each lose a kmer without the fix, and 19, 162 and 249 change
+# the answer without losing one. Pinned because the shape needs a hairpin *and* a tip in the right place,
+# which an arbitrary seed produces about once in seventy.
+@pytest.mark.parametrize("seed", [*range(12), 19, 162, 203, 245, 249, 309])
+def test_the_invariants_hold_on_random_graphs_including_palindromes(seed):
+    """Branches, tips, repeats and hairpins in combination, which no hand-written example covers. The
+    palindrome is spliced in on purpose: that is the case the walk got wrong."""
+    rng = random.Random(seed)
+    k = rng.choice([5, 7, 9, 11, 21])
+
+    def chunk(length: int) -> str:
+        return "".join(rng.choice("ACGT") for _ in range(length))
+
+    # Built to guarantee the shape that broke the walk rather than hope for it: a palindrome of exactly
+    # k - 1 bases means the kmer starting one base before it ends on a palindrome, and backing up through
+    # such a kmer leads into itself the other way round. An odd length cannot be a palindrome -- the
+    # middle base would have to pair with itself -- so with an even k the palindrome is k long instead,
+    # which makes a kmer that is its own reverse complement.
+    half = (k - 1) // 2 if (k - 1) % 2 == 0 else k // 2
+    palindrome = chunk(half)
+    palindrome += reverse_complement(palindrome)
+    assert palindrome == reverse_complement(palindrome)
+    pieces = [chunk(rng.randint(k, 3 * k)) for _ in range(3)]
+    sequences = [
+        pieces[0] + palindrome + pieces[1],
+        pieces[2] + palindrome + pieces[0],          # the palindrome reached from two directions
+        pieces[1] + pieces[2],                        # and a join that makes a branch
+    ]
+    kmers = [one[at:at + k] for one in sequences for at in range(len(one) - k + 1)]
+    kmers = [one for one in kmers if rng.random() > 0.1]  # tips, from dropping a tenth of them
+    if not kmers:
+        return
+    built = unitigs(kmers)
+    every_kmer_once(kmers, built)
+    # And the answer may not depend on the order the kmers arrive in
+    shuffled = kmers[:]
+    rng.shuffle(shuffled)
+    assert unitigs(shuffled) == built
+
+
+def test_the_invariants_hold_on_the_hand_written_fixtures():
+    """The same two invariants on the examples the other tests use, which assert lengths and sequences
+    but never that the decomposition is complete."""
+    for kmers in (kmers_of(SEQUENCE),
+                  kmers_of(SEQUENCE) + kmers_of(OTHER),
+                  kmers_of(SEQUENCE) + [SEQUENCE[20:40] + "A"],
+                  kmers_of("CATTGGTGCATAGAGCCTGTACTAGCTTAATGGCATAATCGGTCCACCGGA", k=11)
+                  + kmers_of("GCGTTAACGCCCTTTATACTAGCTTAATGGCATAATCGGTCCACCGGA", k=11)):
+        every_kmer_once(kmers, unitigs(kmers))

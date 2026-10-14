@@ -51,9 +51,11 @@ def unitigs(kmers: Iterable[str]) -> list[str]:
     the four bases and asking whether that kmer is present, which keeps the memory to the kmer set itself.
 
     Returns the stretches longest first. A kmer set says nothing about which strand a stretch was read
-    from, so each one comes back in whichever orientation the walk reached it in -- arbitrary, but the
-    same for the same kmers every time. Nothing downstream cares: the aligner reports either strand and
-    marks the bases accordingly.
+    from, so the orientation each one comes back in is decided here: the walk starts from the stretch's
+    lexicographically smallest canonical kmer and reads outward from it, which depends on that stretch's
+    own kmers and nothing else. It is therefore stable across runs and unaffected by what else is in the
+    set, but it need not match the strand another assembler would choose. Nothing downstream cares: the
+    aligner reports either strand and marks the bases accordingly.
     """
     present = {min(kmer, reverse_complement(kmer)) for kmer in (one.upper() for one in kmers)}
     if not present:
@@ -85,16 +87,25 @@ def unitigs(kmers: Iterable[str]) -> list[str]:
             continue
         # Back up to where the unitig starts, then walk forward building the sequence
         start = seed
+        passed = {seed}  # every kmer this walk has backed through, as a canonical key
         while True:
             coming = before(start)
             if len(coming) != 1 or not forced_step(coming[0], back=True):
                 break
             step = coming[0]
             key = min(step, reverse_complement(step))
-            if key in used or key == seed:  # a circular stretch: stop rather than go round for ever
+            # Stop rather than go round for ever, which happens in two ways: a circular stretch comes
+            # back to the seed, and a hairpin -- a kmer whose last k-1 bases are their own reverse
+            # complement -- leads back into the same kmer the other way round. Remembering only the seed
+            # caught the first and not the second, which backed the walk through a kmer it had already
+            # passed and left the seed itself in no unitig at all.
+            if key in used or key in passed:
                 break
+            passed.add(key)
             start = step
-        pieces = [start]
+        # Only the base each step adds is kept, not the whole kmer: a stretch of a million kmers would
+        # otherwise be held twice over
+        grown: list[str] = []
         used.add(min(start, reverse_complement(start)))
         current = start
         while True:
@@ -106,14 +117,14 @@ def unitigs(kmers: Iterable[str]) -> list[str]:
             if key in used:
                 break
             used.add(key)
-            pieces.append(step)
+            grown.append(step[-1])
             current = step
-        found.append(pieces[0] + "".join(one[-1] for one in pieces[1:]))
+        found.append(start + "".join(grown))
 
-    # One of each reverse-complementary pair, longest first, and by sequence within a length so that the
-    # order of the output never depends on the order of the input
-    best = {min(one, reverse_complement(one)): one for one in found}
-    return sorted(best.values(), key=lambda one: (-len(one), one))
+    # Longest first, and by sequence within a length, so that the order never depends on the order of the
+    # input. No deduplication is needed: every kmer is claimed by its canonical key, so two stretches
+    # cannot be each other's reverse complement -- they would have to share every key.
+    return sorted(found, key=lambda one: (-len(one), one))
 
 
 def assemble(kmer_fasta: Path, output: Path, assembler: str, threads: int, memory_gb: int,
@@ -143,11 +154,11 @@ def assemble(kmer_fasta: Path, output: Path, assembler: str, threads: int, memor
                         "for it, so regions down to %d will be missing. Use the default assembler to get "
                         "them", SPADES_FLOOR, min_contig)
         _spades(kmer_fasta, output, threads, memory_gb, min_contig)
-    else:  # pragma: no cover - the command line only accepts the two
+    else:  # pragma: no cover - the command line only accepts the three of ASSEMBLERS
         raise PrimerFinderError(f'Unknown assembler "{assembler}". Choose one of: {", ".join(ASSEMBLERS)}')
     if not output.exists() or output.stat().st_size == 0:
-        advice = ("There may be too few of them, or they may be too short to overlap into anything: "
-                  "a different kmer size (-k) may help."
+        advice = ("A single kmer is already a unitig, so with a floor of the kmer size this happens only "
+                  "when --min-region is longer than every stretch the kmers spell out."
                   if assembler == "unitig" else
                   "There may be too few of them for an assembler built for sequencing reads: `-a unitig` "
                   "assembles the kmers directly and needs no minimum number of them. A different kmer "
@@ -160,8 +171,7 @@ def assemble(kmer_fasta: Path, output: Path, assembler: str, threads: int, memor
 
 def _unitig(kmer_fasta: Path, output: Path, min_contig: int) -> None:
     """Walk the kmers into unitigs in this process, with no external assembler."""
-    kmers = [record.seq for record in seqio.iter_records(kmer_fasta)]
-    built = unitigs(kmers)
+    built = unitigs(record.seq for record in seqio.iter_records(kmer_fasta))
     keep = [one for one in built if len(one) >= min_contig] if min_contig else built
     if len(keep) < len(built):
         log.info("%d of %d unitig(s) are shorter than %d bases and are left out",

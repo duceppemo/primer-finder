@@ -999,7 +999,7 @@ def run(settings: DesignSettings) -> int:
     found_regions = list(seqio.iter_records(final))
     if not found_regions:
         raise PrimerFinderError(f"{final} holds no candidate region: there is nothing to design on.")
-    warn_if_last_resort(found_regions)
+    last_resort_regions = warn_if_last_resort(found_regions)
     # Before --max-regions, not after: a short region cannot hold an assay, and spending one of the
     # places on it would leave a region that could out of the run altogether
     regions, no_room = with_room(found_regions, settings.product_size)
@@ -1155,6 +1155,9 @@ def run(settings: DesignSettings) -> int:
         "programs": tools.versions([PROGRAM, "blastn"]),
         "counts": {
             "regions": len(regions),
+            # Of the regions given, how many the find run only accepted on a single difference. Someone
+            # reading the design folder on its own would otherwise have no way to know.
+            "last_resort_regions": last_resort_regions,
             "assays": len(ranked),
             "usable": len(usable),
             "specific_by_absence": by_absence,

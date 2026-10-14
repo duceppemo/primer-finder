@@ -132,6 +132,8 @@ def is_candidate(cigar: list[tuple[int, str]], min_differences: int = STRICT_DIF
     after_difference = False
     for length, op in cigar:
         if op in DIFFERENCE_OPS:
+            if length < 1:  # parse_cigar accepts `0X`; minimap2 never writes it
+                continue
             if min_differences <= 1 or length > 1:
                 return True
             # The pair spans the two differences and the matches between them, so it fits under one

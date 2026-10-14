@@ -163,3 +163,11 @@ def test_select_candidates_passes_the_stringency_on():
     alignment = Alignment("ctg1", mapped=True, reverse=False, cigar=parse_cigar("50=1X69="))
     assert select_candidates({"ctg1": record}, [alignment]) == {}
     assert "ctg1" in select_candidates({"ctg1": record}, [alignment], 1)
+
+
+def test_a_zero_length_difference_is_not_a_difference():
+    """`parse_cigar` accepts `0X` and minimap2 never writes it, but the last-resort rule returns on the
+    first difference op it sees and would have taken that as one."""
+    assert not is_candidate(parse_cigar("50=0X50="), 1)
+    assert not is_candidate(parse_cigar("50=0X50="))
+    assert is_candidate(parse_cigar("50=1X50="), 1)
