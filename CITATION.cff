@@ -7,7 +7,9 @@ authors:
     given-names: Marc-Olivier
 version: 1.6.0
 date-released: "2026-10-14"
-doi: 10.5281/zenodo.23282261
+# The concept DOI until Zenodo has archived this release: its webhook timed out on the v1.6.0 tag, so
+# 1.6.0 has no version DOI of its own yet. The concept DOI resolves to the latest archived version.
+doi: 10.5281/zenodo.23226411
 identifiers:
   - type: doi
     value: 10.5281/zenodo.23226411
