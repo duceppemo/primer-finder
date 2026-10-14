@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **A candidate region shorter than 200 bases was never reported.** Neither assembler returns a contig
+  below that length unless told to, and the command was not telling them, so an inclusion-specific stretch
+  shorter than 200 bases was dropped before anything downstream could see it — silently, since there was
+  nothing in the output to say so. A kmer is 99 bases by default, so the floor is now the kmer size: the
+  shortest a region can be. `--min-region` sets it to something else, and SPAdes, which has no option for
+  it, has the same floor applied to its output so that either assembler reports the same lengths.
+
+  This only bites where the two groups are closely related, which is why the *Xylella* validation never
+  showed it and the *Listeria* one did: on one clonal complex of a single species the assembly went from 67
+  contigs to 398 and the regions reported from 25 to 66, 41 of them shorter than 200 bases. It changed which
+  assays that validation recovers not at all — the four it recovered before, it still recovers, at much the
+  same ranks — so this is a blind spot removed rather than a result improved. `run_info.json` records the
+  value under `parameters.min_region`.
+
 ## 1.5.0
 
 ### Changed

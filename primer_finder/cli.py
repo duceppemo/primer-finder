@@ -51,6 +51,11 @@ def build_parser(max_cpu: int, max_mem: int) -> argparse.ArgumentParser:
                       help=f"Memory in GB. Default is 85%% of the total memory ({max_mem}).")
     find.add_argument("-k", "--kmer_size", "--kmer-size", metavar="99", type=int, default=99,
                       help=f"Kmer size for KMC ({kmers.MIN_KMER_SIZE}-{kmers.MAX_KMER_SIZE}). Default 99.")
+    find.add_argument("--min-region", metavar="<kmer size>", type=int, default=0,
+                      help="The shortest candidate region to report. Default: the kmer size, which is the "
+                           "shortest a region can be. Both assemblers stop at 200 bases of their own "
+                           "accord, so a specific stretch shorter than that would otherwise never be "
+                           "reported -- and those are commonest where the two groups are closely related.")
     find.add_argument("-d", "--duplication", metavar="1", type=int, default=1,
                       help="Maximum number of times a kmer can be found in each inclusion genome. Default 1, "
                            "meaning that repeated regions are discarded.")
@@ -247,6 +252,7 @@ def main(argv: list[str] | None = None) -> int:
             kmer_size=args.kmer_size,
             duplication=args.duplication,
             min_inclusion=args.min_inclusion,
+            min_region=args.min_region,
             reference=args.reference,
             assembler=args.assembler,
             keep_intermediate=args.keep_intermediate,

@@ -78,11 +78,52 @@ def test_programs_are_called_with_the_right_options(stubs, settings):
     assert "spades.py" not in text
 
 
+def test_the_assembler_is_told_to_report_a_region_as_short_as_one_kmer(stubs, settings):
+    """Both assemblers stop at 200 bases of their own accord, which is longer than a kmer: a
+    specific stretch shorter than that would never be reported, and those are commonest where the two
+    groups are closely related. The floor is the kmer size instead."""
+    calls = stubs()
+    run(settings(kmer_size=71))
+    assert "--min_contig 71" in calls.read_text()
+
+
+def test_the_shortest_region_can_be_asked_for(stubs, settings):
+    import json
+
+    calls = stubs(contigs={"ctg1": "ACGT" * 50}, sam=[["ctg1", 0, "40=1X7=1X151="]])
+    scenario = settings(min_region=150)
+    run(scenario)
+    assert "--min_contig 150" in calls.read_text()
+    assert json.loads((scenario.output / "run_info.json").read_text())["parameters"]["min_region"] == 150
+
+
+def test_a_region_shorter_than_two_hundred_bases_is_reported(stubs, settings):
+    """The whole point of the floor: before it, nothing shorter than 200 bases came out of the assembler
+    at all, so no amount of looking downstream would have found it."""
+    short = "ACGTT" * 24 + "ACGTACGTACGTACGTACGTACGT"   # 144 bases
+    calls = stubs(contigs={"ctg1": short}, sam=[["ctg1", 0, "40=1X7=1X95="]])
+    scenario = settings()
+    run(scenario)
+    assert "--min_contig 99" in calls.read_text()
+    assert "ctg1" in (scenario.output / "final_kmers.fasta").read_text()
+
+
 def test_spades_is_used_when_asked(stubs, settings):
     calls = stubs()
     run(settings(assembler="spades"))
     assert "spades.py --s 1" in calls.read_text()
     assert "--only-assembler" in calls.read_text()
+
+
+def test_spades_contigs_are_held_to_the_same_floor(stubs, settings):
+    """SPAdes has no option for a shortest contig, so the command applies the floor to its output
+    instead: either assembler reports the same lengths."""
+    stubs(contigs={"ctg1": "ACGT" * 25, "tiny": "ACGTACGTAC"},
+          sam=[["ctg1", 0, "40=1X7=1X50="], ["tiny", 0, "10="]])
+    scenario = settings(assembler="spades")
+    run(scenario)
+    assembly = (scenario.output / "2_assembly" / "assembly.fasta").read_text()
+    assert "ctg1" in assembly and "tiny" not in assembly
 
 
 def test_gzipped_genomes_are_accepted(stubs, settings, tmp_path):

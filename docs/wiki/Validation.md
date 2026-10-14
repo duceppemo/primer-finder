@@ -111,10 +111,15 @@ published assay is not both present in every genome of its own complex and absen
 primer-finder's rule is right to decline them, and for CC3 and CC224 the cross-reaction it declines on is
 one the paper itself predicts in silico.
 
-The full record, including the two limitations this panel exposed — an inclusion-specific island shorter than
-200 bases is invisible, because that is SKESA's minimum contig length, and a published amplicon may straddle
-the edge of such an island — is in
+The full record, including the two limitations this panel exposed, is in
 [`validation/results/2026-10-10_v1.5.0/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-10_v1.5.0/SUMMARY.md).
+The first of them — an inclusion-specific stretch shorter than 200 bases was never reported, because that is
+where both assemblers stop of their own accord — has since been **fixed**: the floor is now the kmer size.
+[`2026-10-13_v1.6.0/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-13_v1.6.0/SUMMARY.md)
+re-runs the nine targets with it removed. It puts 6 to 10 times as many stretches in front of the filters
+and 2 to 3 times as many regions in the output, changes no verdict here, and turns one run that failed
+outright into one that completes. The second — a published amplicon may straddle the edge of such a
+stretch — stands.
 
 It needs one more environment, because a clonal complex is not in the NCBI metadata and has to come from the
 MLST profile:

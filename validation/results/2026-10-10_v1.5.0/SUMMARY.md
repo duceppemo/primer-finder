@@ -121,6 +121,11 @@ the paper.
 
 ### An inclusion-specific island shorter than 200 bases is invisible
 
+> **Note, 2026-10-13.** Fixed: `--min_contig` is now set to the kmer size, and
+> [`../2026-10-13_v1.6.0/SUMMARY.md`](../2026-10-13_v1.6.0/SUMMARY.md) re-runs these nine targets with the
+> floor removed. It changed no verdict here — the same five assays are recovered — but it does change the
+> region counts in the table above, and one run that failed now completes.
+
 SKESA will not report a contig under **200 bp**, and primer-finder does not override that. At a kmer size
 of 99 that is a real floor: an island covered by fewer than about 100 overlapping kmers is dropped before
 anything else sees it. Clonal-complex islands are short, so this bites here.

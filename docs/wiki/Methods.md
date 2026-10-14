@@ -32,7 +32,8 @@ sensitive to assembly errors. 99 is a good starting point for bacteria.
 ## 2. Assembling the kmers (SKESA or SPAdes)
 
 ```
-skesa --cores <threads> --mem <memory> --fasta kmers.fasta --contigs_out assembly.fasta
+skesa --cores <threads> --mem <memory> --fasta kmers.fasta --contigs_out assembly.fasta \
+      --min_contig <kmer size>
 # or
 spades.py --s 1 kmers.fasta --isolate --only-assembler --threads <threads> --memory <memory> -o spades/
 ```
@@ -42,6 +43,21 @@ contigs: the specific regions themselves. This is only a way to have fewer and l
 the sequences are not new information. SKESA is the default and is faster here; SPAdes (`-a spades`)
 sometimes joins regions that SKESA leaves apart. `--only-assembler` is used because kmers carry no quality
 values to correct.
+
+**`--min_contig` is set to the kmer size, which is not the assembler's own default.** Both assemblers stop
+at 200 bases if left alone, and a kmer is 99: an inclusion-specific stretch shorter than 200 bases would
+then never leave this step, and no later step could recover it — it would simply be missing, with nothing
+in the output to say so. Those short stretches are exactly what is left when the two groups are closely
+related. In the [*Listeria* validation](Validation#thirty-published-listeria-monocytogenes-clonal-complex-assays),
+where the groups are clonal complexes of one species, one run went from 67 assembled contigs to 398 and
+from 25 reported regions to 66, of which 41 are shorter than 200 bases. `--min-region` sets the floor to
+something else; SPAdes has no such option, so the same floor is applied to its output instead, and either
+assembler reports the same lengths.
+
+Lifting the floor only puts the short stretches in front of the later steps; it does not excuse them from
+anything. The 145-base stretch carrying a published *Listeria* probe now reaches the candidate stage and is
+then turned down by the exclusion check in step 5, which is a decision about the sequence rather than about
+its length.
 
 ## 3. The differences worth an assay (minimap2)
 

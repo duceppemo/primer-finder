@@ -54,6 +54,7 @@ class Settings:
     kmer_size: int = 99
     duplication: int = 1
     min_inclusion: float = 1.0  # The fraction of the inclusion genomes a kmer has to be in
+    min_region: int = 0  # The shortest region to report; 0 for the kmer size
     reference: Path | None = None
     assembler: str = "skesa"
     keep_intermediate: bool = False
@@ -79,6 +80,7 @@ def run(settings: Settings) -> int:
             "kmer_size": settings.kmer_size,
             "duplication": settings.duplication,
             "min_inclusion": settings.min_inclusion,
+            "min_region": settings.min_region or settings.kmer_size,
             "inclusion_genomes_required": required_genomes(settings, inclusion),
             "assembler": settings.assembler,
             "threads": settings.threads,
@@ -229,7 +231,8 @@ def assemble_kmers(settings: Settings, kmer_fasta: Path) -> Path:
     folder.mkdir(parents=True, exist_ok=True)
     assembly = folder / "assembly.fasta"
     log.info("Assembling the kmers with %s...", settings.assembler)
-    assemble.assemble(kmer_fasta, assembly, settings.assembler, settings.threads, settings.memory_gb)
+    assemble.assemble(kmer_fasta, assembly, settings.assembler, settings.threads, settings.memory_gb,
+                      min_contig=settings.min_region or settings.kmer_size)
     log.info("Assembled %d contig(s)", seqio.count_records(assembly))
     return assembly
 

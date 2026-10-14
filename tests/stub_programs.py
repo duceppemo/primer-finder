@@ -66,17 +66,21 @@ def kmc_tools(argv: list[str]) -> int:
     return 1  # pragma: no cover
 
 
-def _write_contigs(path: Path) -> None:
+def _write_contigs(path: Path, min_contig: int = 0) -> None:
     contigs: dict[str, str] = value("contigs", DEFAULT_CONTIGS)
-    path.write_text("".join(f">{name}\n{sequence}\n" for name, sequence in contigs.items()))
+    kept = {name: seq for name, seq in contigs.items() if len(seq) >= min_contig}
+    path.write_text("".join(f">{name}\n{sequence}\n" for name, sequence in kept.items()))
 
 
 def skesa(argv: list[str]) -> int:
-    _write_contigs(Path(argument(argv, "--contigs_out")))
+    # The real one drops anything shorter than --min_contig, 200 by default
+    asked = argument(argv, "--min_contig")
+    _write_contigs(Path(argument(argv, "--contigs_out")), int(asked) if asked else 200)
     return 0
 
 
 def spades(argv: list[str]) -> int:
+    # SPAdes has no such option, so it writes everything and the caller does the filtering
     work_dir = Path(argument(argv, "-o"))
     work_dir.mkdir(parents=True, exist_ok=True)
     _write_contigs(work_dir / "contigs.fasta")
