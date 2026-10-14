@@ -21,6 +21,22 @@ from primer_finder.seqio import (
 )
 
 
+def test_a_truncated_gzip_says_which_file_it_is(tmp_path):
+    """The decompressor raises EOFError, which names nothing; a genome folder holds hundreds of files, so
+    the name is the whole of the useful information."""
+    good = tmp_path / "whole.fasta.gz"
+    with gzip.open(good, "wt") as fh:
+        fh.write(">chr\n" + "ACGT" * 2000 + "\n")
+    cut = tmp_path / "cut.fasta.gz"
+    cut.write_bytes(good.read_bytes()[: len(good.read_bytes()) // 2])
+
+    with pytest.raises(PrimerFinderError, match="ends before its data does"):
+        list(iter_records(cut))
+    with pytest.raises(PrimerFinderError, match="cut.fasta.gz"):
+        count_records(cut)
+    assert len(list(iter_records(good))) == 1   # and a whole one still reads
+
+
 def test_iter_records_splits_the_header_and_joins_the_lines(fasta):
     path = fasta("x.fasta", {})
     path.write_text(">one some description\nACGT\nTTTT\n\n>two\nGG\n")

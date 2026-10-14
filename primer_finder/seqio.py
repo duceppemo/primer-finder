@@ -46,7 +46,22 @@ def open_text(path: Path | str):
 
 
 def iter_records(path: Path | str) -> Iterator[Record]:
-    """Yield the records of a fasta file, one at a time."""
+    """Yield the records of a fasta file, one at a time.
+
+    A gzipped file that stops in the middle raises `EOFError` from the decompressor, which says nothing
+    about which file it was. The genome folders of a real run hold hundreds, so the name is the whole of
+    the useful information.
+    """
+    try:
+        yield from _records(path)
+    except EOFError as error:
+        raise PrimerFinderError(
+            f"{path} is a gzipped file that ends before its data does ({error}). It is truncated: "
+            "download or copy it again."
+        ) from error
+
+
+def _records(path: Path | str) -> Iterator[Record]:
     name, desc, seq = None, "", []
     with open_text(path) as fh:
         for line in fh:
@@ -97,10 +112,16 @@ def write_fasta(path: Path | str, records: Iterable[Record]) -> int:
 def count_records(path: Path | str) -> int:
     """Count the records of a fasta file without holding it in memory."""
     count = 0
-    with open_text(path) as fh:
-        for line in fh:
-            if line.startswith(">"):
-                count += 1
+    try:
+        with open_text(path) as fh:
+            for line in fh:
+                if line.startswith(">"):
+                    count += 1
+    except EOFError as error:
+        raise PrimerFinderError(
+            f"{path} is a gzipped file that ends before its data does ({error}). It is truncated: "
+            "download or copy it again."
+        ) from error
     return count
 
 

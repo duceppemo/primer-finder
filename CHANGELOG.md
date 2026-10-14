@@ -52,6 +52,20 @@
 - `--min-primer-differences 0` turns the filter off, which is what the "everything was set aside" error now
   suggests when the setting is already 1. The option's help said "1 keeps them", which stopped being true
   when 1 began asking for a difference under a primer.
+- **`--max-regions` was applied before the regions with no room were left out**, so a run could design on
+  fewer regions than asked while eligible ones went unexamined, and `design_info.json` counted the skipped
+  ones as designed on. On a *Listeria* run with `--product-size 120-200 --max-regions 50`, 8 of the first 50
+  regions were too short, so it designed on 42 and left 12 eligible regions out. The length filter now runs
+  first, and the count is what was designed on.
+- **`--product-size` is checked.** It was passed through unvalidated, and since the design step now reads
+  the smallest product itself, a reversed range such as `150-70` produced a confident wrong diagnosis —
+  "every region is shorter than the 150-base smallest product … a lower --product-size would help" — for
+  what is really a malformed argument. A backwards range, a non-number, a zero start and an empty value are
+  each refused by name.
+- **A truncated gzipped genome said which file it was.** It previously raised `EOFError` from the
+  decompressor, which `cli.main` does not catch, so the run ended in a traceback that named no file — and a
+  genome folder holds hundreds. It is now a plain error naming the file and saying it is truncated. (`find`
+  was unaffected: KMC rejects such a file itself.)
 
 ## 1.5.0
 

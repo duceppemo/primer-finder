@@ -553,11 +553,33 @@ def window(record: seqio.Record, position: int, product_size: str) -> str:
     return f"{start},{end - start}"
 
 
+def check_product_size(product_size: str) -> str:
+    """`product_size` if it is a Primer3 product size range, else a message saying what is wrong with it.
+
+    Primer3 takes one or more space-separated `low-high` ranges. It rejects anything else itself, but the
+    design step reads the smallest of them before Primer3 ever runs -- to leave out the regions with no
+    room for a product -- so a range it cannot read would give a wrong reason for leaving them out.
+    """
+    parts = product_size.split()
+    if not parts:
+        return "--product-size is empty; it takes one or more ranges, as in 70-150"
+    for part in parts:
+        halves = part.split("-")
+        if len(halves) != 2 or not all(half.isdigit() for half in halves):
+            return f"--product-size {part!r} is not a range of two whole numbers, as in 70-150"
+        low, high = (int(half) for half in halves)
+        if low < 1:
+            return f"--product-size {part!r} starts below 1"
+        if low > high:
+            return f"--product-size {part!r} runs backwards: {low} is larger than {high}"
+    return product_size
+
+
 def maximum_product(product_size: str) -> int:
     """The largest amplicon the product size range allows."""
     try:
         return max(int(part.split("-")[-1]) for part in product_size.split())
-    except (ValueError, IndexError):  # pragma: no cover - the command line checks the format
+    except (ValueError, IndexError):  # pragma: no cover - check_product_size rejects these first
         return 150
 
 
@@ -565,8 +587,20 @@ def minimum_product(product_size: str) -> int:
     """The smallest amplicon the product size range allows."""
     try:
         return min(int(part.split("-")[0]) for part in product_size.split())
-    except (ValueError, IndexError):  # pragma: no cover - the command line checks the format
+    except (ValueError, IndexError):  # pragma: no cover - check_product_size rejects these first
         return 70
+
+
+def with_room(regions: Sequence[seqio.Record], product_size: str) -> tuple[list[seqio.Record], int]:
+    """The regions long enough to hold the smallest product, and how many were left out.
+
+    Primer3 answers a request whose template is shorter than the smallest product with an error rather than
+    an empty result, and `design` treats a Primer3 error as fatal -- so one such region would end the run.
+    They are common since `find` began reporting regions down to a single kmer.
+    """
+    smallest = minimum_product(product_size)
+    kept = [record for record in regions if len(record.seq) >= smallest]
+    return kept, len(regions) - len(kept)
 
 
 def requests_for(record: seqio.Record, product_size: str, how_many: int, force_ends: bool,
@@ -597,20 +631,16 @@ def design(regions: Iterable[seqio.Record], work_dir: Path, product_size: str = 
     holding up the rest.
     """
     regions = list(regions)
-    # A region shorter than the smallest product cannot hold an assay, and Primer3 answers such a request
-    # with PRIMER_ERROR rather than an empty result -- which `one()` below treats as fatal, so one short
-    # region would end the run. They became common when `find` started reporting regions down to one kmer
-    smallest = minimum_product(product_size)
-    long_enough = [record for record in regions if len(record.seq) >= smallest]
-    if len(long_enough) < len(regions):
-        log.info("%d of %d region(s) are shorter than the %d-base smallest product of --product-size %s "
-                 "and cannot hold an assay; they are not designed on",
-                 len(regions) - len(long_enough), len(regions), smallest, product_size)
+    # `run` has already done this, so nothing is normally dropped here; it is kept for a direct caller
+    long_enough, no_room = with_room(regions, product_size)
+    if no_room:
+        log.info("%d of %d region(s) have no room for the smallest product of --product-size %s and are "
+                 "not designed on", no_room, len(regions), product_size)
     if not long_enough:
         raise PrimerFinderError(
-            f"Every region is shorter than the {smallest}-base smallest product of --product-size "
-            f"{product_size}, so none of them can hold an assay. A lower --product-size, or a larger "
-            "-k on the find run, would give regions with room in them."
+            f"Every region is shorter than the {minimum_product(product_size)}-base smallest product of "
+            f"--product-size {product_size}, so none of them can hold an assay. A lower --product-size, "
+            "or a larger -k on the find run, would give regions with room in them."
         )
     regions = long_enough
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -940,12 +970,25 @@ def run(settings: DesignSettings) -> int:
     add_log_file(settings.output / LOG_NAME)
     log.info("primer-finder %s, designing assays", __version__)
 
-    regions = list(seqio.iter_records(final))
-    if not regions:
+    found_regions = list(seqio.iter_records(final))
+    if not found_regions:
         raise PrimerFinderError(f"{final} holds no candidate region: there is nothing to design on.")
+    # Before --max-regions, not after: a short region cannot hold an assay, and spending one of the
+    # places on it would leave a region that could out of the run altogether
+    regions, no_room = with_room(found_regions, settings.product_size)
+    if no_room:
+        log.info("%d of %d region(s) are shorter than the %d-base smallest product of --product-size %s "
+                 "and cannot hold an assay; they are left out", no_room, len(found_regions),
+                 minimum_product(settings.product_size), settings.product_size)
+    if not regions:
+        raise PrimerFinderError(
+            f"Every region is shorter than the {minimum_product(settings.product_size)}-base smallest "
+            f"product of --product-size {settings.product_size}, so none of them can hold an assay. A "
+            "lower --product-size, or a larger -k on the find run, would give regions with room in them."
+        )
     if settings.max_regions and len(regions) > settings.max_regions:
-        log.info("Designing on the first %d of %d regions (--max-regions 0 for all of them)",
-                 settings.max_regions, len(regions))
+        log.info("Designing on the first %d of %d regions with room in them (--max-regions 0 for all of "
+                 "them)", settings.max_regions, len(regions))
         regions = regions[:settings.max_regions]
 
     log.info("Running Primer3 on %d region(s), up to %d assay(s) each...", len(regions),

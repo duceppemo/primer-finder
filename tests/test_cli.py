@@ -287,6 +287,15 @@ def test_another_mismatch_tolerance_reaches_insilico_pcr(stubs, genomes, tmp_pat
     assert asked and all(" -m 2" in line for line in asked), asked
 
 
+def test_a_product_size_range_primer3_cannot_read_stops_the_design_command(stubs, tmp_path, capsys):
+    """Checking the string is not enough on its own -- the check has to be wired to the option."""
+    with pytest.raises(SystemExit) as exit_code:
+        main(["design", str(tmp_path / "anything"), "-o", str(tmp_path / "out"),
+              "--product-size", "150-70"])
+    assert exit_code.value.code == 2
+    assert "runs backwards" in capsys.readouterr().err
+
+
 def test_the_design_command_reports_a_folder_that_is_not_a_run(stubs, tmp_path, caplog):
     assert main(["design", str(tmp_path / "nothing"), "-o", str(tmp_path / "out")]) == 1
     assert "finished primer-finder run" in caplog.text

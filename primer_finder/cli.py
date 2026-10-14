@@ -208,6 +208,9 @@ def main(argv: list[str] | None = None) -> int:
             idt.convert(args.table, args.output, args.prefix)
             return 0
         if args.command == "design":
+            checked = design.check_product_size(args.product_size)
+            if checked != args.product_size:
+                parser.error(checked)
             return design.run(design.DesignSettings(
                 results=args.results,
                 output=args.output,

@@ -22,6 +22,7 @@ from primer_finder.design import (
     assays_of,
     build_request,
     check_against_exclusion,
+    check_product_size,
     count_inclusion_copies,
     design,
     difference_targets,
@@ -807,6 +808,26 @@ def test_an_assay_with_no_primer_difference_is_set_aside_at_the_lowest_setting(s
         assert row["assay"] not in carried, row["assay"]
 
 
+def test_the_advice_when_everything_is_set_aside_fits_the_setting(stubs, tmp_path, genomes):
+    """At 2 there is a looser setting worth suggesting; at 1 the only way back is 0, and suggesting 1
+    again would be no help at all."""
+    results = probe_only_run(tmp_path, genomes, stubs)
+    with pytest.raises(PrimerFinderError, match="min-primer-differences 1 accepts"):
+        run(design_settings(results, tmp_path / "two", min_primer_differences=2))
+
+    # 80 bases: there is room for the probe pin but not for either primer pin, so no primer can be put
+    # over the difference at all and every assay is probe-only
+    inclusion, exclusion = genomes
+    narrow = tmp_path / "narrow"
+    narrow.mkdir()
+    (narrow / "final_kmers.fasta").write_text(">ctg1 [40]\n" + "A" * 40 + "c" + "A" * 39 + "\n")
+    (narrow / "run_info.json").write_text(json.dumps(
+        {"parameters": {"inclusion": str(inclusion), "exclusion": str(exclusion)}}))
+    stubs(amplicon_hits={path.name.split(".")[0]: 1 for path in exclusion.glob("*.fasta")})
+    with pytest.raises(PrimerFinderError, match="min-primer-differences 0 turns this off"):
+        run(design_settings(narrow, tmp_path / "one", min_primer_differences=1))
+
+
 def test_turning_the_filter_off_accepts_them(stubs, tmp_path, genomes):
     """0 is the only way back to the older, looser rule, and the error says so when everything is set
     aside."""
@@ -839,6 +860,29 @@ def test_a_region_too_short_for_the_product_range_is_skipped_not_fatal(stubs, tm
     assert {row["region"] for row in iter_rows(output / "assays.tsv")} == {"roomy"}
 
 
+def test_the_regions_with_no_room_are_left_out_before_max_regions(stubs, tmp_path, genomes, caplog):
+    """--max-regions says how many regions to design on. Spending one of those places on a region that
+    cannot hold a product would leave out one that can, so the length filter comes first."""
+    inclusion, exclusion = genomes
+    results = tmp_path / "results"
+    results.mkdir()
+    # the short ones first: at --max-regions 2 the old order spent both places on them and designed on none
+    regions = [("tiny1", 100), ("tiny2", 100), ("roomy1", 300), ("roomy2", 300), ("roomy3", 300)]
+    results.joinpath("final_kmers.fasta").write_text("".join(
+        f">{name} [40]\n{'A' * 40}c{'A' * (length - 41)}\n" for name, length in regions))
+    (results / "run_info.json").write_text(json.dumps(
+        {"parameters": {"inclusion": str(inclusion), "exclusion": str(exclusion)}}))
+    output = tmp_path / "assays"
+    with caplog.at_level("INFO"):
+        assert run(design_settings(results, output, product_size="120-200", max_regions=2)) == 0
+    assert "2 of 5 region(s) are shorter than the 120-base smallest product" in caplog.text
+    assert "the first 2 of 3 regions with room in them" in caplog.text
+    designed = {row["region"] for row in iter_rows(output / "assays.tsv")}
+    assert designed == {"roomy1", "roomy2"}
+    counts = json.loads((output / "design_info.json").read_text())["counts"]
+    assert counts["regions"] == 2    # what it designed on, not what it was handed
+
+
 def test_every_region_too_short_says_what_to_change(stubs, tmp_path, genomes):
     inclusion, exclusion = genomes
     results = tmp_path / "results"
@@ -848,6 +892,19 @@ def test_every_region_too_short_says_what_to_change(stubs, tmp_path, genomes):
         {"parameters": {"inclusion": str(inclusion), "exclusion": str(exclusion)}}))
     with pytest.raises(PrimerFinderError, match="Every region is shorter than"):
         run(design_settings(results, tmp_path / "assays", product_size="120-200"))
+
+
+def test_a_product_size_range_primer3_cannot_read_is_refused():
+    """The design step reads the smallest product before Primer3 ever runs, to leave out the regions with
+    no room for one. A range it cannot read would give a wrong reason for leaving them out."""
+    assert check_product_size("70-150") == "70-150"
+    assert check_product_size("70-150 200-300") == "70-150 200-300"
+    assert "runs backwards" in check_product_size("150-70")
+    assert "two whole numbers" in check_product_size("abc")
+    assert "two whole numbers" in check_product_size("70_150")
+    assert "below 1" in check_product_size("0-100")
+    assert "empty" in check_product_size("   ")
+    assert "two whole numbers" in check_product_size("70-150 oops")
 
 
 def test_the_default_asks_for_two_differences_under_one_primer():
