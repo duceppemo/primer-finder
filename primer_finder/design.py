@@ -435,28 +435,9 @@ def assays_of(record: seqio.Record, fields: dict[str, str]) -> list[Assay]:
     return assays
 
 
-def variant_runs(seq: str) -> list[tuple[int, int]]:
-    """The runs of consecutive differing (lower-case) bases, longest first, then leftmost.
-
-    A run is what a primer's 3' end should sit on: three differences in a row at the 3' end stop extension
-    on the exclusion template far more reliably than one.
-    """
-    runs: list[tuple[int, int]] = []
-    start = None
-    for position, base in enumerate(seq):
-        if base.islower():
-            start = position if start is None else start
-        elif start is not None:
-            runs.append((start, position - start))
-            start = None
-    if start is not None:
-        runs.append((start, len(seq) - start))
-    return sorted(runs, key=lambda run: (-run[1], run[0]))
-
-
 def difference_targets(seq: str, span: int = MAX_PRIMER_SIZE) -> list[tuple[int, int, int]]:
     """The stretches of at most `span` bases that hold the most differences, as `(start, length, count)`,
-    richest first and then leftmost, with no two of them overlapping.
+    richest first, then narrowest, then leftmost, with no two of them overlapping.
 
     This is what the `find` command's rule selects regions for: it keeps a region whose differences could
     sit **in one oligo**, which means a run of them or two of them fewer than a primer's length apart
@@ -464,21 +445,23 @@ def difference_targets(seq: str, span: int = MAX_PRIMER_SIZE) -> list[tuple[int,
     differences would ignore most of the evidence a region was kept for -- on the *Xylella* validation set,
     19 of the 20 regions designed on hold such a pair and 8 hold nothing else.
 
+    The richest target is taken, its differences are set aside, and the rest are measured again over what
+    is left. Taking them from one list instead would orphan a difference whose only window overlapped a
+    richer one: with differences at 0, 5, 24, 30 and 35 the window over 24-35 wins, and the pair at 0 and 5
+    -- a target in its own right -- would never be aimed at.
+
     `span` is the longest oligo Primer3 may return, so a target of that width is one an oligo can cover.
     """
-    marked = [position for position, base in enumerate(seq) if base.islower()]
-    if not marked:
-        return []
-    windows: list[tuple[int, int, int]] = []
-    for index, first in enumerate(marked):
-        inside = [position for position in marked[index:] if position - first < span]
-        windows.append((first, inside[-1] - first + 1, len(inside)))
+    left = [position for position, base in enumerate(seq) if base.islower()]
     targets: list[tuple[int, int, int]] = []
-    taken: set[int] = set()
-    for start, width, count in sorted(windows, key=lambda w: (-w[2], w[1], w[0])):
-        if taken.isdisjoint(range(start, start + width)):
-            targets.append((start, width, count))
-            taken.update(range(start, start + width))
+    while left:
+        windows = []
+        for index, first in enumerate(left):
+            inside = [position for position in left[index:] if position - first < span]
+            windows.append((first, inside[-1] - first + 1, len(inside)))
+        start, width, count = min(windows, key=lambda w: (-w[2], w[1], w[0]))
+        targets.append((start, width, count))
+        left = [position for position in left if not start <= position < start + width]
     return targets
 
 
@@ -493,8 +476,9 @@ def forced_requests(record: seqio.Record, product_size: str, how_many: int,
     cannot bind the exclusion template is what a qPCR assay rests on.
 
     `SEQUENCE_FORCE_LEFT_END` and `SEQUENCE_FORCE_RIGHT_END` name the position of a primer's 3'-most base.
-    For the left primer that is the last difference of the target, so the whole target falls behind the
-    3' end and under the primer; for the right primer, which reads the other way, it is the first.
+    For the left primer that is the last difference of the target, so the target falls behind the 3' end and
+    under the primer as far as the primer reaches -- a target may be 25 bases wide and a primer 18; for the
+    right primer, which reads the other way, the pin is the first difference.
     `SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST` makes the probe straddle a position, which is used to put it
     over the middle of the target.
 
@@ -508,17 +492,25 @@ def forced_requests(record: seqio.Record, product_size: str, how_many: int,
     requests = []
     length = len(record.seq)
     smallest_product = minimum_product(product_size)
+    if all(base.islower() for base in record.seq):
+        # Every base differs, so there is no difference to aim at: such a region is specific by absence,
+        # the exclusion genomes having nothing like it, and pinning an end on an arbitrary base of it only
+        # spends requests -- the slowest kind, since a pinned probe makes Primer3 search the whole template
+        return requests
     for start, run, _ in difference_targets(record.seq)[:MAX_FORCED_RUNS]:
         left_end = start + run - 1
-        # A left primer ending here needs its own length behind it and room for an amplicon ahead
-        if left_end >= MIN_PRIMER_SIZE - 1 and left_end + smallest_product <= length:
+        # A left primer ending here needs its own length behind it, and the amplicon has to fit from where
+        # that primer *starts* -- up to MAX_PRIMER_SIZE - 1 bases before its 3' end, not from the 3' end
+        if left_end >= MIN_PRIMER_SIZE - 1 and \
+                length - max(0, left_end - MAX_PRIMER_SIZE + 1) >= smallest_product:
             requests.append(build_request(record, product_size, how_many, {
                 "SEQUENCE_ID": f"{record.name}{FORCE_SEP}left{left_end}",
                 "SEQUENCE_FORCE_LEFT_END": left_end,
                 "SEQUENCE_INCLUDED_REGION": window(record, left_end, product_size),
             }, gc_clamp=0, conditions=conditions))
-        # A right primer ending here needs room for an amplicon behind it and its own length ahead
-        if start >= smallest_product - 1 and start + MIN_PRIMER_SIZE <= length:
+        # A right primer ending here needs its own length ahead, and the amplicon has to fit behind its
+        # 5' end -- again up to MAX_PRIMER_SIZE - 1 bases past the 3' end that is pinned
+        if start + MAX_PRIMER_SIZE >= smallest_product and start + MIN_PRIMER_SIZE <= length:
             requests.append(build_request(record, product_size, how_many, {
                 "SEQUENCE_ID": f"{record.name}{FORCE_SEP}right{start}",
                 "SEQUENCE_FORCE_RIGHT_END": start,
@@ -960,10 +952,12 @@ def run(settings: DesignSettings) -> int:
                  "usually improves the limit of detection", repeated)
     ranked = rank(assays)
     usable = telling = [assay for assay in ranked if assay.usable]
-    if settings.min_primer_differences > 1:
+    if settings.min_primer_differences > 0:
         # A region is kept by `find` because its differences could sit in one oligo. An assay designed in
         # it can still spend only one of them, which is the weak case that rule was there to avoid. The
-        # probe does not count towards this: see DEFAULT_MIN_PRIMER_DIFFERENCES.
+        # probe does not count towards this, at any setting: see DEFAULT_MIN_PRIMER_DIFFERENCES. So 1 still
+        # asks for a difference under a primer, and an assay whose only differences are under its probe is
+        # set aside however low this goes.
         kept = [assay for assay in usable
                 if assay.specific_by_absence
                 or assay.best_primer_variants >= settings.min_primer_differences]

@@ -39,7 +39,9 @@ Three kinds of request go in for each region, and the results are pooled and de-
 | `SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST` | a probe straddling the middle of a target | a probe that cannot bind the exclusion template |
 
 A **target** is a stretch of at most 25 bases — the widest primer Primer3 may return — holding as many
-differences as possible. The four richest, non-overlapping ones are aimed at. See
+differences as possible — the richest first, then the narrowest, then the leftmost, with the differences of
+each taken out before the rest are measured again so that a pair beside a richer target still gets one. The
+four richest, non-overlapping ones are aimed at. See
 [below](#spending-the-differences-on-one-oligo) for why that is the unit rather than a run of consecutive
 differences.
 
@@ -82,8 +84,9 @@ So the design step has to actually do it, and two things make sure of it:
    a 3' end, often does not stop amplification
    ([Lefever et al. 2019](https://doi.org/10.1038/s41598-019-38581-z)). Those assays are still listed, with
    `best_primer_variants` saying how many the better primer carries, but they are not written to the
-   insilicoPCR files and not carried further. `--min-primer-differences 1` keeps them, which is a weaker
-   assay rather than no assay.
+   insilicoPCR files and not carried further. `--min-primer-differences 1` asks for only one difference
+   under a primer, which is a weaker assay rather than no assay — but still a difference under a *primer*,
+   so an assay whose only differences are under its probe is set aside at any setting.
 
 An assay that is **specific by absence** is exempt: it does not rest on a difference at all, so how many
 sit under its primers is beside the point.
@@ -308,8 +311,9 @@ insilicoPCR files, not among the candidates — because of
 - **9** has two differences under one oligo, but that oligo is the **probe**, which does not count:
   [here is why](#why-the-probe-does-not-count-towards-it).
 
-All three are kept in the table with `best_primer_variants` saying what they rest on, and
-`--min-primer-differences 1` accepts them — a weaker assay rather than no assay.
+All three are kept in the table with `best_primer_variants` saying what they rest on.
+`--min-primer-differences 1` accepts rows 4 and 8 — a weaker assay rather than no assay — but not row 9:
+one difference under a *primer* is still asked for at any setting.
 
 Row **1** is exempt from the filter: an assay specific by absence rests on no difference at all, so how many
 sit under its primers is beside the point.

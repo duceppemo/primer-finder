@@ -32,7 +32,6 @@ from primer_finder.design import (
     requests_for,
     run,
     specific_by,
-    variant_runs,
     write_assays,
 )
 from primer_finder.seqio import Record
@@ -88,6 +87,25 @@ def test_the_targets_are_stretches_one_oligo_could_cover():
     assert difference_targets("ACGT") == []
 
 
+def test_a_pair_beside_a_richer_target_still_gets_one():
+    """The windows are measured again over what is left after each pick. Taking them from one list would
+    orphan a pair whose only window overlapped a richer one, and those are the pairs a region was kept
+    for."""
+    seq = list("A" * 40)
+    for position in (0, 5, 24, 30, 35):
+        seq[position] = "a"
+    targets = difference_targets("".join(seq))
+    assert targets == [(24, 12, 3), (0, 6, 2)]      # and not the (24, 12, 3) alone
+    assert difference_targets("a" + "A" * 4 + "a") == [(0, 6, 2)]   # the pair on its own, for comparison
+
+
+def test_a_lone_difference_beside_a_richer_target_is_still_aimed_at():
+    seq = list("A" * 40)
+    for position in (0, 24, 30):
+        seq[position] = "a"
+    assert difference_targets("".join(seq)) == [(24, 7, 2), (0, 1, 1)]
+
+
 def test_a_difference_too_far_from_the_next_is_its_own_target():
     """Past the width of the widest oligo there is no placement that covers both, so they are separate
     targets and each is worth only itself."""
@@ -116,6 +134,31 @@ def test_a_window_wider_than_one_oligo_is_not_a_target():
     assert difference_targets(seq) == [(60, 1, 1), (85, 1, 1)]
 
 
+def test_a_short_region_still_gets_its_pinned_requests():
+    """The amplicon starts where the primer starts, up to a primer's length before the 3' end that is
+    pinned -- not at the 3' end. Demanding the whole amplicon beyond it skipped the pins on exactly the
+    short regions the kmer-size floor made reportable."""
+    # 106 bases with its differences at 48-50. A left primer pinned at 50 starts at 26 at the earliest,
+    # which leaves 80 bases for a 70-base product -- but the old guard asked for 70 bases *past* 50
+    region = Record("ctg1", "", "A" * 48 + "cgt" + "A" * 55)
+    joined = "\n".join(forced_requests(region, DEFAULT_PRODUCT_SIZE, 1))
+    assert "SEQUENCE_FORCE_LEFT_END=50" in joined
+    assert "SEQUENCE_FORCE_RIGHT_END=48" in joined
+
+
+def test_a_pin_with_no_room_for_an_amplicon_is_still_skipped():
+    """The guard is looser, not gone: a region only as long as the smallest product has no room for one
+    once a primer has to fit behind the pin as well."""
+    region = Record("ctg1", "", "acg" + "A" * 40)
+    assert forced_requests(region, "120-200", 1) == []
+
+
+def test_a_region_that_is_all_differences_gets_no_pinned_request():
+    """Nothing to aim at: minimap2 could not place it in the exclusion genomes at all, so it is specific
+    by absence and pinning an end on an arbitrary base of it only spends requests."""
+    assert forced_requests(Record("ctg1", "", "acgt" * 60), DEFAULT_PRODUCT_SIZE, 1) == []
+
+
 def test_a_forced_request_pins_the_end_past_a_whole_pair_not_just_one_base():
     """The point is to spend both differences on one primer: a left primer whose 3' end is the *second* of
     them has both behind it, under the primer."""
@@ -124,12 +167,6 @@ def test_a_forced_request_pins_the_end_past_a_whole_pair_not_just_one_base():
     assert "SEQUENCE_FORCE_LEFT_END=207" in joined    # the second difference
     assert "SEQUENCE_FORCE_RIGHT_END=200" in joined   # the first, for the primer that reads backwards
     assert "SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST=204" in joined   # the middle of the pair
-
-
-def test_variant_runs():
-    assert variant_runs("AAacgtAAAAAggAAAAt") == [(2, 4), (11, 2), (17, 1)]
-    assert variant_runs("ACGT") == []
-    assert variant_runs("acgt") == [(0, 4)]
 
 
 # ---------------------------------------------------------------- talking to Primer3
@@ -712,6 +749,18 @@ def test_the_weaker_assay_can_be_asked_for(stubs, tmp_path, genomes):
     rows = list(iter_rows(output / "assays.tsv"))
     assert rows and all(row["best_primer_variants"] == "1" for row in rows)
     assert rows[0]["assay"] in (output / "assays_pcr.fasta").read_text()
+
+
+def test_one_difference_under_a_primer_is_still_asked_for_at_the_lowest_setting(stubs, tmp_path, genomes):
+    """`--min-primer-differences 1` means one difference under a *primer*, not one under any oligo: an
+    assay whose only differences are under its probe is set aside however low the setting goes."""
+    results = one_difference_run(tmp_path, genomes, stubs)
+    output = tmp_path / "loose"
+    assert run(design_settings(results, output, min_primer_differences=1)) == 0
+    carried = (output / "assays_pcr.fasta").read_text()
+    for row in iter_rows(output / "assays.tsv"):
+        if row["assay"] in carried:
+            assert int(row["best_primer_variants"]) >= 1, row["assay"]
 
 
 def test_the_default_asks_for_two_differences_under_one_primer():

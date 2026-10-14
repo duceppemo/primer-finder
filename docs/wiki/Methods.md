@@ -51,8 +51,14 @@ in the output to say so. Those short stretches are exactly what is left when the
 related. In the [*Listeria* validation](Validation#thirty-published-listeria-monocytogenes-clonal-complex-assays),
 where the groups are clonal complexes of one species, one run went from 67 assembled contigs to 398 and
 from 25 reported regions to 66, of which 41 are shorter than 200 bases. `--min-region` sets the floor to
-something else; SPAdes has no such option, so the same floor is applied to its output instead, and either
-assembler reports the same lengths.
+something else.
+
+**Only SKESA can be asked for less.** `--min_contig` tells SKESA what to report. SPAdes has no such option
+and its own floor is in graph simplification, not in what it writes: assembled from every 99-mer of a
+synthetic stretch, stretches of 150, 180 and 199 bases are already missing from its simplified graph, while
+210 and longer come through. So `-a spades` does not report the short regions however low the floor is set,
+and says so in a warning rather than quietly dropping them; the floor is applied to its output only so that
+it does not report contigs the run asked to leave out.
 
 Lifting the floor only puts the short stretches in front of the later steps; it does not excuse them from
 anything. The 145-base stretch carrying a published *Listeria* probe now reaches the candidate stage and is

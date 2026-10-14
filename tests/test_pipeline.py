@@ -115,6 +115,20 @@ def test_spades_is_used_when_asked(stubs, settings):
     assert "--only-assembler" in calls.read_text()
 
 
+def test_spades_says_so_when_it_cannot_go_as_low_as_asked(stubs, settings, caplog):
+    """SPAdes loses a short stretch in graph simplification and has no option for it, so asking for a
+    floor below that gets fewer regions than asked for -- with a warning rather than in silence."""
+    stubs()
+    with caplog.at_level("WARNING"):
+        run(settings(assembler="spades", kmer_size=99))
+    assert "SPAdes does not report a contig shorter" in caplog.text
+
+
+def test_a_negative_shortest_region_is_refused(stubs, settings):
+    with pytest.raises(PrimerFinderError, match="min-region cannot be negative"):
+        run(settings(min_region=-1))
+
+
 def test_spades_contigs_are_held_to_the_same_floor(stubs, settings):
     """SPAdes has no option for a shortest contig, so the command applies the floor to its output
     instead: either assembler reports the same lengths."""

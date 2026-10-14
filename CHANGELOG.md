@@ -8,8 +8,12 @@
   below that length unless told to, and the command was not telling them, so an inclusion-specific stretch
   shorter than 200 bases was dropped before anything downstream could see it — silently, since there was
   nothing in the output to say so. A kmer is 99 bases by default, so the floor is now the kmer size: the
-  shortest a region can be. `--min-region` sets it to something else, and SPAdes, which has no option for
-  it, has the same floor applied to its output so that either assembler reports the same lengths.
+  shortest a region can be, and `--min-region` sets it to something else.
+
+  **Only SKESA can be asked for less.** SPAdes has no such option, and its floor is in graph simplification
+  rather than in what it writes — measured: stretches of 150, 180 and 199 bases are already absent from its
+  simplified graph, while 210 and longer come through. So `-a spades` still does not report the short
+  regions, and now warns instead of dropping them quietly.
 
   This only bites where the two groups are closely related, which is why the *Xylella* validation never
   showed it and the *Listeria* one did: on one clonal complex of a single species the assembly went from 67
@@ -17,6 +21,25 @@
   assays that validation recovers not at all — the four it recovered before, it still recovers, at much the
   same ranks — so this is a blind spot removed rather than a result improved. `run_info.json` records the
   value under `parameters.min_region`.
+- **The requests that pin a primer's 3' end were skipped on short regions.** The guards asked for the whole
+  minimum amplicon *beyond* the pinned base, but an amplicon starts where the primer starts — up to 24 bases
+  earlier. On a long region that cost little; on the ~100-base regions the floor above now makes reportable
+  it skipped the pins the region was kept for. On a 106-base *Listeria* region with three differences at
+  66–75 the command made **no** pinned request at all; it now makes the one that fits, and the best assay
+  from that region carries three differences on one primer where it carried two.
+- **A difference could be left with no request aimed at it.** The windows were measured once, so a window
+  overlapping a richer one was discarded whole rather than measured again over the differences left. With
+  differences at 0, 5, 24, 30 and 35 only the 24–35 window was aimed at, and the pair at 0 and 5 — a target
+  in its own right — was never used. Of the 432 regions of the *Listeria* runs, 26 held an uncovered pair
+  while using fewer than the four targets they are allowed.
+- **`--min-primer-differences 1` admitted assays with no difference under either primer.** The filter only
+  ran above 1, so at 1 the older, looser rule applied and an assay whose two differences were both under its
+  probe was carried forward — into the PCR-mode primer file, where it cannot discriminate at all. It now
+  means the same thing at every setting.
+- A region that is entirely differences gets no pinned requests. Such a region is specific by absence, so
+  there is nothing to aim at, and the eight requests spent on each were the slowest kind.
+- `--min-region` refuses a negative value up front instead of failing in the assembler after KMC has counted
+  every genome. Dead code removed: `variant_runs`, left behind when targets replaced runs.
 
 ## 1.5.0
 

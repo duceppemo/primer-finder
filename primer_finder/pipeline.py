@@ -125,6 +125,8 @@ def check(settings: Settings) -> tuple[list[Path], list[Path], Path]:
         raise PrimerFinderError(
             f"-p/--min-inclusion must be a fraction greater than 0 and at most 1, not {settings.min_inclusion}"
         )
+    if settings.min_region < 0:
+        raise PrimerFinderError("--min-region cannot be negative; 0 means the kmer size")
     if settings.assembler not in assemble.ASSEMBLERS:
         raise PrimerFinderError(
             f'Unknown assembler "{settings.assembler}". Choose one of: {", ".join(assemble.ASSEMBLERS)}'
