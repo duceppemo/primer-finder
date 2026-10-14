@@ -125,9 +125,8 @@ which contigs come out:
 - the variant positions in the headers are positions in the contig, not in the blast alignment;
 - contigs that map to the minus strand have the right bases marked;
 - the two-differences rule covers insertions and deletions, differences that touch, and clipped ends. It
-  was "within 21 bases" in 1.0.0; since the release after 1.6.0 (the Unreleased section of the
-  [changelog](https://github.com/duceppemo/primer-finder/blob/main/CHANGELOG.md)) the pair may span 25
-  bases, the widest primer, while the clipped end is still 21;
+  was "within 21 bases" in 1.0.0; since 1.7.0 the pair may span 25 bases, the widest primer, while the
+  clipped end is still 21;
 - a position has to differ in every copy of the region a given exclusion genome holds, and genomes that do
   not hold the region at all no longer count towards the 90%;
 - two shared variant positions are enough to keep a contig; the old code needed four because of an

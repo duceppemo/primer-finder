@@ -5,10 +5,11 @@ title: "primer-finder: group-specific kmers for selective qPCR assays"
 authors:
   - family-names: Duceppe
     given-names: Marc-Olivier
-version: 1.6.0
+version: 1.7.0
 date-released: "2026-10-14"
-# The concept DOI until Zenodo has archived this release: its webhook timed out on the v1.6.0 tag, so
-# 1.6.0 has no version DOI of its own yet. The concept DOI resolves to the latest archived version.
+# The concept DOI until Zenodo has archived this release: its webhook timed out on the v1.6.0 tag, and
+# neither 1.6.0 nor 1.7.0 has a version DOI of its own yet. The concept DOI resolves to the latest
+# archived version.
 doi: 10.5281/zenodo.23226411
 identifiers:
   - type: doi

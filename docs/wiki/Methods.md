@@ -44,8 +44,8 @@ nine clonal complexes against the other 78:
 | 127 | 319 | 0 | 4 of 9 |
 
 All four were measured under the span rule of the time — a 22-base pair rather than the 25 of step 3 below —
-so the comparison between kmer sizes holds, but the absolute counts run a little under what the current code
-gives: at `-k 99` it reports 332 regions over those nine targets rather than 306.
+so the comparison between kmer sizes holds, but the absolute counts run a little under what 1.7.0 gives: at
+`-k 99` it reports 332 regions over those nine targets rather than 306.
 
 Which assays are recovered does not change, so the kmer size buys candidates rather than answers. 99 is a
 good starting point for bacteria: it is near the top of the yield, and below it whole runs start coming back

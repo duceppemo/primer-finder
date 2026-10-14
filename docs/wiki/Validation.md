@@ -90,16 +90,15 @@ complex, and checked in silico against 2,388 more. The panel here is every compl
 *L. monocytogenes* assembly — 784 genomes, 763 of which the Institut Pasteur MLST scheme places in one of 79
 clonal complexes — which gives inclusion groups of 18 to 86 genomes against exclusion groups of 677 to 745.
 
-### Result, the current code
+### Result, primer-finder 1.7.0
 
 Nine of the 34 assays target a whole clonal complex that has at least 15 complete genomes. (CC1, CC14, CC37
 and CC121 have two assays each, resolving subdivisions *within* the complex, so a complex-wide group is not
 what they detect.)
 
-These are what the code on `main` reports — 1.6.0 with the 25-base pair span of the Unreleased section of
-the changelog. The region counts and CC5's rank have moved since the first run, as the records below set
-out; the released 1.6.0 gives 9, 49, 46, 57 and 59 regions for the five recovered targets instead of 10,
-57, 53, 60 and 62, and recovers the same assays at the same ranks.
+These are what 1.7.0 reports. The region counts and CC5's rank have moved since the first run, as the
+records below set out; 1.6.0, whose pair span was still 22 bases, gives 9, 49, 46, 57 and 59 regions for the
+five recovered targets instead of 10, 57, 53, 60 and 62, and recovers the same assays at the same ranks.
 
 | Target | Inclusion | Exclusion | Regions | Recovered | Rank |
 |---|---|---|---|---|---|
