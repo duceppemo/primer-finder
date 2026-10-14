@@ -5,15 +5,11 @@
 
 Four targets, the paper's four assays:
 
-- `genus`: the inclusion group is the eight classical species the paper's panel holds, the exclusion group
-  every non-classical genome (the former Ochrobactrum, now filed under Brucella, plus Pseudochrobactrum,
-  Paenochrobactrum and Falsochrobactrum);
-- `genus_wide`: the same, plus the other four species of the classical clade -- B. pinnipedialis,
-  B. amazoniensis, B. vulpis and B. inopinata. A genus assay ought to detect those too, and the paper's
-  panel had none of them, so this asks what spanning the whole clade costs;
-- `abortus`, `melitensis`, `suis`: the inclusion group is that species, and the exclusion group is **the
-  other classical species as well as** the non-classical genomes. A species assay has to tell its species
-  from its close relatives first of all, which is the harder half of the job.
+`groups.py` says what each target's two groups are made of, and why. In outline: `genus` is the paper's
+eight classical species and `genus_wide` all twelve of the clade, both against the non-classical
+relatives; `abortus`, `melitensis` and `suis` are one species against the other seven of the eight and the
+relatives; and `suis_lato` is B. suis together with B. canis, because B. canis lies inside B. suis and the
+`suis` target therefore reports nothing at any setting.
 
 A genome labelled `held_out` is in neither group, whichever the target: "Brucella sp." is unidentified, and
 about half of those assemblies are former Ochrobactrum. `census.py` reports them separately. The four
@@ -34,12 +30,13 @@ from __future__ import annotations
 import argparse
 import csv
 import itertools
+import sys
 from collections import defaultdict
 from pathlib import Path
 
-CLASSICAL = ("abortus", "melitensis", "suis", "canis", "ceti", "ovis", "neotomae", "microti")
-CLASSICAL_EXTRA = ("pinnipedialis", "amazoniensis", "vulpis", "inopinata")
-TARGETS = ("genus", "genus_wide", "abortus", "melitensis", "suis")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from groups import TARGETS, exclusion_species, inclusion_species  # noqa: E402
 
 
 def read(path: Path) -> list[dict[str, str]]:
@@ -48,15 +45,9 @@ def read(path: Path) -> list[dict[str, str]]:
 
 
 def split(rows: list[dict[str, str]], target: str) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
-    classical = [row for row in rows if row["species"] in CLASSICAL]
-    extra = [row for row in rows if row["species"] in CLASSICAL_EXTRA]
-    negative = [row for row in rows if row["group"] == "non_classical"]
-    if target == "genus":
-        return classical, negative
-    if target == "genus_wide":
-        return classical + extra, negative
-    inclusion = [row for row in classical if row["species"] == target]
-    exclusion = [row for row in classical if row["species"] != target] + negative
+    mine, theirs = set(inclusion_species(target)), set(exclusion_species(target))
+    inclusion = [row for row in rows if row["species"] in mine]
+    exclusion = [row for row in rows if row["species"] in theirs or row["group"] == "non_classical"]
     return inclusion, exclusion
 
 

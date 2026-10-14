@@ -1,0 +1,3 @@
+assay	target	probe	amplicon_bp	group_genomes	inclusion_exact	inclusion_pct	one_contig	exclusion_exact	exclusion_species	held_out_exact
+BS	suis	yes	102	120	114	95.00	114	3	abortus;canis;melitensis	1
+BS_vs_suis_lato	suis_lato	yes	102	194	115	59.28	115	2	abortus;melitensis	1

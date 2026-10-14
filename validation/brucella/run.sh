@@ -31,7 +31,7 @@ threads="${2:-16}"
 memory="${3:-32}"
 python_bin="${PYTHON:-$(command -v python || command -v python3 || true)}"
 
-targets=(genus genus_wide abortus melitensis suis)
+targets=(genus genus_wide abortus melitensis suis suis_lato)
 
 "${python_bin}" "${here}/panel.py" "${work}"
 "${python_bin}" "${here}/verify_amplicon.py" "${work}"

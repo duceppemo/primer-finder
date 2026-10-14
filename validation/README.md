@@ -119,6 +119,7 @@ bash validation/brucella/run.sh /path/to/work 48 128
 | File | What it holds |
 |---|---|
 | `assays.tsv` | the four published primer-and-probe sets (their Table 1), without the dyes and quencher |
+| `groups.py` | what each target's inclusion and exclusion group is made of, and why |
 | `panel.py` | rebuilds the panel from RefSeq and labels each genome; the paper's accessions are not published |
 | `verify_amplicon.py` | measures each published amplicon in a real genome before it is trusted as a key |
 | `census.py` | blasts every published oligo against every genome: the ceiling on what could be recovered |
@@ -135,10 +136,11 @@ assembly of the eight classical species the paper's panel holds, and of the four
 used as negatives. RefSeq has grown since October 2020, so the groups are larger than the paper's — 1,376
 classical against 315 non-classical, where the paper had 1,160 against 194.
 
-There are five targets: `genus` (the eight classical species the paper's panel holds), `genus_wide` (those
-plus *B. pinnipedialis*, *B. amazoniensis*, *B. vulpis* and *B. inopinata*, which the paper's panel had
-none of), and one for each of the three species. The eight-species target is kept as it was so that the
-record of the published assays stays reproducible.
+There are six targets, defined in `groups.py`: `genus` (the eight classical species the paper's panel
+holds), `genus_wide` (those plus *B. pinnipedialis*, *B. amazoniensis*, *B. vulpis* and *B. inopinata*,
+which the paper's panel had none of), one for each of the three species, and `suis_lato` (*B. suis*
+together with *B. canis*, which lies inside it phylogenetically). The eight-species target is kept as it
+was so that the record of the published assays stays reproducible.
 
 **Read `census.tsv` beside the results**, as in the *Listeria* record, and `mislabelled.txt` beside that.
 Eight assemblies of this panel carry all three oligos of exactly one species assay and it is not the assay

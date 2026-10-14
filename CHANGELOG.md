@@ -4,6 +4,27 @@
 
 ### Added
 
+- **A `suis_lato` target, and the measured reason there is no *B. suis* assay** (record in
+  `validation/results/2026-10-14_v1.7.0_brucella/SUIS_LATO.md`). *B. canis* is a lineage inside
+  *B. suis*, so the `suis` target reports nothing at any setting; this target puts both species in the
+  inclusion group. The group definitions of all six targets now live in one place,
+  `validation/brucella/groups.py`, which the four scripts that need them import — the census output is
+  byte-identical to the committed one after that refactor.
+
+  It still finds no assay, in three separate places. At the default `-k 99` there is no inclusion-specific
+  kmer at all, on either panel, at `-p` 1.0, 0.99 or 0.95. At `-k 201` with `-p 0.95` there are 15, which
+  overlap into **one 215 bp locus** — and SKESA will not build a contig from 15 kmers, the same limitation
+  as the `-k 31` failure already recorded, from the other end of the range. The locus itself is in the
+  record as a fasta file, and the find rule would reject it anyway: it differs from *B. abortus* by **one**
+  base and from *B. melitensis* by **two, 34 bases apart**, where the rule asks for two within 25.
+
+  Also measured: the published BS assay carries all three oligos in 120 of 120 *B. suis* but **1 of 74
+  *B. canis***, so it is a sensu stricto assay and nothing from this target would replace it.
+
+  The wider conclusion for this panel: across every target, species-level discrimination in the classical
+  *Brucella* clade rests on single scattered SNPs rather than blocks of unique sequence, which is what the
+  find rule declines by design. The genus level is the opposite case, and there primer-finder does well.
+
 - **A `genus_wide` target, and a proposed genus assay that spans the whole classical clade**
   (record in `validation/results/2026-10-14_v1.7.0_brucella/WHOLE_CLADE.md`). The four classical-clade
   species the paper's panel does not hold — *B. pinnipedialis*, *B. amazoniensis*, *B. vulpis* and

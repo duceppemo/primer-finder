@@ -26,7 +26,9 @@ from primer_finder.mapping import reverse_complement  # noqa: E402
 from primer_finder.seqio import iter_records  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
-CLASSICAL = ("abortus", "melitensis", "suis", "canis", "ceti", "ovis", "neotomae", "microti")
+sys.path.insert(0, str(HERE))
+
+from groups import inclusion_species  # noqa: E402
 
 
 def read_tsv(path: Path) -> list[dict[str, str]]:
@@ -55,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
     assays = read_tsv(args.assays)
     status = 0
     for assay in assays:
-        wanted = CLASSICAL if assay["target"] == "genus" else (assay["target"],)
+        wanted = inclusion_species(assay["target"])
         # A complete genome of the assay's own group, so that the amplicon is not split across contigs
         candidates = [row for row in panel if row["species"] in wanted
                       and row["level"] == "Complete Genome"] or \

@@ -22,13 +22,16 @@ from __future__ import annotations
 import argparse
 import csv
 import subprocess
+import sys
 from collections import defaultdict
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+
+from groups import exclusion_species, inclusion_species  # noqa: E402
+
 PARTS = ("forward", "reverse", "probe")
-CLASSICAL = ("abortus", "melitensis", "suis", "canis", "ceti", "ovis", "neotomae", "microti")
-CLASSICAL_EXTRA = ("pinnipedialis", "amazoniensis", "vulpis", "inopinata")
 
 
 def read_tsv(path: Path) -> list[dict[str, str]]:
@@ -49,25 +52,6 @@ def panel_fasta(genomes: list[dict[str, str]], out: Path) -> None:
                     fh.write(f">{row['accession']}|{row['species']}|{number}\n")
                 elif line.strip():
                     fh.write(line + "\n")
-
-
-def inclusion_species(target: str) -> tuple[str, ...]:
-    """Which species the inclusion group of a target is made of."""
-    if target == "genus":
-        return CLASSICAL
-    if target == "genus_wide":
-        return CLASSICAL + CLASSICAL_EXTRA
-    return (target,)
-
-
-def exclusion_species(target: str) -> tuple[str, ...]:
-    """Which species its exclusion group is made of, besides the non-classical genomes. A species target
-    is set against the other seven of the paper's eight; the four `classical_extra` species are in neither
-    group there, because the paper's panel did not have them and putting them in would change the
-    question."""
-    if target in ("genus", "genus_wide"):
-        return ()
-    return tuple(name for name in CLASSICAL if name != target)
 
 
 def main(argv: list[str] | None = None) -> int:

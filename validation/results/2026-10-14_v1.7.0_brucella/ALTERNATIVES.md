@@ -155,6 +155,10 @@ Where this does point somewhere useful:
    with all twelve species in the group, one proposal covers every one of the 1,393 genomes with no
    predicted structure at all, and gives up nothing measured here.
 3. **A *B. suis* assay needs the groups redrawn**, because *B. canis* is inside *B. suis*.
+   **Done: [`SUIS_LATO.md`](SUIS_LATO.md).** Redrawing them turns "nothing at all" into one identified
+   215 bp locus, but not into an assay: it needs `-k 201`, the assembler will not build it from 15 kmers,
+   and the find rule rejects it anyway — one difference from *B. abortus*, two 34 bases apart from
+   *B. melitensis*.
 4. **The hairpin default rejects working assays.** Worth remembering before trusting `design` to have
    found everything.
 

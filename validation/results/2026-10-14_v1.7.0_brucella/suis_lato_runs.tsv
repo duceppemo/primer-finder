@@ -1,0 +1,7 @@
+target	panel	p	inclusion	exclusion	required	status	regions	bs_recovered	rank	region_bp	seconds
+suis_lato	corrected	1.0	193	1490	193	No inclusion-specific kmer	0		-	-	97
+suis_lato	corrected	0.99	193	1490	192	No inclusion-specific kmer	0		-	-	98
+suis_lato	corrected	0.95	193	1490	184	No inclusion-specific kmer	0		-	-	103
+suis_lato	as_labelled	1.0	194	1497	194	No inclusion-specific kmer	0		-	-	102
+suis_lato	as_labelled	0.99	194	1497	193	No inclusion-specific kmer	0		-	-	92
+suis_lato	as_labelled	0.95	194	1497	185	No inclusion-specific kmer	0		-	-	97

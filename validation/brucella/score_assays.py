@@ -24,13 +24,16 @@ from __future__ import annotations
 import argparse
 import csv
 import subprocess
+import sys
 from collections import defaultdict
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+
+from groups import exclusion_species, inclusion_species  # noqa: E402
+
 PARTS = ("forward", "reverse", "probe")
-CLASSICAL = ("abortus", "melitensis", "suis", "canis", "ceti", "ovis", "neotomae", "microti")
-CLASSICAL_EXTRA = ("pinnipedialis", "amazoniensis", "vulpis", "inopinata")
 
 
 def read_tsv(path: Path) -> list[dict[str, str]]:
@@ -92,9 +95,7 @@ def main(argv: list[str] | None = None) -> int:
                  "one_contig\texclusion_exact\texclusion_species\theld_out_exact\n")
         for assay in assays:
             name, target = assay["assay"], assay["target"]
-            mine = (CLASSICAL if target == "genus" else
-                    CLASSICAL + CLASSICAL_EXTRA if target == "genus_wide" else (target,))
-            theirs = () if target.startswith("genus") else tuple(n for n in CLASSICAL if n != target)
+            mine, theirs = inclusion_species(target), exclusion_species(target)
             parts = [part for part in PARTS if assay.get(part)]
             found: dict[str, set[str]] = {}
             for accession in where:

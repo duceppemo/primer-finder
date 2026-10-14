@@ -37,14 +37,12 @@ import sys
 import zipfile
 from pathlib import Path
 
-# The eight classical Brucella species the paper's in-silico panel holds (its Table S2).
-CLASSICAL = ("abortus", "melitensis", "suis", "canis", "ceti", "ovis", "neotomae", "microti")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-# The other species of the classical clade, which the paper's panel does not hold. They are labelled
-# `classical_extra` rather than held out, so that the `genus_wide` target can ask what a genus assay would
-# have to cover to span the whole clade. The eight-species `genus` target is left exactly as it was, so
-# the record of the published assays stays reproducible.
-CLASSICAL_EXTRA = ("pinnipedialis", "amazoniensis", "vulpis", "inopinata")
+# The species lists live in groups.py, which also says what each target's two groups are made of. The four
+# CLASSICAL_EXTRA species are labelled `classical_extra` here rather than held out, so that `genus_wide`
+# can ask what spanning the whole clade costs.
+from groups import CLASSICAL, CLASSICAL_EXTRA  # noqa: E402
 
 # The non-classical groups it used as negatives. "Brucella (Ochrobactrum)" is the former genus
 # Ochrobactrum, which NCBI now files under Brucella: every Brucella species name below is one of those.
