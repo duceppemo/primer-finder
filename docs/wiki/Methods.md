@@ -112,6 +112,9 @@ synthetic stretch, stretches of 150, 180 and 199 bases are already missing from 
 and says so in a warning rather than quietly dropping them; the floor is applied to its output only so that
 it does not report contigs the run asked to leave out.
 
+The last-resort pass of step 3 reaches this step too: at that stringency a single shared variant position
+is enough here, where two close together are normally wanted.
+
 Lifting the floor only puts the short stretches in front of the later steps; it does not excuse them from
 anything. The 145-base stretch carrying a published *Listeria* probe now reaches the candidate stage and is
 then turned down by the exclusion check in step 5, which is a decision about the sequence rather than about
@@ -156,6 +159,20 @@ end the aligner could not place at all. Each of these is what `is_candidate` act
 
 The last three are the point of the rule. A contig that differs by a single base is *specific* — but no
 oligo placed on it discriminates well enough to be worth designing, so it is not a candidate.
+
+**Unless nothing else is left.** A run where no contig meets that rule used to stop with an error. It now
+tries once more accepting **any single difference**, and reports what it finds marked `last_resort` in the
+header of every region, in `run_info.json` (`last_resort: true`, `min_differences: 1`), and in a warning
+from both `find` and `design`. The two answers are different claims and the mark is what keeps them apart:
+a region that only the second pass accepted rests on one mismatch, which is the kind of assay that is
+hardest to make work, so it is a lead to look at rather than a result to act on. `--no-last-resort` asks
+for the strict answer and the error. Nothing changes for a run that finds something under the strict rule:
+the second pass only runs when the first reported nothing at all, which also means no region it reports
+would have passed strictly.
+
+The relaxation is only to the *number* of differences. A contig identical to the exclusion genome is still
+not a candidate, and the 21-base clipped end is unchanged — that is how much unplaceable sequence is
+enough, not how many differences there are.
 
 25 bases is the longest primer Primer3 is asked for here, so two differences that close can sit in the same
 primer, which is what makes an assay selective. A single mismatch somewhere in the contig is not enough,

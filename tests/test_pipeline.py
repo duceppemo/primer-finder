@@ -185,12 +185,82 @@ def test_contig_absent_from_every_exclusion_genome_is_kept_as_it_is(stubs, setti
 
 
 def test_variants_too_far_apart_are_dropped(stubs, settings):
-    # One mismatch at offset 0 and one at offset 30: no primer or probe can cover both
+    """One mismatch at offset 0 and one at offset 30: no primer or probe can cover both, so the strict
+    rule turns the region down. `--no-last-resort` is what asks for the strict answer and nothing else."""
+    stubs(exclusion_hits={genome: [["ctg1", 1, 40, 1e-30, "A" * 40, "C" + "A" * 28 + "C" + "A" * 10]]
+                          for genome in ("exclusion_1", "exclusion_2")})
+    scenario = settings(last_resort=False)
+    assert run(scenario) == 0
+    assert final_records(scenario.output) == {}
+
+
+def test_variants_too_far_apart_come_back_as_a_last_resort(stubs, settings, caplog):
+    """The same region, with the last-resort pass left on: it is reported, and every way of reading the
+    output says it only got through on the weaker rule."""
+    import json
+
     stubs(exclusion_hits={genome: [["ctg1", 1, 40, 1e-30, "A" * 40, "C" + "A" * 28 + "C" + "A" * 10]]
                           for genome in ("exclusion_1", "exclusion_2")})
     scenario = settings()
     assert run(scenario) == 0
-    assert final_records(scenario.output) == {}
+    records = list(iter_records(scenario.output / "final_kmers.fasta"))
+    assert len(records) == 1
+    assert "last_resort" in records[0].desc
+    info = json.loads((scenario.output / "run_info.json").read_text())
+    assert info["last_resort"] is True
+    assert info["parameters"]["min_differences"] == 1
+    assert "last resort" in caplog.text.lower()
+
+
+def test_no_last_resort_keeps_the_error_the_run_would_have_given(stubs, settings):
+    """With the pass turned off, a run that finds nothing under the strict rule says so and stops, which
+    is what it did before the pass existed."""
+    stubs(sam=[["ctg1", 0, "50=1X69="]])  # one mismatch: not two within 25 bases
+    with pytest.raises(PrimerFinderError, match="No contig differs enough"):
+        run(settings(last_resort=False))
+
+
+def test_the_last_resort_pass_rescues_a_run_that_step_three_emptied(stubs, settings, caplog):
+    """The same single mismatch, with the pass left on: step 3 keeps the contig the second time round."""
+    stubs(sam=[["ctg1", 0, "50=1X69="]])
+    scenario = settings()
+    assert run(scenario) == 0
+    records = list(iter_records(scenario.output / "final_kmers.fasta"))
+    assert len(records) == 1 and "last_resort" in records[0].desc
+    assert "single difference" in caplog.text
+
+
+def test_the_last_resort_pass_does_not_run_when_the_strict_rule_found_something(stubs, settings, caplog):
+    """It is a fallback, not a second opinion: a run that works must not be relaxed, and nothing it
+    reports may carry the mark."""
+    scenario = settings()  # the default stubs give a contig with two differences 7 bases apart
+    assert run(scenario) == 0
+    import json
+    info = json.loads((scenario.output / "run_info.json").read_text())
+    assert info["parameters"]["min_differences"] == 2
+    assert info["last_resort"] is False
+    assert "last_resort" not in (scenario.output / "final_kmers.fasta").read_text()
+    assert "last resort" not in caplog.text.lower()
+
+
+def test_a_failed_program_is_not_answered_by_asking_for_less(stubs, settings):
+    """The reason `NothingSelectiveEnough` has a class of its own. A failed program is a PrimerFinderError
+    too, so a retry that caught those as well would run the whole of step 3 a second time before failing
+    again. That it failed is not enough to check: minimap2 must have been run once."""
+    calls = stubs(fail="minimap2")
+    with pytest.raises(PrimerFinderError, match="minimap2 failed"):
+        run(settings())
+    attempts = [line for line in calls.read_text().splitlines()
+                if line.startswith("minimap2 ") and "--version" not in line]
+    assert len(attempts) == 1, attempts
+
+
+def test_the_last_resort_pass_still_needs_a_difference(stubs, settings):
+    """It lowers how many differences are wanted, not whether any are. A contig identical to the
+    exclusion genome is not an assay at either stringency."""
+    stubs(sam=[["ctg1", 0, "120="]])
+    with pytest.raises(PrimerFinderError, match="No contig differs enough"):
+        run(settings())
 
 
 def test_variant_in_only_one_exclusion_genome_is_dropped(stubs, settings):
@@ -608,7 +678,7 @@ def test_the_exclusion_step_still_matches_contigs_when_a_tag_is_in_the_header(st
     stubs(contigs={"ctg1": "ACGT" * 25}, sam=[["ctg1", 0, "40=1X7=1X50="]],
           presence={"g1": ["ctg1"], "g2": ["ctg1"], "g3": ["ctg1"], "g4": []},
           exclusion_hits={"exclusion_1": [far_apart], "exclusion_2": [far_apart]})
-    scenario = four_inclusion(min_inclusion=0.75)
+    scenario = four_inclusion(min_inclusion=0.75, last_resort=False)
     assert run(scenario) == 0
     # It reached the exclusion step with the tag on its header, and was dropped there
     assert "inclusion=3/4" in (scenario.output / "4_blast" / "all_inclusion_contigs.fasta").read_text()

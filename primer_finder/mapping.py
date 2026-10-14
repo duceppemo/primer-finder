@@ -26,6 +26,12 @@ MAX_PRIMER_SPAN = 25
 # apart two differences may be -- so it keeps the value it has always had rather than following it.
 MIN_CLIPPED = 21
 
+# How many differences a region must offer to be worth an assay. Two is the rule the tool is built around:
+# two differences under one primer discriminate far better than one each under two, and far better than
+# one. One is the last-resort rule, used only when two has reported nothing at all.
+STRICT_DIFFERENCES = 2
+LAST_RESORT_DIFFERENCES = 1
+
 # The cigar operations that are a difference with the reference, those that are a match, those that are
 # bases of the contig the aligner left out, and those that consume query bases.
 DIFFERENCE_OPS = "XID"
@@ -106,7 +112,7 @@ def parse_sam(sam_file: Path) -> Iterator[Alignment]:
             )
 
 
-def is_candidate(cigar: list[tuple[int, str]]) -> bool:
+def is_candidate(cigar: list[tuple[int, str]], min_differences: int = STRICT_DIFFERENCES) -> bool:
     """True if the differences with the exclusion genome could fit in one primer or probe:
 
     - a mismatch run, an insertion or a deletion longer than one base;
@@ -116,12 +122,17 @@ def is_candidate(cigar: list[tuple[int, str]]) -> bool:
 
     A difference is a mismatch, an insertion or a deletion; a deletion consumes no base of the contig, so
     two mismatches on either side of one are adjacent as far as a primer is concerned.
+
+    `min_differences` of 1 is the last-resort rule: **any single difference** is enough, wherever it sits.
+    An assay resting on one mismatch is the harder one to make work, which is why two is the default and
+    why one is only asked for when two has already reported nothing. The clipped-end rule is unchanged by
+    it: `MIN_CLIPPED` is how much unplaceable sequence is enough, not how many differences there are.
     """
     matches_since_difference = 0
     after_difference = False
     for length, op in cigar:
         if op in DIFFERENCE_OPS:
-            if length > 1:
+            if min_differences <= 1 or length > 1:
                 return True
             # The pair spans the two differences and the matches between them, so it fits under one
             # primer when `matches + 2 <= MAX_PRIMER_SPAN`
@@ -157,7 +168,8 @@ def mark_differences(seq: str, cigar: list[tuple[int, str]]) -> str:
     return "".join(marked)
 
 
-def select_candidates(assembly: dict[str, Record], alignments: Iterable[Alignment]) -> dict[str, Candidate]:
+def select_candidates(assembly: dict[str, Record], alignments: Iterable[Alignment],
+                      min_differences: int = STRICT_DIFFERENCES) -> dict[str, Candidate]:
     """The contigs worth taking to the blast steps, in the order the alignments came in."""
     candidates: dict[str, Candidate] = {}
     for alignment in alignments:
@@ -169,7 +181,7 @@ def select_candidates(assembly: dict[str, Record], alignments: Iterable[Alignmen
             # Nothing in the exclusion genome looks like this contig: all of it is inclusion-specific.
             candidates[contig.name] = Candidate(contig.name, f"{len(contig.seq)}I", contig.seq.lower())
             continue
-        if not is_candidate(alignment.cigar):
+        if not is_candidate(alignment.cigar, min_differences):
             continue
         # The cigar of a reverse alignment describes the reverse complement of the contig: mark the
         # differences on it, then put the contig back in its original orientation.

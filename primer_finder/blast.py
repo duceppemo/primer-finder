@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from primer_finder import tools
-from primer_finder.mapping import MAX_PRIMER_SPAN
+from primer_finder.mapping import MAX_PRIMER_SPAN, STRICT_DIFFERENCES
 from primer_finder.seqio import base_name, iter_records
 
 log = logging.getLogger(__name__)
@@ -168,6 +168,19 @@ def variant_bases(hit: Hit) -> dict[int, str]:
 def has_close_variants(positions: Sequence[int], window: int = MAX_PRIMER_SPAN) -> bool:
     """True if at least two of these positions are less than `window` bases apart."""
     return any(second - first < window for first, second in zip(positions, positions[1:], strict=False))
+
+
+def enough_variants(positions: Sequence[int], min_differences: int = STRICT_DIFFERENCES,
+                    window: int = MAX_PRIMER_SPAN) -> bool:
+    """Whether these shared variant positions are worth designing on.
+
+    At the default stringency a region needs two of them close enough to sit under one primer. At
+    `min_differences` of 1 -- the last-resort rule -- a single position anywhere is enough, which is a
+    weaker claim about the assay and is labelled as such wherever it is reported.
+    """
+    if min_differences <= 1:
+        return len(positions) >= 1
+    return len(positions) > 1 and has_close_variants(positions, window)
 
 
 def parallel(work: Iterable[tuple], function, threads: int) -> list:

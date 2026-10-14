@@ -43,7 +43,9 @@ CACCAAAATCCTCCTGGCGAGAGGTTAGATCATCAGAGTCCGTGTACAGAAACGGCCATTGCGAACTACTGTcCCATGTG
 - The **name** is the contig name the assembler gave (SKESA puts its number and coverage in it, not its
   length: `Contig_1_67.5167` is 260 bases long).
 - The **header** lists the positions that differ from the exclusion genomes, counted from 0 in this
-  sequence.
+  sequence. It ends with `last_resort` when the run found nothing under its usual rule and reported what a
+  single difference gives instead: such a region is a lead rather than a result, and `run_info.json` says
+  `last_resort: true` and `min_differences: 1` for the whole run.
 - Those positions are **lower case** in the sequence; everything else is upper case. Design the primers so
   that the lower-case bases fall in them, ideally at their 3' end.
 
@@ -92,7 +94,8 @@ Everything needed to repeat or report the run:
 |---|---|
 | `version` | the version of primer-finder |
 | `command_line` | the command as it was typed |
-| `parameters` | the input folders, output folder, `kmer_size`, `duplication`, `min_inclusion`, `min_region`, `inclusion_genomes_required`, `assembler`, `threads`, `memory_gb` after capping |
+| `parameters` | the input folders, output folder, `kmer_size`, `duplication`, `min_inclusion`, `min_region`, `inclusion_genomes_required`, `assembler`, `threads`, `memory_gb` after capping, and `min_differences`: 2 for the usual rule, 1 if the run fell back to the last-resort pass |
+| `last_resort` | true when the regions are the ones only a single difference accepted, which is also marked in each header |
 | `inclusion_genomes`, `exclusion_genomes` | every genome file used, in the order they were given to KMC |
 | `reference` | the exclusion genome the contigs were mapped to |
 | `programs` | what each program reported as its version |

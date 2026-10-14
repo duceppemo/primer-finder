@@ -15,6 +15,7 @@ from primer_finder.blast import (
     ExclusionResult,
     Hit,
     blastn,
+    enough_variants,
     exclusion_variants,
     genome_folder,
     has_close_variants,
@@ -106,6 +107,15 @@ def test_has_close_variants():
     assert has_close_variants([5, 25]) is True
     assert has_close_variants([]) is False
     assert has_close_variants([1, 100, 110]) is True
+
+
+def test_enough_variants_at_each_stringency():
+    """The strict rule wants two close enough to share a primer; the last-resort rule wants one, anywhere.
+    Neither accepts a region with no shared variant at all, which would be no assay."""
+    assert enough_variants([5, 25]) and enough_variants([5, 25], 1)
+    assert not enough_variants([5, 30]) and enough_variants([5, 30], 1)  # span 26: too wide for a primer
+    assert not enough_variants([5]) and enough_variants([5], 1)
+    assert not enough_variants([]) and not enough_variants([], 1)
 
 
 def test_shared_variants_needs_most_of_the_genomes_that_hold_the_region():

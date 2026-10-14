@@ -36,8 +36,21 @@ problem from the one above, and the run says which of the two it hit. Things to 
 
 Inclusion-specific kmers were found and assembled, but none of the contigs has two differences within 25
 bases of each other when mapped to the exclusion genome. The region is specific, but by a single mismatch
-here and there, which does not make a selective assay. Try another exclusion genome as the reference (`-r`),
-or shorter kmers so that other regions come through.
+here and there, which does not make a selective assay.
+
+**Since 1.8.0 a run does not stop here.** It tries again accepting a single difference and reports what it
+finds marked `last_resort`, which is a lead rather than a result: an assay resting on one mismatch is the
+hardest kind to make work. So this message now means one of two things — the run was given
+`--no-last-resort`, or **no contig differs from the exclusion genome at all**, which is a different
+problem: the regions are specific to the inclusion group as a set of kmers but identical to the one genome
+they were mapped to. Try another reference (`-r`), since the rule is judged against one genome only.
+
+## "last_resort" in the headers, and in a warning
+
+The run found nothing under its usual rule and reported what a single difference would give instead. Treat
+those regions as leads: check them against the whole exclusion group yourself, and expect
+`--min-primer-differences` to set aside any assay designed on them unless its amplicon is absent from the
+exclusion genomes altogether. `--no-last-resort` turns the pass off.
 
 ## "No candidate contig is present in all the inclusion genomes"
 

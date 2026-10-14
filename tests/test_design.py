@@ -684,6 +684,23 @@ def test_a_run_without_run_info(finished_run, tmp_path):
         genome_folders(design_settings(finished_run, tmp_path / "out"))
 
 
+def test_designing_on_a_last_resort_region_says_so(stubs, finished_run, tmp_path, caplog):
+    """Someone running `design` days later on a results folder should not have to remember how the
+    regions were found. The find command marks them; this repeats it."""
+    final = finished_run / "final_kmers.fasta"
+    final.write_text(final.read_text().replace(">ctg1 [100, 101, 102]",
+                                               ">ctg1 [100, 101, 102] last_resort"))
+    assert run(design_settings(finished_run, tmp_path / "assays")) == 0
+    assert "last_resort" in caplog.text
+    assert "rests on one mismatch" in caplog.text
+
+
+def test_designing_on_ordinary_regions_says_nothing_about_a_last_resort(stubs, finished_run, tmp_path,
+                                                                        caplog):
+    assert run(design_settings(finished_run, tmp_path / "assays")) == 0
+    assert "last_resort" not in caplog.text
+
+
 def test_an_output_path_with_a_space_is_refused(stubs, finished_run, tmp_path):
     """blast reopens a database by absolute path and cannot quote whitespace. The design command builds
     databases under its output folder, so it refuses the path up front rather than failing part way in."""

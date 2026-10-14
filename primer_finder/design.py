@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from primer_finder import PrimerFinderError, __version__, blast, insilico, seqio, tools
-from primer_finder.pipeline import add_log_file
+from primer_finder.pipeline import LAST_RESORT_TAG, add_log_file
 
 log = logging.getLogger(__name__)
 
@@ -956,6 +956,25 @@ def genome_folders(settings: DesignSettings) -> tuple[Path, Path]:
     return Path(inclusion), Path(exclusion)
 
 
+def warn_if_last_resort(regions: Sequence[seqio.Record]) -> int:
+    """Say so, loudly, when the regions came from a find run's last-resort pass.
+
+    The find command marks such a region in its header because the strict rule reported nothing and it
+    asked for less. Someone running `design` days later on a results folder should not have to remember
+    that, so it is repeated here. Returns how many are marked.
+    """
+    marked = [record.name for record in regions if LAST_RESORT_TAG in record.desc.split()]
+    if not marked:
+        return 0
+    log.warning("%d of %d region(s) are marked %r: the find run reported nothing under its usual rule of "
+                "two differences close enough to share a primer, and these got through on a single "
+                "difference. An assay on one of them rests on one mismatch, which is the harder kind to "
+                "make work, and --min-primer-differences (2 by default) will set it aside unless its "
+                "amplicon is absent from the exclusion genomes altogether.",
+                len(marked), len(regions), LAST_RESORT_TAG)
+    return len(marked)
+
+
 def run(settings: DesignSettings) -> int:
     """Design assays on the regions of a finished run, and check them. Returns 0, or raises."""
     started = time.time()
@@ -980,6 +999,7 @@ def run(settings: DesignSettings) -> int:
     found_regions = list(seqio.iter_records(final))
     if not found_regions:
         raise PrimerFinderError(f"{final} holds no candidate region: there is nothing to design on.")
+    warn_if_last_resort(found_regions)
     # Before --max-regions, not after: a short region cannot hold an assay, and spending one of the
     # places on it would leave a region that could out of the run altogether
     regions, no_room = with_room(found_regions, settings.product_size)

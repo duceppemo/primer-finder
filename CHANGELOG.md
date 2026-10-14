@@ -4,6 +4,32 @@
 
 ### Added
 
+- **A last-resort pass: when nothing meets the usual rule, say what a single difference would give.**
+  `find` keeps a region when two of its differences are close enough to share one primer, which is the
+  judgement the tool is built around — one mismatch under a primer still amplifies the wrong template
+  often enough to be useless. A run where nothing met that rule used to stop with an error, which threw
+  away the one thing it did know: which regions *are* specific, by less than the rule wants.
+
+  Such a run now tries once more accepting any single difference. It is a fallback and not a second
+  opinion: the second pass runs only when the first reported nothing at all, so no region it reports would
+  have passed strictly, and a run that works is never relaxed. Everything the pass reports is marked, in
+  four places, because the two answers are different claims: `last_resort` in the header of every region,
+  `last_resort: true` and `min_differences: 1` in `run_info.json`, a warning from `find`, and a warning
+  from `design` for anyone who comes to the results folder later. `--no-last-resort` asks for the strict
+  answer and the error.
+
+  Only the number of differences is relaxed. A contig identical to the exclusion genome is still not a
+  candidate, and the 21-base clipped end is unchanged. `--min-primer-differences` (2 by default) will set
+  aside an assay designed on such a region unless its amplicon is absent from the exclusion genomes
+  altogether, which is the right default and is now said out loud rather than left to be discovered.
+
+  The *Brucella* record is what prompted it: three published assays and one candidate locus there rest on
+  a single mismatch, or on two too far apart to share a primer, and the tool had no way to report them
+  (`validation/results/2026-10-14_v1.7.0_brucella/`).
+
+  `NothingSelectiveEnough` is a new `PrimerFinderError` subclass, so that the retry answers an empty
+  result and never a failed program — which is a `PrimerFinderError` too.
+
 - **`-a unitig`: assemble the inclusion-specific kmers without an assembler.** SKESA and SPAdes are built
   for sequencing reads — they estimate coverage, treat what they see once as error, and reconcile
   disagreement. A kmer set has none of those problems: every kmer is an exact substring of real genomes,

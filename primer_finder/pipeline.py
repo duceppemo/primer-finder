@@ -10,7 +10,17 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from primer_finder import PrimerFinderError, __version__, assemble, blast, kmers, mapping, seqio, tools
+from primer_finder import (
+    NothingSelectiveEnough,
+    PrimerFinderError,
+    __version__,
+    assemble,
+    blast,
+    kmers,
+    mapping,
+    seqio,
+    tools,
+)
 from primer_finder.mapping import MAX_PRIMER_SPAN
 
 log = logging.getLogger(__name__)
@@ -23,6 +33,10 @@ ALL_INCLUSION_NAME = "all_inclusion_contigs.fasta"
 HITS_NAME = "inclusion_blast_hits.tsv"
 # What a record's description says, with -p/--min-inclusion, about how many inclusion genomes hold it.
 INCLUSION_TAG = "inclusion="
+
+# What marks a region that only the last-resort rule accepted, in its header in final_kmers.fasta. The
+# whole point is that it cannot be missed by anything reading the file, this tool included.
+LAST_RESORT_TAG = "last_resort"
 
 KMER_FOLDER = "1_kmers"
 ASSEMBLY_FOLDER = "2_assembly"
@@ -57,6 +71,8 @@ class Settings:
     min_region: int = 0  # The shortest region to report; 0 for the kmer size
     reference: Path | None = None
     assembler: str = "skesa"
+    # Whether to try again accepting a single difference when the strict rule reports nothing at all
+    last_resort: bool = True
     keep_intermediate: bool = False
     command_line: list[str] = field(default_factory=list)
 
@@ -107,9 +123,9 @@ def _run(settings: Settings) -> int:
     assembly = assemble_kmers(settings, kmer_fasta)
     counts["contigs"] = seqio.count_records(assembly)
 
-    best, counts["candidates"] = find_candidates(settings, assembly, reference)
-    all_inclusion, counts["in_all_inclusion"] = keep_shared_by_inclusion(settings, best, inclusion)
-    final, counts["final"] = keep_absent_from_exclusion(settings, all_inclusion, exclusion)
+    final, min_differences = check_the_contigs(settings, assembly, reference, inclusion, exclusion, counts)
+    info["parameters"]["min_differences"] = min_differences  # type: ignore[index]
+    info["last_resort"] = min_differences <= 1 and counts["final"] > 0
 
     info["seconds"] = round(time.time() - started, 1)
     (settings.output / RUN_INFO_NAME).write_text(json.dumps(info, indent=2) + "\n")
@@ -253,22 +269,75 @@ def assemble_kmers(settings: Settings, kmer_fasta: Path) -> Path:
     return assembly
 
 
-def find_candidates(settings: Settings, assembly: Path, reference: Path) -> tuple[Path, int]:
+def check_the_contigs(settings: Settings, assembly: Path, reference: Path, inclusion: list[Path],
+                      exclusion: list[Path], counts: dict[str, int]) -> tuple[Path, int]:
+    """Steps 3 to 5 at the strict rule, and again accepting a single difference if that found nothing.
+
+    The three steps between the assembly and the answer all turn on how much a region has to differ, and
+    any of them can empty the output. When they do, the run has a choice: stop, or say what it would have
+    found had it asked for less. Asking for less is worth doing *and* worth admitting to, so the second
+    pass marks everything it reports -- in the headers, in `run_info.json` and in the log -- and the
+    design command repeats the warning. `--no-last-resort` turns it off for a run that would rather have
+    the error.
+
+    Only `NothingSelectiveEnough` is answered this way. A failed program is a `PrimerFinderError` too and
+    must stop the run, which is why that error has a class of its own.
+
+    Returns the regions file and the rule they were found under.
+    """
+    def pass_at(min_differences: int) -> Path:
+        best, counts["candidates"] = find_candidates(settings, assembly, reference, min_differences)
+        all_inclusion, counts["in_all_inclusion"] = keep_shared_by_inclusion(settings, best, inclusion)
+        final, counts["final"] = keep_absent_from_exclusion(settings, all_inclusion, exclusion,
+                                                            min_differences)
+        return final
+
+    strict = mapping.STRICT_DIFFERENCES
+    try:
+        final = pass_at(strict)
+        if counts["final"] > 0 or not settings.last_resort:
+            return final, strict
+        reason = "no region's differences held up against every exclusion genome"
+    except NothingSelectiveEnough as error:
+        if not settings.last_resort:
+            raise
+        reason = str(error)
+
+    log.warning("Nothing met the usual rule of two differences within %d bases: %s", MAX_PRIMER_SPAN, reason)
+    log.warning("Trying again as a last resort, accepting a region with a single difference. An assay "
+                "resting on one mismatch is the harder one to make work, so everything this reports is "
+                "marked %r and should be treated as a lead rather than a result. --no-last-resort skips "
+                "this.", LAST_RESORT_TAG)
+    final = pass_at(mapping.LAST_RESORT_DIFFERENCES)
+    if counts["final"] > 0:
+        log.warning("%d region(s) found only by the last-resort rule, each marked %r in %s",
+                    counts["final"], LAST_RESORT_TAG, final.name)
+    return final, mapping.LAST_RESORT_DIFFERENCES
+
+
+def find_candidates(settings: Settings, assembly: Path, reference: Path,
+                    min_differences: int = mapping.STRICT_DIFFERENCES) -> tuple[Path, int]:
     """Map the contigs to one exclusion genome and keep those whose differences could fit in a primer."""
     folder = settings.output / CANDIDATE_FOLDER
     folder.mkdir(parents=True, exist_ok=True)
     log.info("Mapping the contigs to the exclusion genome %s...", reference.name)
     sam_file = mapping.map_contigs(assembly, reference, folder / "mapping.sam", settings.threads)
 
-    log.info("Keeping the contigs with at least two differences within %d bases...", MAX_PRIMER_SPAN)
-    candidates = mapping.select_candidates(seqio.read_fasta(assembly), mapping.parse_sam(sam_file))
+    if min_differences > 1:
+        log.info("Keeping the contigs with at least two differences within %d bases...", MAX_PRIMER_SPAN)
+    else:
+        log.info("Last resort: keeping the contigs with even a single difference...")
+    candidates = mapping.select_candidates(seqio.read_fasta(assembly), mapping.parse_sam(sam_file),
+                                           min_differences)
     best = folder / BEST_NAME
     count = seqio.write_fasta(best, (candidate.as_record() for candidate in mapping.sort_candidates(candidates)))
     log.info("%d contig(s) could carry a selective assay", count)
     if count == 0:
-        raise PrimerFinderError(
+        asked = (f"at least two differences within {MAX_PRIMER_SPAN} bases" if min_differences > 1
+                 else "even a single difference")
+        raise NothingSelectiveEnough(
             "No contig differs enough from the exclusion genome to carry a selective assay "
-            f"(at least two differences within {MAX_PRIMER_SPAN} bases)."
+            f"({asked})."
         )
     return best, count
 
@@ -312,7 +381,7 @@ def keep_shared_by_inclusion(settings: Settings, best: Path, inclusion: list[Pat
         hint = (f" A -p/--min-inclusion below {settings.min_inclusion:g} would ask for fewer than {required}."
                 if partial else
                 " A lower -p/--min-inclusion would accept a contig that some of them lack.")
-        raise PrimerFinderError(
+        raise NothingSelectiveEnough(
             f"No candidate contig is present in {how_many}. The presence of each one in each genome is in "
             f"{folder / HITS_NAME}." + hint
         )
@@ -346,10 +415,17 @@ def write_presence_table(path: Path, presence: dict[str, dict[str, bool]],
 
 
 def keep_absent_from_exclusion(
-    settings: Settings, all_inclusion: Path, exclusion: list[Path]
+    settings: Settings, all_inclusion: Path, exclusion: list[Path],
+    min_differences: int = mapping.STRICT_DIFFERENCES,
 ) -> tuple[Path, int]:
     """Keep the contigs whose differences hold up against every exclusion genome, not just the one they were
-    mapped to. A contig that no exclusion genome hits at all is kept as it is."""
+    mapped to. A contig that no exclusion genome hits at all is kept as it is.
+
+    In a last-resort pass (`min_differences` of 1) every region reported is tagged `LAST_RESORT_TAG` in its
+    header. Nothing in such a pass would have passed the strict rule -- the strict pass ran first and
+    reported nothing -- so the tag belongs on all of them, including a region specific by absence.
+    """
+    mark = LAST_RESORT_TAG if min_differences <= 1 else ""
     folder = settings.output / BLAST_FOLDER
     log.info("Checking the differences against the %d exclusion genomes...", len(exclusion))
     results = blast.exclusion_variants(all_inclusion, exclusion, folder / "exclusion_db", settings.threads)
@@ -359,12 +435,13 @@ def keep_absent_from_exclusion(
     for name, record in candidates.items():
         result = results.get(name, blast.ExclusionResult())
         if result.genomes_hit == 0:  # Absent from every exclusion genome: specific on its own
-            records.append(record)
+            records.append(seqio.Record(record.name, f"{record.desc} {mark}".strip(), record.seq)
+                           if mark else record)
             continue
         positions = blast.shared_variants(result)
-        if len(positions) > 1 and blast.has_close_variants(positions):
+        if blast.enough_variants(positions, min_differences):
             tag = next((part for part in record.desc.split() if part.startswith(INCLUSION_TAG)), "")
-            desc = f"{positions} {tag}".strip()
+            desc = " ".join(part for part in (f"{positions}", tag, mark) if part)
             records.append(seqio.Record(name, desc, lower_positions(record.seq, positions)))
     final = settings.output / FINAL_NAME
     count = seqio.write_fasta(final, records)

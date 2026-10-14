@@ -103,6 +103,23 @@ def test_threads_and_memory_must_be_positive(stubs, genomes, tmp_path, argv, cap
     assert "must be 1" in capsys.readouterr().err
 
 
+def test_the_last_resort_pass_is_on_unless_asked_otherwise(stubs, genomes, tmp_path, caplog):
+    """A flag that does not reach the pipeline would leave the strict error unreachable, so this runs a
+    case the strict rule turns down and checks both answers: the region, marked, by default; the error
+    with `--no-last-resort`."""
+    inclusion, exclusion = genomes
+    stubs(sam=[["ctg1", 0, "50=1X69="]])  # one mismatch, which the strict rule does not keep
+
+    on = tmp_path / "on"
+    assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(on)]) == 0
+    assert "last_resort" in (on / "final_kmers.fasta").read_text()
+
+    off = tmp_path / "off"
+    assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(off), "--no-last-resort"]) == 1
+    assert "No contig differs enough" in caplog.text
+    assert not (off / "final_kmers.fasta").exists()
+
+
 def test_an_unknown_assembler_is_refused(stubs, genomes, tmp_path, capsys):
     inclusion, exclusion = genomes
     with pytest.raises(SystemExit):

@@ -135,3 +135,31 @@ def test_a_mapped_record_without_a_cigar_is_treated_as_unmapped():
 def test_reverse_complement_of_the_ambiguity_codes():
     assert reverse_complement("RYKMBDHVN") == "NBDHVKMRY"  # B<->V and D<->H
     assert reverse_complement(reverse_complement("ACGTRYKMBDHVNacgt")) == "ACGTRYKMBDHVNacgt"
+
+def test_the_last_resort_rule_accepts_a_single_difference():
+    """`min_differences=1` is what the find command falls back to when two has reported nothing. One
+    difference anywhere is enough -- but still one: an identical contig is no more an assay than before."""
+    one_mismatch = parse_cigar("50=1X50=")
+    far_apart = parse_cigar("50=1X34=1X50=")
+    identical = parse_cigar("100=")
+    assert not is_candidate(one_mismatch) and is_candidate(one_mismatch, 1)
+    assert not is_candidate(far_apart) and is_candidate(far_apart, 1)
+    assert not is_candidate(identical) and not is_candidate(identical, 1)
+
+
+def test_the_last_resort_rule_does_not_change_what_counts_as_a_clipped_end():
+    """MIN_CLIPPED is how much unplaceable sequence is enough, not how many differences there are, so
+    asking for fewer differences must not lower it."""
+    short_clip = parse_cigar("20S80=")
+    long_clip = parse_cigar("21S80=")
+    assert not is_candidate(short_clip) and not is_candidate(short_clip, 1)
+    assert is_candidate(long_clip) and is_candidate(long_clip, 1)
+
+
+def test_select_candidates_passes_the_stringency_on():
+    """The rule has to reach the contigs, not just exist: a run at the last-resort stringency whose
+    selection still used the strict one would report nothing and look like the strict pass."""
+    record = Record("ctg1", "", "ACGT" * 30)
+    alignment = Alignment("ctg1", mapped=True, reverse=False, cigar=parse_cigar("50=1X69="))
+    assert select_candidates({"ctg1": record}, [alignment]) == {}
+    assert "ctg1" in select_candidates({"ctg1": record}, [alignment], 1)

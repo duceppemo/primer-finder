@@ -72,6 +72,11 @@ def build_parser(max_cpu: int, max_mem: int) -> argparse.ArgumentParser:
                            '"unitig" needs no external program and builds every stretch the kmers '
                            'determine, including the short ones and the few: an assembler made for '
                            'sequencing reads treats a kmer seen once as error and discards it.')
+    find.add_argument("--no-last-resort", dest="last_resort", action="store_false",
+                      help="Stop with an error when nothing meets the usual rule of two differences "
+                           "within 25 bases, instead of trying again for regions with a single "
+                           "difference. Those are reported marked \"last_resort\" and are leads rather "
+                           "than results; this asks for the strict answer only.")
     find.add_argument("--keep-intermediate", action="store_true",
                       help="Keep the KMC databases, the SAM file and the blast databases.")
     find.add_argument("--debug", action="store_true", help="Verbose logging.")
@@ -270,6 +275,7 @@ def main(argv: list[str] | None = None) -> int:
             min_region=args.min_region,
             reference=args.reference,
             assembler=args.assembler,
+            last_resort=args.last_resort,
             keep_intermediate=args.keep_intermediate,
             command_line=["primer-finder", *given],
         )
