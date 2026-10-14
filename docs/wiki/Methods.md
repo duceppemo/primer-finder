@@ -97,8 +97,10 @@ A contig is kept when, judged on that cigar string:
 
 - it does not map at all — the whole contig is missing from that exclusion genome, the best case; or
 - a mismatch run, an insertion or a deletion is longer than one base; or
-- two differences (mismatch, insertion or deletion) are fewer than 21 matching bases apart, including two
-  that touch, and including two separated only by a deletion (a deletion takes up no base of the contig); or
+- two differences (mismatch, insertion or deletion) are close enough to sit under one primer — the pair,
+  counting both differences and the matches between them, spans at most 25 bases, which is the widest primer
+  Primer3 may return. Two that touch count, as do two separated only by a deletion, since a deletion takes
+  up no base of the contig; or
 - an end of the contig is clipped over at least 21 bases, which means the aligner could not place a whole
   primer's worth of sequence anywhere in that genome.
 
@@ -108,8 +110,8 @@ end the aligner could not place at all. Each of these is what `is_candidate` act
 
 ```
   kept    ··········XX··········          a run of two: one oligo covers both
-  kept    ·····X····················X···  20 matching bases between them: a 21-mer still covers both
-  no      ·····X·····················X··  21 between them: no oligo reaches from one to the other
+  kept    ·····X·······················X···  23 between them, a span of 25: the widest primer covers both
+  no      ·····X························X···  24 between them, a span of 26: no primer reaches both
   kept    ··········X-X·········          either side of a deleted base, which takes up none of the contig
   kept    ··········III·········          three bases the exclusion genome does not have
   kept    SSSSSSSSSSSSSSSSSSSSSSS·······  23 bases unplaceable: a whole primer's worth is simply absent
@@ -121,9 +123,17 @@ end the aligner could not place at all. Each of these is what `is_candidate` act
 The last three are the point of the rule. A contig that differs by a single base is *specific* — but no
 oligo placed on it discriminates well enough to be worth designing, so it is not a candidate.
 
-21 bases is about the length of a PCR primer: two differences that close can sit in the same primer or probe,
-which is what makes an assay selective. A single mismatch somewhere in the contig is not enough, because a
-primer carrying one mismatch still amplifies the exclusion template often enough to be useless.
+25 bases is the longest primer Primer3 is asked for here, so two differences that close can sit in the same
+primer, which is what makes an assay selective. A single mismatch somewhere in the contig is not enough,
+because a primer carrying one mismatch still amplifies the exclusion template often enough to be useless.
+
+The span and the clipped length are **different quantities and are not tied together**: the first is how far
+apart two differences may be, the second is how much unplaceable sequence is worth keeping on its own. The
+span follows the design step's widest primer, which is what it means for both to sit under one. Making it 25
+rather than 21 gained 5% more candidate regions on the *Listeria* panel and changed no verdict —
+[the record](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-14_v1.6.0/SUMMARY.md)
+has the numbers. The clipped length keeps the 21 it has always had, since raising it would only throw
+regions away.
 
 `primer-finder design` is built to spend them that way: it aims its Primer3 requests at the stretch of at
 most one oligo's width holding the most differences, and by default sets aside an assay that covers fewer
@@ -179,7 +189,7 @@ which only makes the assay more selective. A contig is kept when:
 
 - no exclusion genome hits it at all (it is specific on its own), in which case it is written as it came out
   of step 3; or
-- more than one kept position remains, and two of them are fewer than 21 bases apart.
+- more than one kept position remains, and two of them span at most 25 bases, as in step 3.
 
 The survivors are `final_kmers.fasta`, with those positions listed in the header and in lower case in the
 sequence.

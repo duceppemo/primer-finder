@@ -14,8 +14,17 @@ from primer_finder.seqio import Record
 
 log = logging.getLogger(__name__)
 
-# A primer is about 21 bases long: two differences closer than this can sit in the same primer or probe.
-PRIMER_LENGTH = 21
+# The widest primer Primer3 may return (`design.MAX_PRIMER_SIZE`), and so the widest stretch two
+# differences can share and still both sit under one primer. The design step aims its pinned requests at
+# windows of this width, and a contig is worth keeping on the same terms: being stricter here throws away
+# pairs that a primer could carry. Counted as a span, so two differences qualify when the second is fewer
+# than this many bases past the first.
+MAX_PRIMER_SPAN = 25
+
+# How much of a contig end the aligner must fail to place for the end alone to be worth an assay. A
+# different quantity from the span above -- it is how much unplaceable sequence is enough, not how far
+# apart two differences may be -- so it keeps the value it has always had rather than following it.
+MIN_CLIPPED = 21
 
 # The cigar operations that are a difference with the reference, those that are a match, those that are
 # bases of the contig the aligner left out, and those that consume query bases.
@@ -107,8 +116,9 @@ def is_candidate(cigar: list[tuple[int, str]]) -> bool:
     """True if the differences with the exclusion genome could fit in one primer or probe:
 
     - a mismatch run, an insertion or a deletion longer than one base;
-    - two differences fewer than PRIMER_LENGTH matching bases apart, including two that touch;
-    - a clipped end of at least PRIMER_LENGTH bases, which the exclusion genome does not have at all.
+    - two differences close enough to share one primer, that is with at most `MAX_PRIMER_SPAN - 2`
+      matching bases between them, including two that touch;
+    - a clipped end of at least `MIN_CLIPPED` bases, which the exclusion genome does not have at all.
 
     A difference is a mismatch, an insertion or a deletion; a deletion consumes no base of the contig, so
     two mismatches on either side of one are adjacent as far as a primer is concerned.
@@ -119,14 +129,16 @@ def is_candidate(cigar: list[tuple[int, str]]) -> bool:
         if op in DIFFERENCE_OPS:
             if length > 1:
                 return True
-            if after_difference and matches_since_difference < PRIMER_LENGTH:
+            # The pair spans the two differences and the matches between them, so it fits under one
+            # primer when `matches + 2 <= MAX_PRIMER_SPAN`
+            if after_difference and matches_since_difference <= MAX_PRIMER_SPAN - 2:
                 return True
             after_difference, matches_since_difference = True, 0
         elif op in MATCH_OPS:
             matches_since_difference += length
         elif op in CLIP_OPS:
             # The aligner could not place these bases of the contig anywhere in the exclusion genome
-            if length >= PRIMER_LENGTH:
+            if length >= MIN_CLIPPED:
                 return True
             after_difference, matches_since_difference = False, 0
         else:  # N and P: reference-only operations that leave the contig untouched

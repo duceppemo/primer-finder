@@ -33,8 +33,11 @@ def test_reverse_complement_keeps_the_case():
     [
         ("100=", False),                      # Identical to the exclusion genome
         ("50=1X49=", False),                  # One mismatch: a primer cannot be selective on its own
-        ("50=1X21=1X27=", False),             # 21 matching bases between them: too far apart
-        ("50=1X20=1X28=", True),              # 20 matching bases between them: one primer covers both
+        # The pair spans the two differences and the matches between them, so a 25-base primer covers it
+        # when there are at most 23 matching bases in between
+        ("50=1X24=1X24=", False),             # span 26: no primer reaches from one to the other
+        ("50=1X23=1X25=", True),              # span 25: the widest primer covers both
+        ("50=1X20=1X28=", True),              # and anything closer
         ("50=2X48=", True),                   # Two mismatches side by side
         ("50=3I50=", True),                   # An insertion
         ("50=3D50=", True),                   # A deletion

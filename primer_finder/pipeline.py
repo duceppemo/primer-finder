@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from primer_finder import PrimerFinderError, __version__, assemble, blast, kmers, mapping, seqio, tools
-from primer_finder.mapping import PRIMER_LENGTH
+from primer_finder.mapping import MAX_PRIMER_SPAN
 
 log = logging.getLogger(__name__)
 
@@ -246,7 +246,7 @@ def find_candidates(settings: Settings, assembly: Path, reference: Path) -> tupl
     log.info("Mapping the contigs to the exclusion genome %s...", reference.name)
     sam_file = mapping.map_contigs(assembly, reference, folder / "mapping.sam", settings.threads)
 
-    log.info("Keeping the contigs with at least two differences within %d bases...", PRIMER_LENGTH)
+    log.info("Keeping the contigs with at least two differences within %d bases...", MAX_PRIMER_SPAN)
     candidates = mapping.select_candidates(seqio.read_fasta(assembly), mapping.parse_sam(sam_file))
     best = folder / BEST_NAME
     count = seqio.write_fasta(best, (candidate.as_record() for candidate in mapping.sort_candidates(candidates)))
@@ -254,7 +254,7 @@ def find_candidates(settings: Settings, assembly: Path, reference: Path) -> tupl
     if count == 0:
         raise PrimerFinderError(
             "No contig differs enough from the exclusion genome to carry a selective assay "
-            f"(at least two differences within {PRIMER_LENGTH} bases)."
+            f"(at least two differences within {MAX_PRIMER_SPAN} bases)."
         )
     return best, count
 

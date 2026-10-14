@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from primer_finder import tools
-from primer_finder.mapping import PRIMER_LENGTH
+from primer_finder.mapping import MAX_PRIMER_SPAN
 from primer_finder.seqio import base_name, iter_records
 
 log = logging.getLogger(__name__)
@@ -170,7 +170,7 @@ def variant_positions(hit: Hit) -> list[int]:
     return sorted(variant_bases(hit))
 
 
-def has_close_variants(positions: Sequence[int], window: int = PRIMER_LENGTH) -> bool:
+def has_close_variants(positions: Sequence[int], window: int = MAX_PRIMER_SPAN) -> bool:
     """True if at least two of these positions are less than `window` bases apart."""
     return any(second - first < window for first, second in zip(positions, positions[1:], strict=False))
 

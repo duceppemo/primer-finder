@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **The find step keeps a contig when two of its differences could sit under one primer, which now means a
+  span of 25 bases rather than 22.** The rule and the design step disagreed: `find` asked for at most 20
+  matching bases between a pair, a span of 22, while the design step's widest primer is 25 and its pinned
+  requests aim at 25-base windows. Pairs spanning 23, 24 or 25 bases were therefore thrown away although a
+  primer could carry both. On the *Listeria* panel the wider rule gives **332 candidate regions instead of
+  306**, +8.5%, with no target losing any; the four recoverable published assays are still recovered, at
+  identical ranks. Measured in `validation/results/2026-10-14_v1.6.0/`.
+
+  `mapping.PRIMER_LENGTH` is replaced by two constants, because it was doing two jobs with one number:
+  `MAX_PRIMER_SPAN` = 25 is the pair rule and the window of the exclusion step, and `MIN_CLIPPED` = 21 is
+  how much of a contig end the aligner must fail to place for that end alone to be worth an assay. The
+  second keeps its old value: it is a different quantity, and raising it would only throw regions away.
+- The wiki claimed a shorter `-k` finds "more" regions. It finds **fewer** — 70 regions over the nine
+  *Listeria* runs at `-k 31` against 306 at 99, with two runs producing nothing at all at 31 — because a
+  kmer survives only if no exclusion genome holds it, so it has to span a difference, and a long kmer spans
+  one more often. The default stays at 99: it is near the top of the yield with no empty runs, and `-k 127`
+  adds 4% more candidates and no recovered assay.
+
 ## 1.6.0
 
 ### Fixed

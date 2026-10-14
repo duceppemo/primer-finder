@@ -113,8 +113,11 @@ def test_aligned_sequences_of_unequal_length_do_not_crash():
 
 
 def test_has_close_variants():
-    assert has_close_variants([5, 26]) is False  # 21 bases apart: no primer covers both
-    assert has_close_variants([5, 25]) is True   # 20 bases apart
+    """The window is the widest primer, so two positions share one when the second is fewer than that many
+    bases past the first -- a span of 25 for a 25-base primer."""
+    assert has_close_variants([5, 30]) is False  # span 26: wider than any primer
+    assert has_close_variants([5, 29]) is True   # span 25: the widest primer covers both
+    assert has_close_variants([5, 25]) is True
     assert has_close_variants([]) is False
     assert has_close_variants([1, 100, 110]) is True
 

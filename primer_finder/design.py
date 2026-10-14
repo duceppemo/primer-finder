@@ -447,7 +447,7 @@ def difference_targets(seq: str, span: int = MAX_PRIMER_SIZE,
 
     This is what the `find` command's rule selects regions for: it keeps a region whose differences could
     sit **in one oligo**, which means a run of them or two of them fewer than a primer's length apart
-    (`mapping.PRIMER_LENGTH`). A pair 7 bases apart is not a run, so aiming only at runs of consecutive
+    (`mapping.MAX_PRIMER_SPAN`). A pair 7 bases apart is not a run, so aiming only at runs of consecutive
     differences would ignore most of the evidence a region was kept for -- on the *Xylella* validation set,
     19 of the 20 regions designed on hold such a pair and 8 hold nothing else.
 

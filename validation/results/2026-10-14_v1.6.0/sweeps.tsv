@@ -44,3 +44,14 @@ rule	CC7	99	24	58	True	1
 rule	CC8	99	24	62	True	2
 rule	CC9	99	24	19	False	-
 rule	CC224	99	24	34	False	-
+span25	CC2	99	25	1	False	-
+span25	CC3	99	25	40	False	-
+span25	CC4	99	25	6	False	-
+span25	CC5	99	25	57	True	10
+span25	CC6	99	25	53	True	5
+span25	CC7	99	25	60	True	1
+span25	CC8	99	25	62	True	2
+span25	CC9	99	25	19	False	-
+span25	CC224	99	25	34	False	-
+span25p	CC4	99	25	10	True	1
+span25p	CC121	99	25	71	False	-

@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from primer_finder.mapping import PRIMER_LENGTH, reverse_complement  # noqa: E402
+from primer_finder.mapping import MAX_PRIMER_SPAN, reverse_complement  # noqa: E402
 from primer_finder.seqio import find_genomes, iter_records  # noqa: E402
 
 FAILURES: list[str] = []
@@ -92,9 +92,9 @@ def main(argv: list[str] | None = None) -> int:
         clustered = sorted(set(truth["mismatches"]) & marked - set(range(
             truth["insertion_at"], truth["insertion_at"] + len(insertion))))
         close = [second - first for first, second in zip(clustered, clustered[1:], strict=False)
-                 if second - first < PRIMER_LENGTH]
+                 if second - first < MAX_PRIMER_SPAN]
         check(len(close) >= 2,
-              f"three of the planted mismatches are marked within {PRIMER_LENGTH} bases ({clustered})")
+              f"three of the planted mismatches are marked within {MAX_PRIMER_SPAN} bases ({clustered})")
 
     for group, expected_presence in (("inclusion", True), ("exclusion", False)):
         for genome in find_genomes(args.data / group):
