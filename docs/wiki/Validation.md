@@ -3,7 +3,7 @@
 Two different things are checked, and they answer different questions.
 
 **The tests and the example** (`pytest`, `example/run_example.sh`) check that the code does what the
-documentation says: 380 tests with stand-ins for the external programs, and a simulated dataset whose
+documentation says: 389 tests with stand-ins for the external programs, and a simulated dataset whose
 specific region is known, down to which bases must come out in lower case. They run in seconds and the CI
 runs them on every push. See [Development](Development) and [Example](Example).
 
@@ -90,14 +90,16 @@ complex, and checked in silico against 2,388 more. The panel here is every compl
 *L. monocytogenes* assembly — 784 genomes, 763 of which the Institut Pasteur MLST scheme places in one of 79
 clonal complexes — which gives inclusion groups of 18 to 86 genomes against exclusion groups of 677 to 745.
 
-### Result, primer-finder 1.6.0
+### Result, the current code
 
 Nine of the 34 assays target a whole clonal complex that has at least 15 complete genomes. (CC1, CC14, CC37
 and CC121 have two assays each, resolving subdivisions *within* the complex, so a complex-wide group is not
 what they detect.)
 
-These are what 1.6.0 reports; the region counts and CC5's rank have moved since the first run, as the
-records below set out.
+These are what the code on `main` reports — 1.6.0 with the 25-base pair span of the Unreleased section of
+the changelog. The region counts and CC5's rank have moved since the first run, as the records below set
+out; the released 1.6.0 gives 9, 49, 46, 57 and 59 regions for the five recovered targets instead of 10,
+57, 53, 60 and 62, and recovers the same assays at the same ranks.
 
 | Target | Inclusion | Exclusion | Regions | Recovered | Rank |
 |---|---|---|---|---|---|
@@ -124,6 +126,11 @@ and 2 to 3 times as many regions in the output, changes no verdict here, and tur
 outright into one that completes. The second — a published amplicon may straddle the edge of such a
 stretch — stands.
 
+The widening of the pair span from 22 to 25 bases, and a sweep of the kmer size, were measured on the same
+nine targets in
+[`2026-10-14_v1.6.0/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-14_v1.6.0/SUMMARY.md):
+26 more regions, +8.5%, with no verdict and no rank moved, and `-k 99` confirmed as a good default.
+
 It needs one more environment, because a clonal complex is not in the NCBI metadata and has to come from the
 MLST profile:
 
@@ -133,7 +140,7 @@ conda activate primer-finder_listeria
 bash validation/listeria/run.sh /path/to/work 32 64
 ```
 
-### Running it
+### Running the *Xylella* test
 
 ```bash
 bash validation/xylella/run.sh /path/to/work 16 32

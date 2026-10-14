@@ -50,7 +50,7 @@ while read -r genome; do ln -sf "$genome" exclusion/; done < exclusion.list
 | `-e`, `--exclusion` | required | Folder of genomes the assay must not amplify. |
 | `-o`, `--output` | required | Folder for the results; it is created if needed. It must be outside both input folders, and its path must not contain a space (a BLAST limitation). |
 | `-t`, `--threads` | every CPU | CPUs for KMC, the assembler, minimap2, and how many genomes are blasted at a time. |
-| `-m`, `--memory` | 85% of the memory | Memory in GB, passed to KMC and the assembler. |
+| `-m`, `--memory` | 85% of the memory | Memory in GB, passed to KMC and the assembler. KMC refuses less than 2 GB, so it is given at least 2 whatever this says, and the default is never below 2. |
 | `-k`, `--kmer_size`, `--kmer-size` | 99 | Kmer size for KMC, 1-256. A shorter kmer finds **fewer** regions, not more, and at 51 and below whole runs start coming back empty — see [Methods](Methods#1-the-kmers-only-the-inclusion-group-has-kmc) for the measurement. Longer is more sensitive to assembly errors. |
 | `--min-region` | the kmer size | The shortest candidate region to report. An assembler stops at 200 bases of its own accord, which would hide every specific stretch shorter than that — and those are commonest where the two groups are closely related. Only SKESA can be asked for less; `-a spades` warns and still stops at 200. |
 | `-d`, `--duplication` | 1 | How many times a kmer may occur in each inclusion genome. 1 discards repeated regions, which make poor assays. |
@@ -123,8 +123,9 @@ The slow steps are KMC on the exclusion group and the two blast rounds. As a rou
 genomes with `-t 16` take a few minutes. Memory is KMC's main need: `-m` is what it is allowed to use before
 it starts writing temporary files to the output folder.
 
-Runs are not resumable: a repeated command starts again from the kmers. The intermediate files of a finished
-run are deleted unless `--keep-intermediate` is given.
+Runs are not resumable: a repeated command starts again from the kmers. The intermediate files are deleted
+unless `--keep-intermediate` is given — by a run that stops on an error as well as by one that finishes,
+since its KMC databases are the largest thing it leaves behind.
 
 ## Designing assays on the regions
 
@@ -139,9 +140,9 @@ primer-finder design results/ -o assays/ -t 16 --insilico-pcr /path/to/insilicoP
 | Option | Default | What it does |
 |---|---|---|
 | `results` | required | The output folder of a finished `find` run. |
-| `-o`, `--output` | required | Folder for the designed assays. |
+| `-o`, `--output` | required | Folder for the designed assays. Its path must not contain a space, as for `find`: this command builds BLAST databases under it too. |
 | `-i`, `--inclusion`, `-e`, `--exclusion` | what the run recorded | The genome folders, if they have moved. |
-| `-t`, `--threads` | every CPU | For Primer3's blast checks and for insilicoPCR. |
+| `-t`, `--threads` | every CPU | How many Primer3 requests run at once, how many genomes the amplicon blast checks run on at a time, and insilicoPCR's `-t`. Capped at the CPUs available, with a warning. |
 | `--product-size` | `70-150` | Amplicon size range for Primer3. |
 | `--assays-per-region` | 3 | How many assays Primer3 proposes per request. |
 | `--gc-clamp` | 1 | G or C bases required at a primer's 3' end. 0 for none. Primer3 takes one clamp per request, so this does not reach the requests that pin a 3' end on a differing base. |
@@ -154,7 +155,7 @@ primer-finder design results/ -o assays/ -t 16 --insilico-pcr /path/to/insilicoP
 | `--probe-conc` | 200 nM | Probe concentration. |
 | `--min-primer-differences` | 2 | Differences one **primer** must cover (0 turns the filter off), for an assay resting on differences rather than on absence — what the find step selected the region for. The probe does not count, however many it covers: it is longer and hotter, so two mismatches under it are no evidence it will not bind. Below this an assay is listed but carried no further. 1 still asks for a difference under a primer, so an assay whose only differences are under its probe is set aside at any setting. `--min-oligo-differences` is accepted as the old name. |
 | `--max-regions` | 50 | Design on this many regions, most promising first. 0 for all of them. |
-| `--insilico-pcr` | off | Run in silico PCR of the assays against both groups. Takes the folder of an extracted portable release, its jar, or a launcher script. |
+| `--insilico-pcr` | off | Run in silico PCR of the assays against both groups. Takes the folder of an extracted portable release, its jar, or a launcher script. insilicoPCR reads only plain fasta at the top level of a folder, so both groups are staged into `insilico_genomes/` for it: gzipped genomes and genomes in subfolders are handled. If it fails, `assays.tsv` is still written without the verdict columns and the command exits 1. |
 | `--mismatches` | 1 | Mismatches insilicoPCR lets each primer bind through (`-m`). One is often not enough to stop a reaction; 0 assumes any mismatch is, 2 is a stricter check. It never applies to the last two bases of a primer. |
 
 The defaults of `--max-hairpin-tm` through `--probe-conc` are an ordinary TaqMan qPCR; set them to your own

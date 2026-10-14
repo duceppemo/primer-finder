@@ -268,7 +268,7 @@ Nine assays, all with the same Primer3 penalty so that only the differences sepa
  ▶   the 3' end of the primer                 ◀   the 3' end of the reverse primer, which reads the other way
 ```
 
-In the order the ranking puts them. The two marked `no` are set aside before the order matters, so
+In the order the ranking puts them. The three marked `no` are set aside before the order matters, so
 `assays.tsv` writes them at the end of the file whatever their rank:
 
 | | the primer | diffs | weight | 3' run | kept? |
@@ -395,6 +395,13 @@ primer-finder design results/ -o assays/ --insilico-pcr /path/to/insilicoPCR-lin
 a launcher script. Without it, the same thing can be run later with the `run_insilico_pcr.sh` the command
 writes.
 
+insilicoPCR reads only the top level of a genome folder, and hands each file to its own BLAST as it stands,
+so it sees neither a genome in a subfolder nor a gzipped one. Both groups are therefore staged into
+`insilico_genomes/` first — flattened, decompressed, duplicate names numbered — and that is what both the
+run and the script read. **If insilicoPCR fails, the design is not lost**: `assays.tsv` is written without
+the verdict columns, the reason is logged, and the command exits 1. The script can then repeat the check on
+its own.
+
 **Two files, two runs.** insilicoPCR cannot report both kinds of assay at once: one probe in a primer file
 puts the whole report in qPCR mode, where an assay without a probe is never positive. So every usable assay
 is written twice — `assays_qpcr.fasta` with its probe, `assays_pcr.fasta` with the primers alone — and each
@@ -403,7 +410,8 @@ file is run against both groups. That gives two answers per assay, and they are 
 - **`pcr_selective`** says whether the primer pair discriminates on its own;
 - **`qpcr_selective`** says whether the whole assay reports positive, with the probe having to bind too.
 
-An assay is `selective` in a mode when it amplifies **every** inclusion genome and **no** exclusion genome.
+`*_selective` reads `yes` in a mode when the assay amplifies **every** inclusion genome and **no** exclusion
+genome; the other values it can take are below.
 
 ### What `--mismatches` actually governs
 
@@ -446,7 +454,10 @@ tolerance only ever finds more exclusion amplification, never less, so it can on
 Because the last two bases are free, an assay can be reported non-selective for a reason that is about the
 alignment rather than about the assay. `assays.tsv` therefore carries **`qpcr_exclusion_terminal_only`** and
 **`pcr_exclusion_terminal_only`**: of the exclusion genomes an assay amplified, how many did so *only* where
-a difference sits in the last two bases of a primer.
+a difference sits in the last two bases of a primer. The count is read from insilicoPCR's
+`ForwardEndMismatch` and `ReverseEndMismatch` columns; a release that does not write them gets a warning in
+the log, the count stays 0, and those assays read a plain `no` (0.6.1, used for every record here, writes
+them).
 
 Two rules decide that, and between them they make the count mean one thing:
 
@@ -526,10 +537,12 @@ that occur several times inside a single genome, which is why it is not the defa
 | `assays.tsv` | every assay, the usable ones first, with the numbers behind the order (see [Outputs](Outputs)) |
 | `assays_qpcr.fasta` | the assays that have a probe, for insilicoPCR in qPCR mode |
 | `assays_pcr.fasta` | every assay carried forward, primers only, for insilicoPCR in standard PCR mode. The ones `--min-primer-differences` set aside are in `assays.tsv` alone |
-| `run_insilico_pcr.sh` | the in silico PCR of both files against both groups, to run later |
+| `run_insilico_pcr.sh` | the in silico PCR of both files against both groups, as staged in `insilico_genomes/`, to run later |
 | `design_info.json` | the parameters, the programs and their versions, and the counts |
+| `primer_finder_design.log` | the whole log of the command |
 | `primer3/` | exactly what was sent to Primer3 and what came back |
 | `amplicons/` | the blast databases and hits of the amplicon checks |
+| `insilico_genomes/` | both genome folders laid out the way insilicoPCR needs them: one flat folder of plain fasta per group, subfolders flattened, gzipped genomes written out, a name used twice numbered. Written whether or not the check is run, because `run_insilico_pcr.sh` reads these and the verdicts are counted against them — deleting it breaks the script |
 | `insilico_pcr/` | what insilicoPCR wrote, when it was run |
 
 ## Limits

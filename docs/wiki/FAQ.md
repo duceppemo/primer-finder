@@ -1,9 +1,16 @@
 # FAQ
 
+## "No kmer at all is shared by the inclusion genomes"
+
+The inclusion group shared nothing before any subtraction, so the exclusion group is not the reason: either
+the inclusion genomes are too diverse for this kmer size, or one of them does not belong in the group. A
+smaller `-k`, or `-p` below 1 so that a kmer need not be in every one of them, gives it room; remedies 1, 2,
+5 and 6 below apply, and 3 is worth trying here in particular.
+
 ## "No inclusion-specific kmer was found"
 
-Every kmer the inclusion genomes share is also somewhere in the exclusion group. Things to try, roughly in
-order:
+Every kmer the inclusion genomes **did** share is also somewhere in the exclusion group — a different
+problem from the one above, and the run says which of the two it hit. Things to try, roughly in order:
 
 1. **Check the groups.** One exclusion genome that actually belongs to the inclusion group is enough to
    remove every candidate. The reverse is just as bad.
@@ -11,14 +18,19 @@ order:
    a draft assembly with a gap in the right place, a contaminated one, or one of much lower quality than the
    others silently removes candidates. Compare the genomes first
    ([genome_comparator](https://github.com/duceppemo/genome_comparator)).
-3. **Use shorter kmers** (`-k 51`, `-k 31`): a shorter kmer is less likely to be broken by a sequencing
-   error or a small variant, and finds shorter specific regions.
-4. **Raise `-d`** (`-d 2`, `-d 3`): a kmer that occurs twice in some inclusion genome is kept.
-5. **Lower `-p`** (`-p 0.9`): accept the regions that most, rather than all, of the inclusion genomes share.
+3. **Lower `-p`** (`-p 0.9`): accept the regions that most, rather than all, of the inclusion genomes share.
    The assay will not amplify the genomes that lack the region, and each record says how many hold it, so
    this is also the quickest way to find out whether one bad assembly is behind an empty run.
-6. **Reduce the inclusion group** to the genomes you are most confident about, if a few of them are of
+4. **Reduce the inclusion group** to the genomes you are most confident about, if a few of them are of
    poorer quality.
+5. **Use shorter kmers** (`-k 51`, `-k 31`) — but only when the inclusion group is too diverse to share
+   anything, which the "no kmer at all" message above says outright. A shorter kmer is less likely to be
+   broken by a sequencing error or a small variant, but it also spans a difference less often, so it finds
+   **fewer** specific regions, not more: 70 over the nine *Listeria* runs at `-k 31` against 306 at 99, two
+   of them empty. See [Methods](Methods#1-the-kmers-only-the-inclusion-group-has-kmc).
+6. **Raise `-d`** (`-d 2`, `-d 3`): a kmer that occurs twice in some inclusion genome is kept. This helps
+   only where the region of interest is repeated; it cannot make a kmer the exclusion group holds
+   specific.
 
 ## "No contig differs enough from the exclusion genome"
 
@@ -39,8 +51,9 @@ that hold them.
 
 The run finished, but `final_kmers.fasta` is empty: the differences found against the single reference
 genome did not hold up against the whole exclusion group. The 90% rule means a position has to differ in
-nearly every exclusion genome that matches the contig. Looking at `3_candidates/best_kmers.fasta` with
-`--keep-intermediate` shows what was dropped and why.
+nearly every exclusion genome that matches the contig. Comparing `4_blast/all_inclusion_contigs.fasta` —
+what went into this step — with the empty `final_kmers.fasta` shows what was dropped; neither file needs
+`--keep-intermediate`.
 
 ## "The output folder path contains a space" / "the output folder and the inclusion folder overlap"
 
@@ -52,10 +65,14 @@ Two things the run refuses before doing any work:
 - The output folder must be outside both input folders. They are searched recursively, so results written
   inside one of them would be picked up as input genomes by the next run.
 
+The space rule applies to `primer-finder design -o` as well, for the same reason: that command builds BLAST
+databases of its own under its output folder.
+
 ## I have more than 255 inclusion genomes
 
-That works. KMC counts to 255 by default, which would make "present in all 300 genomes" impossible to ask
-for, so primer-finder raises the ceiling (`-cs`) when the group is that large. Before 1.0.0 such a run
+That works. KMC stores a count in one byte by default, and it applies `-ci` to that saturated value, so
+"present in all 300 genomes" would match nothing; primer-finder raises the ceiling (`-cs`) whenever the
+inclusion count times `-d` passes 255 — which with `-d 2` is 128 genomes, not 256. Before 1.0.0 such a run
 reported that no inclusion-specific kmer existed.
 
 ## Which kmer size should I use?
@@ -108,8 +125,9 @@ which contigs come out:
 - the variant positions in the headers are positions in the contig, not in the blast alignment;
 - contigs that map to the minus strand have the right bases marked;
 - the two-differences rule covers insertions and deletions, differences that touch, and clipped ends. It
-  was "within 21 bases" in 1.0.0; since 1.6.0 the pair may span 25 bases, the widest primer, while the
-  clipped end is still 21;
+  was "within 21 bases" in 1.0.0; since the release after 1.6.0 (the Unreleased section of the
+  [changelog](https://github.com/duceppemo/primer-finder/blob/main/CHANGELOG.md)) the pair may span 25
+  bases, the widest primer, while the clipped end is still 21;
 - a position has to differ in every copy of the region a given exclusion genome holds, and genomes that do
   not hold the region at all no longer count towards the 90%;
 - two shared variant positions are enough to keep a contig; the old code needed four because of an

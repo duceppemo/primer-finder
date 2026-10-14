@@ -10,6 +10,8 @@ results/
 │   ├── exclusion_list.txt     the exclusion genomes, as given to KMC
 │   ├── inclusion_specific_99mers.fasta   the kmers only the inclusion group has
 │   ├── kmers.txt              the KMC dump (--keep-intermediate)
+│   ├── inclusion_kmers.txt    the inclusion kmers before the subtraction, written only when nothing was
+│   │                          left after it (--keep-intermediate)
 │   ├── inclusion.kmc_pre/suf, exclusion.kmc_pre/suf, inclusion_specific.kmc_pre/suf
 │   │                          the KMC databases (--keep-intermediate)
 │   └── kmc_work/              KMC's temporary folder (--keep-intermediate)
@@ -24,9 +26,10 @@ results/
     ├── inclusion_db/, exclusion_db/  blast databases and raw hits (--keep-intermediate)
 ```
 
-Without `--keep-intermediate`, the files marked above are removed when the run finishes; everything else is
-kept. A run that stops on an error keeps them all, whatever the option says, so that the step that failed can
-be examined; `run_info.json` is only written by a run that reaches the end.
+Without `--keep-intermediate`, the files marked above are removed when the run finishes — and also when it
+stops on an error, since an exclusion KMC database for a few hundred genomes is a gigabyte and the run that
+gave up is the one nobody goes back to tidy. Pass `--keep-intermediate` when the step that failed is to be
+examined. `run_info.json` is only written by a run that reaches the end.
 
 ## final_kmers.fasta
 
@@ -37,7 +40,8 @@ One record per candidate region, the most promising first (the ones with the mos
 CACCAAAATCCTCCTGGCGAGAGGTTAGATCATCAGAGTCCGTGTACAGAAACGGCCATTGCGAACTACTGTcCCATGTGAACT...
 ```
 
-- The **name** is the contig name the assembler gave (SKESA puts its length and coverage in it).
+- The **name** is the contig name the assembler gave (SKESA puts its number and coverage in it, not its
+  length: `Contig_1_67.5167` is 260 bases long).
 - The **header** lists the positions that differ from the exclusion genomes, counted from 0 in this
   sequence.
 - Those positions are **lower case** in the sequence; everything else is upper case. Design the primers so
@@ -115,6 +119,10 @@ assays/
 ├── primer_finder_design.log
 ├── primer3/                what was sent to Primer3 and what came back
 ├── amplicons/              the blast checks of each amplicon against both groups
+├── insilico_genomes/       both groups laid out the way insilicoPCR needs them: one flat folder per
+│                           group of plain fasta files. Subfolders are flattened, gzipped genomes are
+│                           written out plain, and a name used twice is numbered. This is what
+│                           run_insilico_pcr.sh reads and what the verdicts are counted against
 └── insilico_pcr/           what insilicoPCR wrote, when it was run
 ```
 
@@ -133,12 +141,12 @@ the ones that would amplify both groups are kept at the end for the record.
 | `inclusion_copies_min`, `inclusion_copies_max` | copies of the amplicon per inclusion genome; above 1 only for a run made with `-d 2` or more |
 | `product_size`, `penalty`, `penalty_band` | the amplicon length and Primer3's pair penalty, with the band the ranking uses |
 | `forward`, `reverse`, `probe` | the sequences, with `_start`, `_tm`, `_gc` and `_variants` (differences covered) for each |
-| `forward_hairpin_tm`, `forward_self_dimer_tm` | and the same for `reverse` and `probe`: where Primer3 predicts the oligo folds on itself, and where it pairs with a copy of itself, in °C. `0.0` means no structure was predicted; they are below `--max-hairpin-tm` and `--max-dimer-tm` respectively or the oligo was never proposed |
+| `forward_hairpin_tm`, `forward_self_dimer_tm` | and the same for `reverse` and `probe`: where Primer3 predicts the oligo folds on itself, and where it pairs with a copy of itself, in °C. `0.0` means no structure was predicted, and an assay without a probe leaves the probe cells empty; they are below `--max-hairpin-tm` and `--max-dimer-tm` respectively |
 | `pair_dimer_tm`, `pair_dimer_end_tm` | where the two primers pair with each other, over the whole oligo and at their 3' ends, in °C |
 | `best_primer_variants` | the most differences either **primer** covers on its own. Two under one primer is what the `find` rule selects a region for, and `--min-primer-differences` (2 by default) sets aside the assays below it. The probe is not counted here however many it covers, and `probe_variants` reports it separately — [why](Designing-assays#why-the-probe-does-not-count-towards-it) |
 | `primer_variant_weight` | the differences under the primers, weighted by the base each replaces: 1 for a G or C, 0.5 for an A or T, 0.75 when unknown |
 | `forward_strong_variants`, `forward_terminal_run`, `forward_near_3prime` | and the same for `reverse`: how many of its differences replace a G or a C, and where they sit relative to the 3' end |
-| `inclusion_total`, `exclusion_total` | how many genomes were tested, when in silico PCR was run |
+| `inclusion_total`, `exclusion_total` | how many genomes were tested, when in silico PCR was run. These and the verdict columns below it are absent when it was not run, and also when it failed: the table is still written, and the command exits 1 with the reason in the log |
 | `qpcr_inclusion_amplified`, `qpcr_inclusion_percent`, `qpcr_exclusion_amplified`, `qpcr_selective` | what insilicoPCR said in qPCR mode, with the probe |
 | `qpcr_exclusion_terminal_only` | of the exclusion genomes it amplified, how many did so **only** where a difference sits in the last two bases of a primer — bases insilicoPCR does not count. When this equals `qpcr_exclusion_amplified`, the verdict is `undecided (3' end)`: the model's blind spot, not a cross-reaction |
 | `pcr_inclusion_amplified`, `pcr_inclusion_percent`, `pcr_exclusion_amplified`, `pcr_exclusion_terminal_only`, `pcr_selective` | and the same in standard PCR mode, primers only |

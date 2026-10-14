@@ -45,6 +45,17 @@
   `MAX_PRIMER_SPAN` = 25 is the pair rule and the window of the exclusion step, and `MIN_CLIPPED` = 21 is
   how much of a contig end the aligner must fail to place for that end alone to be worth an assay. The
   second keeps its old value: it is a different quantity, and raising it would only throw regions away.
+- Four more documentation corrections, found by reading the pages against the code:
+  - the wiki said `-cs` is added "with more than 255 inclusion genomes"; the trigger is `N x d` above 255,
+    so 128 genomes at `-d 2`. KMC applies `-ci`/`-cx` to the one-byte saturated count, which is now stated
+    from a measurement: with no `-cs`, one kmer repeated 300 times is reported by `-ci 250` with a count of
+    255 and not reported at all by `-ci 256`;
+  - Methods said the design step carries no further an assay with fewer than two differences "under one
+    oligo". It counts primers only, as the same page says correctly two sections earlier;
+  - the *Listeria* table on the Validation page was headed "primer-finder 1.6.0" but its region counts came
+    from the 25-base span above, which 1.6.0 does not have;
+  - the advice for an empty run put shorter kmers near the top, which the measurement on the same page
+    contradicts.
 - The wiki claimed a shorter `-k` finds "more" regions. It finds **fewer** — 70 regions over the nine
   *Listeria* runs at `-k 31` against 306 at 99, with two runs producing nothing at all at 31 — because a
   kmer survives only if no exclusion genome holds it, so it has to span a difference, and a long kmer spans

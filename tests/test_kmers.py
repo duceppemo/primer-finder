@@ -69,7 +69,8 @@ def test_an_empty_dump_is_an_error(stubs, tmp_path):
 
 
 def test_the_counter_ceiling_is_raised_for_a_large_inclusion_group(stubs, tmp_path):
-    """KMC counts to 255 unless -cs says otherwise, so -ci300 would match nothing in 300 genomes."""
+    """KMC counts to 255 unless -cs says otherwise, and applies -ci to that saturated count, so -ci300
+    would match nothing in 300 genomes. See kmers.DEFAULT_COUNTER_MAX for the measurement."""
     calls = stubs()
     list_file = write_file_list([tmp_path / "g.fasta"], tmp_path / "list.txt")
     count(list_file, tmp_path / "small", tmp_path / "work", 31, 1, 2, min_count=4, max_count=4)

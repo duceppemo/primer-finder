@@ -14,9 +14,10 @@ kmc_tools -t<threads> transform inclusion_specific dump kmers.txt
 KMC counts the kmers of all the files of a group together, so with `N` inclusion genomes a kmer that occurs
 at least `N` times (`-ci N`) is, in practice, a kmer every inclusion genome carries. `-p/--min-inclusion`
 lowers that threshold to a fraction of `N`, rounded up, for the regions that most but not all of the
-inclusion genomes share. With more than 255
-inclusion genomes, `-cs` is added as well: KMC's counters stop at 255 by default, so without it `-ci 300`
-would match nothing at all. `-cx N × d` (`-d`,
+inclusion genomes share. When `N × d` passes 255,
+`-cs N × d` is added as well: KMC stores a count in one byte by default and applies `-ci`/`-cx` to that
+saturated value, so without it `-ci 300` matches nothing at all — measured with kmc 3.2.4 on one kmer
+repeated 300 times, where `-ci 250` reports a count of 255 and `-ci 256` reports nothing. `-cx N × d` (`-d`,
 default 1) drops the kmers that occur more often than that, which are the repeated regions: they would give
 an assay that amplifies several places at once. The trade-off is that a kmer which happens to occur `N`
 times inside fewer genomes also passes this step — which is why step 4 checks the presence of every
@@ -43,8 +44,8 @@ nine clonal complexes against the other 78:
 | 127 | 319 | 0 | 4 of 9 |
 
 All four were measured under the span rule of the time — a 22-base pair rather than the 25 of step 3 below —
-so the comparison between kmer sizes holds, but the absolute counts run a little under what the shipped code
-gives: at `-k 99` it now reports 332 regions over those nine targets rather than 306.
+so the comparison between kmer sizes holds, but the absolute counts run a little under what the current code
+gives: at `-k 99` it reports 332 regions over those nine targets rather than 306.
 
 Which assays are recovered does not change, so the kmer size buys candidates rather than answers. 99 is a
 good starting point for bacteria: it is near the top of the yield, and below it whole runs start coming back
@@ -205,7 +206,7 @@ sequence.
 `primer-finder design` does this part: Primer3 on the regions, a check of what would make each assay
 selective, and the primer files for in silico PCR. It aims its requests at the differences a single oligo
 could cover — which is what step 3 selected the region for — and by default carries no further an assay
-that covers fewer than two of them under one oligo. See [Designing assays](Designing-assays), which also
+that covers fewer than two of them under one **primer** (the probe does not count). See [Designing assays](Designing-assays), which also
 explains how the assays are ordered and why the total number of differences under the primers matters more
 than a single one at the 3' end.
 

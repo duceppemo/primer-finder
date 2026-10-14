@@ -14,9 +14,11 @@ MIN_KMER_SIZE, MAX_KMER_SIZE = 1, 256  # What KMC accepts
 # What KMC accepts for -m. Its own help says "from 1 to 1024", but 1 is refused at run time with
 # "min memory must be at least 2GB", so the floor here is 2 -- measured, not read off the help.
 MIN_MEMORY_GB, MAX_MEMORY_GB = 2, 1024
-# KMC stores a count in one byte unless -cs says otherwise, so a kmer seen more than 255 times is reported
-# as 255. It applies -ci/-cx to the true count before saturating, so a high -ci still matches; what the
-# ceiling would cost is the count itself, which the max_count check below needs to be exact.
+# KMC stores a count in one byte unless -cs says otherwise, so a kmer seen more than 255 times counts as
+# 255, and -ci/-cx are applied to that saturated value rather than to the true one. Measured with kmc
+# 3.2.4 on one kmer repeated 300 times: with no -cs, -ci250 reports it with a count of 255 while -ci256
+# and -ci300 match nothing at all; -cs300 reports the true 300. So -cs has to be raised whenever the
+# inclusion threshold could pass 255.
 DEFAULT_COUNTER_MAX = 255
 # KMC's largest accepted kmer count: enough to mean "no upper limit" for the exclusion group.
 NO_MAX_COUNT = 1_000_000_000

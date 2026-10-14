@@ -24,7 +24,8 @@ lower case and their positions in the header, the most promising first. Design t
 variable positions in the primers, at their 3' end, rather than in the probe.
 
 primer-finder only keeps perfect matches: a kmer must be in **all** the inclusion genomes with no mismatch,
-and in **none** of the exclusion genomes. It is therefore very sensitive to the quality of the assemblies and
+and in **none** of the exclusion genomes (`-p/--min-inclusion` relaxes the first half when some of the
+inclusion genomes are incomplete). It is therefore very sensitive to the quality of the assemblies and
 to how the genomes were assigned to the two groups. Curate the input genomes;
 [genome_comparator](https://github.com/duceppemo/genome_comparator) helps with that.
 
@@ -36,6 +37,6 @@ to how the genomes were assigned to the two groups. Curate the input genomes;
 | [Methods](Methods) | what each step does, the filtering rules, limits |
 | [Outputs](Outputs) | every file and field |
 | [Example](Example) | the simulated dataset and its expected result |
-| [Validation](Validation) | finding four published qPCR assays in public genomes |
+| [Validation](Validation) | finding published qPCR assays in public genomes: four *Xylella* subspecies, nine *Listeria* clonal complexes |
 | [FAQ](FAQ) | troubleshooting, "no contig passed" |
 | [Development](Development) | tests, continuous integration, releases |
