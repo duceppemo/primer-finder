@@ -126,6 +126,8 @@ bash validation/brucella/run.sh /path/to/work 48 128
 | `group_genomes.py` | builds the inclusion and exclusion folders of one target |
 | `check_assay.py` | looks for the oligos in `final_kmers.fasta` and decides whether the assay was recovered |
 | `check_design.py` | asks whether `design` proposes the published oligos on the region that holds them |
+| `score_assays.py` | any set of assays against the whole panel on one yardstick: published and proposed alike |
+| `thermo.py` | Tm and secondary structure of any set of oligos, under the design command's own conditions |
 
 **The panel is rebuilt, not reproduced.** Supplementary Table S2 of the paper gives only the number of
 assemblies per species, not their accessions, so `panel.py` applies the same rule to today's RefSeq: every

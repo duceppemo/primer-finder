@@ -224,3 +224,6 @@ panel will differ from this one as RefSeq grows; `panel.tsv.gz` pins what was us
 | `runs.tsv` | the 17 runs at the default kmer size, with region counts and whether the assay came out |
 | `ksweep.tsv` | the 24 runs sweeping `-k` over 71, 51 and 31 |
 | `design_genus.json` | what `design` proposed on the recovered genus region, against the published oligos |
+
+[`ALTERNATIVES.md`](ALTERNATIVES.md) beside this file asks the other question — what primer-finder proposes
+of its own on the same genomes, and whether any of it beats the published assays.

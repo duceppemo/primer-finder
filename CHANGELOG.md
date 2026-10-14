@@ -4,6 +4,30 @@
 
 ### Added
 
+- **Two more tools in the *Brucella* harness, and a record of what primer-finder proposes of its own**
+  (`validation/brucella/score_assays.py`, `thermo.py`, record in
+  `validation/results/2026-10-14_v1.7.0_brucella/ALTERNATIVES.md`). `score_assays.py` puts any set of
+  assays — published or proposed — against the whole panel on one yardstick; `thermo.py` measures Tm and
+  secondary structure for any oligos under the design command's own default conditions, each oligo in a
+  request of its own so that one value over a limit does not blank the rest.
+
+  Asked for alternatives to the published assays, `design` proposes 520 for the genus target and 15 and 98
+  for *B. abortus* and *B. melitensis*. Five genus candidates reach 100% in-silico coverage of the panel
+  species where the published assay reaches 99.85%, with nothing in the exclusion group; the species
+  candidates gain one and two genomes and rest on two differences under one primer rather than one. None
+  is an improvement worth acting on: the margins are a fraction of a percent, the genus candidates trade
+  panel coverage for breadth across the genus, and only the published assays have wet-lab validation.
+
+  The useful finding is about the defaults. **Three of the four published assays exceed
+  `--max-hairpin-tm` 47 °C** — the *B. melitensis* forward primer is predicted at 76.4 °C — and all four
+  are validated on 235 target and 192 non-target strains. `design` would never have proposed them. That is
+  the only wet-lab evidence in the validation suite bearing on that limit, and it says the limit is
+  conservative enough to reject assays that work.
+
+  Also measured: no *B. suis* region exists on this panel at any `-k` or `-p` tried, because *B. canis*
+  sits inside *B. suis* and 74 *B. canis* genomes are in the exclusion group. That target needs its groups
+  redrawn rather than its settings changed.
+
 - **A third validation record, and the first against assays this software itself produced**
   (`validation/brucella/`, record in `validation/results/2026-10-14_v1.7.0_brucella/`). The four published
   *Brucella* assays of Hoover et al. 2026 (doi:10.1128/spectrum.02974-25) were designed on unique core
