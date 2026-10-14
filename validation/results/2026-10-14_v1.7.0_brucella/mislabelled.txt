@@ -1,0 +1,19 @@
+# Assemblies this panel's census shows cannot carry the species label RefSeq gives them: each holds all
+# three oligos of exactly one of the paper's species assays, and it is not the assay of its own label,
+# while no genome of the panel holds two. Left in the exclusion group they remove a region that is
+# specific to the species they actually belong to. `run.sh` runs each target twice, once with them and
+# once without, because the two answer different questions.
+#
+# accession        RefSeq label   the assay it carries
+GCF_055389475.1  # melitensis     abortus   (complete genome)
+GCF_016091955.1  # abortus        melitensis
+GCF_016091965.1  # abortus        melitensis
+GCF_018604785.1  # abortus        melitensis
+GCF_041861985.1  # abortus        melitensis
+GCF_000292045.1  # abortus        suis
+GCF_055388155.1  # melitensis     suis      (complete genome)
+# The paper's own Table S5 revises this one from B. inopinata BO1 to B. canis; by assay content it is
+# B. suis. A 102 bp amplicon is weaker evidence than the Mash, SNP, PubMLST and phylogenetic analysis
+# behind that table, so it is listed here only because it is why the B. suis assay shows one exclusion
+# hit on the panel as labelled.
+GCF_000662015.2  # canis (paper)  suis

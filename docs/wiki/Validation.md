@@ -47,6 +47,16 @@ What it does not show: that the other hundreds of regions in each run would make
 about specificity outside those 25 genomes. Those regions are candidates to design on, which is what the
 [Methods](Methods) page means by a candidate.
 
+### Running the *Xylella* test
+
+```bash
+bash validation/xylella/run.sh /path/to/work 16 32
+```
+
+It needs primer-finder and its programs, plus the NCBI datasets command line tool
+(`conda install -c conda-forge ncbi-datasets-cli`), downloads the genomes once, and exits non-zero if any of
+the four assays is not recovered. A few minutes, most of it downloading.
+
 ## Designing assays on those regions
 
 `validation/results/2026-10-08_v1.2.0/SUMMARY.md` records a run of
@@ -139,12 +149,59 @@ conda activate primer-finder_listeria
 bash validation/listeria/run.sh /path/to/work 32 64
 ```
 
-### Running the *Xylella* test
+## Four published *Brucella* assays, found with this tool's own ancestor
+
+`validation/brucella/` is the only record so far where the published assays were designed with **this
+software** — one of the paper's eleven authors maintains it:
+
+> Hoover E., Chmara J., Duceppe M., Charron P., Lloyd D., Huang H., Surujballi O.,
+> Thanthrige-Don N., Arnold K., Hazelwood J., Kang M. (2026) *Two novel real-time PCR assays for
+> Brucella detection: a species-specific multiplex and a genus-level singleplex developed via
+> large-scale whole genome sequencing data analysis.* Microbiology Spectrum 14:e02974-25.
+> [doi:10.1128/spectrum.02974-25](https://doi.org/10.1128/spectrum.02974-25)
+
+Its unique core sequences came from `selective_primer_finder 0.2.1`, which primer-finder is the rewrite
+of, so the question is whether the rewrite still finds what its ancestor found. The panel is rebuilt from
+RefSeq rather than reproduced — the paper publishes species counts, not accessions — giving 1,376 classical
+*Brucella* (873 of them contig-level drafts) against 315 non-classical relatives.
+
+### Result, primer-finder 1.7.0
+
+| assay | present in | recovered |
+|---|---|---|
+| Bru_genus (genus-level, 93 bp) | 1,374 of 1,376 classical genomes, 0 of 315 relatives | **yes**, at `-p 0.99`, in a 127 bp region |
+| BA (*B. abortus*, 75 bp) | 391 of 398 | no |
+| BM_10 (*B. melitensis*, 147 bp) | 728 of 734 | no |
+| BS (*B. suis*, 102 bp) | 114 of 120 | no |
+
+**The genus assay is recovered, and only because of a change made in 1.6.0.** Its region is 127 bases
+long, and before 1.6.0 both assemblers were left at their own 200 bp minimum, so no region that short
+could be reported at all. On the *Listeria* panel removing that floor changed no verdict; here it is the
+difference between recovering a published assay and not. Having found the region, `design` proposes a
+primer pair sharing 18 of 19 bases with the published forward primer, with a 92-94 bp amplicon against the
+published 93.
+
+**The three species assays are not recovered, and the reason is a rule 0.2.1 did not have.** The kmer step
+finds the signatures — 16 of the 25 51-mer windows of the *B. abortus* amplicon are among the
+inclusion-specific 51-mers — but the find rule then asks for two differences close enough to sit under one
+primer. Measured against the nearest relative, the published assays rest on one mismatch (BA), two
+mismatches 114 bases apart (BM_10), or a 21-base stretch that does not align (BS). The rule is deliberate
+and the default `--min-primer-differences 2` is the same judgement; 0.2.1 simply kept any unique core
+sequence longer than 28 bp. Recovering this class of assay would need the `find` side to keep a region on
+a single difference, which is a change to the tool and not to the record.
+
+The census also reproduces the paper independently in three places — the two genomes that lack the genus
+assay are the two the paper names, both over-fragmented *B. suis* assemblies match its Table S4 contig for
+contig, and no genome of the 1,794 carries two species assays — and it finds eight further RefSeq
+assemblies whose species label cannot be right, extending the paper's own Table S5 from six to fourteen.
+The full record is in
+[`2026-10-14_v1.7.0_brucella/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-14_v1.7.0_brucella/SUMMARY.md).
+
+### Running the *Brucella* test
 
 ```bash
-bash validation/xylella/run.sh /path/to/work 16 32
+conda install -c conda-forge ncbi-datasets-cli
+bash validation/brucella/run.sh /path/to/work 48 128
 ```
 
-It needs primer-finder and its programs, plus the NCBI datasets command line tool
-(`conda install -c conda-forge ncbi-datasets-cli`), downloads the genomes once, and exits non-zero if any of
-the four assays is not recovered. A few minutes, most of it downloading.
+About 6 GB of genomes, a minute or two per target and ten minutes for the census.

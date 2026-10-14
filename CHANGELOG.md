@@ -1,5 +1,36 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **A third validation record, and the first against assays this software itself produced**
+  (`validation/brucella/`, record in `validation/results/2026-10-14_v1.7.0_brucella/`). The four published
+  *Brucella* assays of Hoover et al. 2026 (doi:10.1128/spectrum.02974-25) were designed on unique core
+  sequences found with `selective_primer_finder 0.2.1`, which this package is the rewrite of.
+
+  The genus-level assay is recovered, at `-p 0.99`, in a **127 bp** region — which 1.5.0 could not have
+  reported at all, since both assemblers were left at their own 200 bp minimum until 1.6.0. On the
+  *Listeria* panel removing that floor changed no verdict; here it is the difference between recovering a
+  published assay and not. `design`, run on that region, proposes a primer pair sharing 18 of 19 bases
+  with the published forward primer and an amplicon of 92-94 bp against the published 93.
+
+  The three species assays are **not** recovered, and the record measures why: they rest on one mismatch
+  (*B. abortus*), on two mismatches 114 bases apart (*B. melitensis*), or on a 21-base stretch that does
+  not align (*B. suis*), while the find rule asks for two differences within 25 bases so that one primer
+  can carry both. The kmer step does find the signatures — 16 of the 25 51-mer windows of the *B. abortus*
+  amplicon are among the inclusion-specific 51-mers — so the limit is that rule, which 0.2.1 did not have.
+  Recovering this class of assay would need the `find` side to keep a region on a single difference; that
+  is not changed here.
+
+  Two limitations the record exposes, neither fixed yet: at `-k 31` SKESA cannot assemble the specific
+  kmers at all ("Was not able to assemble anything", with `--min_count 1` and `--kmer 21` making no
+  difference), so the advice the "too few kmers" error gives runs into a different wall and a region
+  shorter than roughly 50 bases cannot come out of the pipeline whatever the kmer size; and one genome
+  filed under the wrong species removes every kmer of the region that distinguishes it — on the panel as
+  labelled, the species targets return nothing at all, where holding out eight demonstrably mislabelled
+  assemblies gives 1 to 11 regions.
+
 ## 1.7.0
 
 ### Fixed

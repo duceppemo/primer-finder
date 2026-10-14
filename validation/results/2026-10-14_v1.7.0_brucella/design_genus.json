@@ -1,0 +1,55 @@
+{
+  "assay": "Bru_genus",
+  "target": "genus",
+  "region": "Contig_1467_53.243",
+  "region_bp": 127,
+  "proposed": 16,
+  "exact": {
+    "forward": [],
+    "reverse": [],
+    "probe": []
+  },
+  "overlapping": {
+    "forward": [
+      "Contig_1467_53.243_assay12",
+      "Contig_1467_53.243_assay5",
+      "Contig_1467_53.243_assay3",
+      "Contig_1467_53.243_assay4",
+      "Contig_1467_53.243_assay6",
+      "Contig_1467_53.243_assay14",
+      "Contig_1467_53.243_assay15",
+      "Contig_1467_53.243_assay7",
+      "Contig_1467_53.243_assay8",
+      "Contig_1467_53.243_assay13"
+    ],
+    "reverse": [
+      "Contig_1467_53.243_assay5",
+      "Contig_1467_53.243_assay3",
+      "Contig_1467_53.243_assay4",
+      "Contig_1467_53.243_assay6",
+      "Contig_1467_53.243_assay14",
+      "Contig_1467_53.243_assay15",
+      "Contig_1467_53.243_assay9",
+      "Contig_1467_53.243_assay10",
+      "Contig_1467_53.243_assay11",
+      "Contig_1467_53.243_assay0",
+      "Contig_1467_53.243_assay7",
+      "Contig_1467_53.243_assay8",
+      "Contig_1467_53.243_assay13",
+      "Contig_1467_53.243_assay1",
+      "Contig_1467_53.243_assay2"
+    ],
+    "probe": [
+      "Contig_1467_53.243_assay12",
+      "Contig_1467_53.243_assay5",
+      "Contig_1467_53.243_assay3",
+      "Contig_1467_53.243_assay4",
+      "Contig_1467_53.243_assay6",
+      "Contig_1467_53.243_assay14",
+      "Contig_1467_53.243_assay15",
+      "Contig_1467_53.243_assay7",
+      "Contig_1467_53.243_assay8",
+      "Contig_1467_53.243_assay13"
+    ]
+  }
+}

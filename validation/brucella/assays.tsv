@@ -1,0 +1,17 @@
+# The four published real-time PCR assays of Hoover E., Chmara J., Duceppe M., Charron P., Lloyd D.,
+# Huang H., Surujballi O., Thanthrige-Don N., Arnold K., Hazelwood J. and Kang M. (2026), "Two novel
+# real-time PCR assays for Brucella detection: a species-specific multiplex and a genus-level singleplex
+# developed via large-scale whole genome sequencing data analysis", Microbiol Spectr 14:e02974-25,
+# doi:10.1128/spectrum.02974-25 -- their Table 1. One genus-level singleplex and a three-species multiplex.
+#
+# The regions were found with selective_primer_finder 0.2.1 (the direct ancestor of this package) and RUCS
+# 1.0.3, on 1,597 assemblies the authors built from SRA reads, and then checked in silico against 1,160
+# classical Brucella and 194 non-Brucella RefSeq assemblies.
+#
+# Probe sequences are given without their dye (FAM, ABY or JUN on the 5' end) and quencher (QSY).
+# `locus` is the annotation the paper reports the region in (its Table 2).
+target	assay	forward	reverse	probe	amplicon_bp	locus
+genus	Bru_genus	CGCGCATGATACCACTTCT	GTGTTCGCGCATGTTGAAG	AGGTGCGGTCGATAAACTTCTGGAAC	93	B977_RS112010
+abortus	BA	CATACAACCGCCATGGGT	CTCTCGCGCCGTATCAG	ACAGACGGTCGGCCATTCCA	75	B977_RS114980
+melitensis	BM_10	ATGGTCGGCAACGAGTG	GCGGCGAAGGAACAAGT	CTGCCTGTTTGGCCTGATAGT	147	BME_RS11770
+suis	BS	CCATAAAGCGCAAAGATCACAA	AACCCTGTCGTCATGAAGTG	CACCGTAGAGAATGCCCACTGCAT	102	BR_RS17450

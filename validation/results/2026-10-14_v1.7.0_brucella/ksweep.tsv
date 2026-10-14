@@ -1,0 +1,25 @@
+target	panel	k	p	status	regions	recovered	rank	region_bp	seconds
+genus	corrected	71	0.998	ok	3246	False	-	-	154
+genus	corrected	51	0.998	ok	3589	False	-	-	137
+genus	corrected	31	0.998	ok	2319	False	-	-	93
+genus	as_labelled	71	0.998	ok	3229	False	-	-	153
+genus	as_labelled	51	0.998	ok	3594	False	-	-	138
+genus	as_labelled	31	0.998	ok	2330	False	-	-	97
+abortus	corrected	71	0.994	ok	2	False	-	-	63
+abortus	corrected	51	0.994	No contig differs enough	0		-	-	43
+abortus	corrected	31	0.994	failed	0		-	-	39
+abortus	as_labelled	71	0.994	failed	0		-	-	53
+abortus	as_labelled	51	0.994	failed	0		-	-	46
+abortus	as_labelled	31	0.994	failed	0		-	-	39
+melitensis	corrected	71	0.994	ok	11	False	-	-	73
+melitensis	corrected	51	0.994	ok	5	False	-	-	55
+melitensis	corrected	31	0.994	failed	0		-	-	42
+melitensis	as_labelled	71	0.994	No inclusion-specific kmer	0		-	-	53
+melitensis	as_labelled	51	0.994	No inclusion-specific kmer	0		-	-	45
+melitensis	as_labelled	31	0.994	No inclusion-specific kmer	0		-	-	41
+suis	corrected	71	0.95	ok	0	False	-	-	64
+suis	corrected	51	0.95	failed	0		-	-	45
+suis	corrected	31	0.95	failed	0		-	-	39
+suis	as_labelled	71	0.95	No inclusion-specific kmer	0		-	-	52
+suis	as_labelled	51	0.95	No inclusion-specific kmer	0		-	-	44
+suis	as_labelled	31	0.95	No inclusion-specific kmer	0		-	-	39

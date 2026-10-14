@@ -107,7 +107,7 @@ maintained in [`docs/wiki`](https://github.com/duceppemo/primer-finder/blob/main
 | [Methods](https://github.com/duceppemo/primer-finder/wiki/Methods) | what each step does, the filtering rules, limits |
 | [Outputs](https://github.com/duceppemo/primer-finder/wiki/Outputs) | every file and field |
 | [Example](https://github.com/duceppemo/primer-finder/wiki/Example) | the simulated dataset and its expected result |
-| [Validation](https://github.com/duceppemo/primer-finder/wiki/Validation) | finding published qPCR assays in public genomes: four *Xylella* subspecies, nine *Listeria* clonal complexes |
+| [Validation](https://github.com/duceppemo/primer-finder/wiki/Validation) | finding published qPCR assays in public genomes: four *Xylella* subspecies, nine *Listeria* clonal complexes, four *Brucella* assays |
 | [FAQ](https://github.com/duceppemo/primer-finder/wiki/FAQ) | troubleshooting, "no contig passed" |
 | [Development](https://github.com/duceppemo/primer-finder/wiki/Development) | tests, continuous integration, releases |
 

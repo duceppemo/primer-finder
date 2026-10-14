@@ -86,3 +86,55 @@ genome and differs from every exclusion genome, so an assay the census shows is 
 its own complex, or present in one genome of another, cannot be reported — and should not be. On this panel
 that is true of four of the nine complex-wide assays, which is why they are not recovered. The record sets
 out which, and why.
+
+## brucella: a genus assay and a three-species multiplex, on the tool's own ancestor
+
+`validation/brucella/` is the first record where the published assays were found with **this software**
+(one of the paper's eleven authors maintains it):
+
+> Hoover E., Chmara J., Duceppe M., Charron P., Lloyd D., Huang H., Surujballi O.,
+> Thanthrige-Don N., Arnold K., Hazelwood J., Kang M. (2026) *Two novel real-time PCR assays for
+> Brucella detection: a species-specific multiplex and a genus-level singleplex developed via
+> large-scale whole genome sequencing data analysis.* Microbiology Spectrum 14:e02974-25.
+> [doi:10.1128/spectrum.02974-25](https://doi.org/10.1128/spectrum.02974-25)
+
+Its four assays — one genus-level singleplex and a *B. abortus* / *B. melitensis* / *B. suis* multiplex —
+were designed on unique core sequences found with `selective_primer_finder 0.2.1` and RUCS 1.0.3, on 1,597
+assemblies the authors built from SRA reads. primer-finder is the rewrite of that 0.2.1, so this record
+asks whether the rewrite still finds what its ancestor found, on a panel rebuilt from RefSeq.
+
+Two things make it a harder test than the first two records:
+
+- **the groups are closely related and very unequal.** *B. canis* sits inside *B. suis* phylogenetically,
+  and the exclusion group of a species target is every other classical species — 1,571 genomes against 120
+  for *B. suis*;
+- **the panel is draft-heavy.** 872 of the 1,376 classical genomes are contig-level assemblies, which is
+  the hostile case for a rule that asks for an exact match in *every* inclusion genome.
+
+```bash
+conda install -c conda-forge ncbi-datasets-cli
+bash validation/brucella/run.sh /path/to/work 48 128
+```
+
+| File | What it holds |
+|---|---|
+| `assays.tsv` | the four published primer-and-probe sets (their Table 1), without the dyes and quencher |
+| `panel.py` | rebuilds the panel from RefSeq and labels each genome; the paper's accessions are not published |
+| `verify_amplicon.py` | measures each published amplicon in a real genome before it is trusted as a key |
+| `census.py` | blasts every published oligo against every genome: the ceiling on what could be recovered |
+| `mislabelled.txt` | the assemblies whose RefSeq species label the census shows cannot be right |
+| `group_genomes.py` | builds the inclusion and exclusion folders of one target |
+| `check_assay.py` | looks for the oligos in `final_kmers.fasta` and decides whether the assay was recovered |
+| `check_design.py` | asks whether `design` proposes the published oligos on the region that holds them |
+
+**The panel is rebuilt, not reproduced.** Supplementary Table S2 of the paper gives only the number of
+assemblies per species, not their accessions, so `panel.py` applies the same rule to today's RefSeq: every
+assembly of the eight classical species the paper's panel holds, and of the four non-classical groups it
+used as negatives. RefSeq has grown since October 2020, so the groups are larger than the paper's — 1,376
+classical against 315 non-classical, where the paper had 1,160 against 194.
+
+**Read `census.tsv` beside the results**, as in the *Listeria* record, and `mislabelled.txt` beside that.
+Eight assemblies of this panel carry all three oligos of exactly one species assay and it is not the assay
+of their own RefSeq label, while no genome of the panel carries two. Left in the exclusion group they
+remove a region that is specific to the species they really belong to, so every target is run twice: once
+on the panel as labelled, once with those eight held out.
