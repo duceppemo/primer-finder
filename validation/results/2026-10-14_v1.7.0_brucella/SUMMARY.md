@@ -190,6 +190,11 @@ Two secondary observations from the same runs:
   than roughly 50 bases cannot currently come out of this pipeline whatever the kmer size, because the
   assembly step cannot build it.
 
+  **Since fixed, by `-a unitig`** (`unitig_demo.tsv`): the same 31,256 31-mers give 1,237 contigs and 81
+  reported regions, and the 23,413 51-mers give 615 contigs and 4 regions where SKESA gave 5 and none.
+  None of those regions holds a published assay — the find rule is still the blocker, as the rest of this
+  record sets out — so the verdicts above stand unchanged.
+
 ## What would have to change to recover the species assays
 
 Nothing about the panel or the settings: the limit is the find rule, and no `-k`, `-p` or panel correction

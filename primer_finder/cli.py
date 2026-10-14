@@ -68,7 +68,10 @@ def build_parser(max_cpu: int, max_mem: int) -> argparse.ArgumentParser:
                       help="Exclusion genome to map the assembled kmers to. Default is the first genome of "
                            "the exclusion folder in alphabetical order.")
     find.add_argument("-a", "--assembler", metavar="skesa", default="skesa", choices=assemble.ASSEMBLERS,
-                      help='Assembler for the kmers: "skesa" or "spades". Default skesa.')
+                      help='How to assemble the kmers: "skesa", "spades" or "unitig". Default skesa. '
+                           '"unitig" needs no external program and builds every stretch the kmers '
+                           'determine, including the short ones and the few: an assembler made for '
+                           'sequencing reads treats a kmer seen once as error and discards it.')
     find.add_argument("--keep-intermediate", action="store_true",
                       help="Keep the KMC databases, the SAM file and the blast databases.")
     find.add_argument("--debug", action="store_true", help="Verbose logging.")

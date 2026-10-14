@@ -98,7 +98,7 @@ def _run(settings: Settings) -> int:
         "inclusion_genomes": [str(path) for path in inclusion],
         "exclusion_genomes": [str(path) for path in exclusion],
         "reference": str(reference),
-        "programs": tools.versions(sorted({*BASE_PROGRAMS, assemble.PROGRAMS[settings.assembler]})),
+        "programs": tools.versions(sorted({*BASE_PROGRAMS, *assemble.programs_for(settings.assembler)})),
         "counts": {},
     }
     counts: dict[str, int] = info["counts"]  # type: ignore[assignment]
@@ -176,7 +176,7 @@ def check(settings: Settings) -> tuple[list[Path], list[Path], Path]:
     else:
         reference = exclusion[0]  # The first one in alphabetical order, so that a run can be repeated
 
-    tools.require(sorted({*BASE_PROGRAMS, assemble.PROGRAMS[settings.assembler]}))
+    tools.require(sorted({*BASE_PROGRAMS, *assemble.programs_for(settings.assembler)}))
     return inclusion, exclusion, reference
 
 

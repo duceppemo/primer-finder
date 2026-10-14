@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from primer_finder import tools
-from primer_finder.seqio import Record
+from primer_finder.seqio import Record, reverse_complement
 
 log = logging.getLogger(__name__)
 
@@ -39,7 +39,6 @@ FLAG_REVERSE = 0x10
 FLAG_SECONDARY = 0x100
 FLAG_SUPPLEMENTARY = 0x800
 
-COMPLEMENT = str.maketrans("ACGTNacgtnRYKMBDHVrykmbdhv", "TGCANtgcanYRMKVHDByrmkvhdb")
 
 
 @dataclass
@@ -63,11 +62,6 @@ class Candidate:
 
     def as_record(self) -> Record:
         return Record(self.name, self.desc, self.seq)
-
-
-def reverse_complement(seq: str) -> str:
-    """The reverse complement of a sequence, keeping the case of each base."""
-    return seq.translate(COMPLEMENT)[::-1]
 
 
 def parse_cigar(cigar: str) -> list[tuple[int, str]]:

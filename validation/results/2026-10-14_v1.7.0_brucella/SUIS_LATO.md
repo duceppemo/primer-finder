@@ -82,12 +82,14 @@ but it does not get a *B. suis* sensu lato assay out of primer-finder 1.7.0. The
    reach for without this record;
 2. **the assembler will not build a contig from 15 kmers**, so the run ends in an error even though the
    kmer step succeeded. The same limitation as the `-k 31` failure in [`SUMMARY.md`](SUMMARY.md), from the
-   other end of the kmer range;
+   other end of the kmer range. **Since fixed**: `-a unitig` builds the 215-base stretch from those 15
+   kmers and the run reaches step 3, where it is turned down for the reason below. `unitig_demo.tsv`
+   records both assemblers on this run and on two others;
 3. **the find rule rejects the locus anyway**: one difference from *B. abortus*, two 34 bases apart from
    *B. melitensis*. This is the same wall as the three published species assays, and it is not about
    settings.
 
-The locus is in `suis_lato_stretches.fasta` for anyone who wants to design on it by hand. An assay there
+The locus is in `suis_lato_stretches.fasta`, and `-a unitig` now assembles it in the run itself. An assay there
 would discriminate *B. suis* and *B. canis* from *B. abortus* on **a single base at position 179** — the
 same class of assay as the published BA, and the same reason primer-finder declines to propose it.
 

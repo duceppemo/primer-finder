@@ -52,11 +52,11 @@ while read -r genome; do ln -sf "$genome" exclusion/; done < exclusion.list
 | `-t`, `--threads` | every CPU | CPUs for KMC, the assembler, minimap2, and how many genomes are blasted at a time. |
 | `-m`, `--memory` | 85% of the memory | Memory in GB, passed to KMC and the assembler. KMC refuses less than 2 GB, so it is given at least 2 whatever this says, and the default is never below 2. |
 | `-k`, `--kmer_size`, `--kmer-size` | 99 | Kmer size for KMC, 1-256. A shorter kmer finds **fewer** regions, not more, and at 51 and below whole runs start coming back empty — see [Methods](Methods#1-the-kmers-only-the-inclusion-group-has-kmc) for the measurement. Longer is more sensitive to assembly errors. |
-| `--min-region` | the kmer size | The shortest candidate region to report. An assembler stops at 200 bases of its own accord, which would hide every specific stretch shorter than that — and those are commonest where the two groups are closely related. Only SKESA can be asked for less; `-a spades` warns and still stops at 200. |
+| `--min-region` | the kmer size | The shortest candidate region to report. An assembler stops at 200 bases of its own accord, which would hide every specific stretch shorter than that — and those are commonest where the two groups are closely related. SKESA and `-a unitig` can be asked for less; `-a spades` warns and still stops at 200. |
 | `-d`, `--duplication` | 1 | How many times a kmer may occur in each inclusion genome. 1 discards repeated regions, which make poor assays. |
 | `-p`, `--min-inclusion` | 1.0 | The fraction of the inclusion genomes a kmer has to be in, rounded up to a whole number of genomes. 1.0 means every one of them. |
 | `-r`, `--reference` | the first exclusion genome, alphabetically | Which exclusion genome the contigs are mapped to, to find their differences. It must be one of the genomes in the exclusion folder. |
-| `-a`, `--assembler` | `skesa` | `skesa` or `spades`, to assemble the inclusion-specific kmers. |
+| `-a`, `--assembler` | `skesa` | `skesa`, `spades` or `unitig`, to assemble the inclusion-specific kmers. `unitig` needs no external program and keeps every stretch the kmers determine, including the short ones and the few: an assembler built for sequencing reads treats a kmer seen once as error. Worth choosing when a run ends at "could not assemble" — see [Methods](Methods#2-assembling-the-kmers-a-unitig-walk-skesa-or-spades). |
 | `--keep-intermediate` | off | Keep the KMC databases, the kmer dump, the SAM file and the blast databases. |
 | `--debug` | off | Log every command line and the output of every program. |
 | `-v`, `--version` | | Print the version. |

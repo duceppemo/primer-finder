@@ -4,6 +4,42 @@
 
 ### Added
 
+- **`-a unitig`: assemble the inclusion-specific kmers without an assembler.** SKESA and SPAdes are built
+  for sequencing reads — they estimate coverage, treat what they see once as error, and reconcile
+  disagreement. A kmer set has none of those problems: every kmer is an exact substring of real genomes,
+  present or absent with nothing in between. So a coverage model has nothing to do here except throw the
+  signal away, and that is what it does.
+
+  What is left once the noise handling goes is the de Bruijn graph on `k-1`-mers and one rule for walking
+  it: extend while the step is forced — exactly one way on, and exactly one way in. A stretch so built is
+  one the kmers determine rather than a choice between alternatives, the answer does not depend on the
+  order the kmers arrive in, and it needs no external program, so the package stays standard-library only.
+
+  Measured on the *Brucella* panel (`validation/results/2026-10-14_v1.7.0_brucella/unitig_demo.tsv`):
+
+  | the kmers of one run | SKESA | `-a unitig` |
+  |---|---|---|
+  | 15 201-mers | nothing: "was not able to assemble anything" | the one 215-base stretch they spell out |
+  | 23,413 51-mers | 5 contigs, no region past step 3 | 615 contigs, **4 regions** |
+  | 31,256 31-mers | exits 1, nothing assembled | 1,237 contigs, **81 regions** |
+  | 866,421 99-mers | 5,326 contigs | 11,891 contigs, about 15 seconds |
+
+  On the bundled example it reports the same region as SKESA and 52 bases more of it. **It is not the
+  default**: the two assemblers have years of use behind their output and this does not. Reach for it when
+  a run ends at "could not assemble", when the specific stretches are short, or when there are few kmers —
+  and the error from the other assemblers now says so. Two things to know: the floor `--min-region` asks
+  for is honoured exactly, down to a single kmer, where SPAdes cannot go below about 200 bases; and a kmer
+  set says nothing about which strand it came from, so a stretch may come back as the reverse complement
+  of what another assembler would give.
+
+  This removes one of the two limitations the *Brucella* record left open. It does not change any verdict
+  there: no region it newly reports holds a published assay, because the blocker for those is the find
+  rule rather than the assembly step.
+
+- `seqio.reverse_complement` — moved from `mapping`, which the assembly step now needs too. It stays
+  importable from `primer_finder.mapping` as well, so nothing that used it there has to change.
+
+
 - **A `suis_lato` target, and the measured reason there is no *B. suis* assay** (record in
   `validation/results/2026-10-14_v1.7.0_brucella/SUIS_LATO.md`). *B. canis* is a lineage inside
   *B. suis*, so the `suis` target reports nothing at any setting; this target puts both species in the

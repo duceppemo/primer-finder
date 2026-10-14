@@ -20,6 +20,15 @@ MOST_LISTED = 5
 EXTENSIONS = (".fa", ".fasta", ".fna", ".fa.gz", ".fasta.gz", ".fna.gz")
 
 
+# Every IUPAC code and both cases, so that a masked or ambiguous base survives the round trip.
+COMPLEMENT = str.maketrans("ACGTNacgtnRYKMBDHVrykmbdhv", "TGCANtgcanYRMKVHDByrmkvhdb")
+
+
+def reverse_complement(seq: str) -> str:
+    """The reverse complement of a sequence, keeping the case of each base."""
+    return seq.translate(COMPLEMENT)[::-1]
+
+
 @dataclass
 class Record:
     """One fasta entry: its name (the first word of the header), the rest of the header, and its sequence."""

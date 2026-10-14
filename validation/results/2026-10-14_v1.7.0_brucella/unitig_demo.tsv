@@ -1,0 +1,7 @@
+target	k	p	assembler	status	kmers	contigs	regions	seconds
+suis_lato	201	0.95	skesa	could not assemble	15	0	0	119
+suis_lato	201	0.95	unitig	No contig differs enough	15	1	0	92
+abortus	51	0.994	skesa	No contig differs enough	23413	5	0	44
+abortus	51	0.994	unitig	ok	23413	615	4	59
+melitensis	31	0.994	skesa	skesa failed (exit 1)	31256	0	0	39
+melitensis	31	0.994	unitig	ok	31256	1237	81	62

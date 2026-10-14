@@ -52,13 +52,15 @@ good starting point for bacteria: it is near the top of the yield, and below it 
 empty. 127 adds 4% more candidates and nothing else. A longer kmer is also more sensitive to assembly
 errors, since one wrong base spoils every kmer covering it.
 
-## 2. Assembling the kmers (SKESA or SPAdes)
+## 2. Assembling the kmers (a unitig walk, SKESA or SPAdes)
 
 ```
 skesa --cores <threads> --mem <memory> --fasta kmers.fasta --contigs_out assembly.fasta \
       --min_contig <kmer size>
 # or
 spades.py --s 1 kmers.fasta --isolate --only-assembler --threads <threads> --memory <memory> -o spades/
+# or, with no external program at all
+primer-finder ... -a unitig
 ```
 
 The kmers overlap one another by `k-1` bases, so assembling them turns thousands of kmers into a handful of
@@ -66,6 +68,30 @@ contigs: the specific regions themselves. This is only a way to have fewer and l
 the sequences are not new information. SKESA is the default and is faster here; SPAdes (`-a spades`)
 sometimes joins regions that SKESA leaves apart. `--only-assembler` is used because kmers carry no quality
 values to correct.
+
+**`-a unitig` assembles the kmers without an assembler, and keeps more of them.** SKESA and SPAdes are
+built for sequencing reads: they estimate coverage, treat what they see once as error, and reconcile
+disagreement between reads. None of that applies to a kmer set, where every kmer is an exact substring of
+real genomes and is present or absent with nothing in between — and a coverage model therefore throws the
+signal away. What is left once the noise handling goes is the de Bruijn graph on `k-1`-mers and a rule for
+walking it: extend while the step is forced, which means exactly one way on and exactly one way in. A
+stretch so built is one the kmers determine, never a guess between alternatives, and the result does not
+depend on the order the kmers arrive in.
+
+Measured on the *Brucella* panel, where the two differ most:
+
+| the kmers of one run | SKESA | `-a unitig` |
+|---|---|---|
+| 15 201-mers | nothing at all: "was not able to assemble anything" | the one 215-base stretch they spell out |
+| 23,413 51-mers | 5 contigs, and no region past step 3 | 615 contigs, **4 regions reported** |
+| 31,256 31-mers | exits 1, nothing assembled | 1,237 contigs, **81 regions reported** |
+| 866,421 99-mers | 5,326 contigs | 11,891 contigs, in about 15 seconds |
+
+On the bundled example it reports the same region as SKESA and 52 bases more of it. It is not the default:
+the two assemblers have years of use behind their output and this does not, so it is there to be chosen.
+Choose it when a run ends at "could not assemble", when the specific stretches are short, or when the kmer
+count is small — and note that a kmer set says nothing about which strand it came from, so a stretch may
+be reported as the reverse complement of what another assembler would give.
 
 **`--min_contig` is set to the kmer size, which is not the assembler's own default.** Both assemblers stop
 at 200 bases if left alone, and a kmer is 99: an inclusion-specific stretch shorter than 200 bases would
@@ -77,7 +103,9 @@ from 25 reported regions to 66, of which 41 are shorter than 200 bases (that run
 CC121 needs). `--min-region` sets the floor to
 something else.
 
-**Only SKESA can be asked for less.** `--min_contig` tells SKESA what to report. SPAdes has no such option
+**Only SKESA and the unitig walk can be asked for less.** `--min_contig` tells SKESA what to report, and
+`-a unitig` builds every stretch the kmers determine and then drops the short ones, so its floor is exactly
+what is asked for and the shortest it can report is a single kmer. SPAdes has no such option
 and its own floor is in graph simplification, not in what it writes: assembled from every 99-mer of a
 synthetic stretch, stretches of 150, 180 and 199 bases are already missing from its simplified graph, while
 210 and longer come through. So `-a spades` does not report the short regions however low the floor is set,
