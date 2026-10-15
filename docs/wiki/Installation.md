@@ -1,7 +1,7 @@
 # Installation
 
 primer-finder is a Python package with no Python dependency; what it needs are the programs it runs: KMC,
-SKESA or SPAdes, minimap2 and BLAST. Python 3.10 or later.
+SKESA or SPAdes (or neither, with `-a unitig`), minimap2 and BLAST. Python 3.10 or later.
 
 ## From bioconda (recommended)
 
@@ -54,7 +54,7 @@ Without installing anything, `python primer_finder.py ...` works from a clone an
 | `primer3_core` | designing assays on the regions (`primer-finder design`) | `primer3` >=2.6 |
 
 A missing program is reported before anything runs, with the conda package that provides it. Only the
-assembler you ask for has to be installed.
+assembler you ask for has to be installed, and `-a unitig` asks for none.
 
 [insilicoPCR](https://github.com/duceppemo/insilicoPCR) is **not** installed with primer-finder and is not
 needed to run it. It is a separate program, and `primer-finder design --insilico-pcr` points at an extracted

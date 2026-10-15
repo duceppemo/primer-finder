@@ -89,6 +89,42 @@ def test_a_collapsed_assembly_is_recorded_as_such(stubs, settings):
     assert info["parameters"]["assembler_used"] == "unitig"
 
 
+def test_a_refused_run_leaves_an_earlier_runs_files_alone(stubs, settings, tmp_path):
+    """Clean-up is armed only once the settings have been accepted. It deletes by fixed path under the
+    output folder, so a typo in `-i` used to take a previous run's `--keep-intermediate` files with it."""
+    first = settings(keep_intermediate=True)
+    assert run(first) == 0
+    kept = [first.output / "3_candidates" / "mapping.sam", first.output / "4_blast" / "exclusion_db"]
+    assert all(path.exists() for path in kept)
+    with pytest.raises(PrimerFinderError, match="inclusion folder does not exist"):
+        run(settings(inclusion=tmp_path / "typo", output=first.output))
+    assert all(path.exists() for path in kept), "a refused run deleted the previous run's files"
+
+
+def test_an_output_path_that_is_a_file_says_so(stubs, settings, tmp_path):
+    """mkdir's own FileExistsError, and then the clean-up tripping over it, used to surface as
+    "Not a directory: .../out.txt/1_kmers/inclusion.kmc_pre"."""
+    path = tmp_path / "out.txt"
+    path.write_text("not a folder\n")
+    with pytest.raises(PrimerFinderError, match="output path is a file, not a folder"):
+        run(settings(output=path))
+
+
+def test_a_failed_rerun_does_not_leave_the_previous_answer_behind(stubs, settings, caplog):
+    """run_info.json is only written by a run that reaches the end, so a folder was left holding the
+    previous run's regions with no record of where they came from -- and `design` pointed at it would
+    design on them."""
+    first = settings()
+    assert run(first) == 0
+    assert (first.output / "final_kmers.fasta").is_file()
+    stubs(kmers=[], shared_kmers=["ACGT" * 5])  # the second run stops at the kmer step
+    with pytest.raises(PrimerFinderError, match="No inclusion-specific kmer"):
+        run(settings(output=first.output))
+    assert not (first.output / "final_kmers.fasta").exists()
+    assert not (first.output / "run_info.json").exists()
+    assert "Replacing the results of an earlier run" in caplog.text
+
+
 def test_keep_intermediate(stubs, settings):
     scenario = settings(keep_intermediate=True)
     run(scenario)

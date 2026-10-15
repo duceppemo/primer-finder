@@ -85,7 +85,7 @@ Measured on the *Brucella* panel, where the two differ most:
 | 15 201-mers | nothing at all: "was not able to assemble anything" | the one 215-base stretch they spell out |
 | 23,413 51-mers | 5 contigs, and no region past step 3 | 615 contigs, **4 regions reported** |
 | 31,256 31-mers | exits 1, nothing assembled | 1,237 contigs, **81 regions reported** |
-| 866,421 99-mers | 5,326 contigs | 11,891 contigs, in about 15 seconds |
+| 55,570 99-mers (one *Listeria* target) | 76,241 bases in 485 contigs | 122,308 bases in 681 contigs |
 
 On the bundled example it reports the same region as SKESA and 52 bases more of it. It is not the default:
 the two assemblers have years of use behind their output and this does not, so it is there to be chosen.
@@ -95,8 +95,8 @@ another assembler would give.
 
 **A run does not have to ask for it to be rescued by it.** An assembler built for reads can get nothing at
 all out of a kmer set, and the error that used to end such a run advised a smaller `-k`, which runs into
-the same assembler from the other end. So when the chosen assembler assembles **less than 0.1 bases per
-kmer** the kmers are assembled directly instead, with a warning, and `run_info.json` records
+the same assembler from the other end. So when the chosen assembler exits with an error, or assembles **less
+than 0.1 bases per kmer**, the kmers are assembled directly instead, with a warning, and `run_info.json` records
 `assembler_used` beside `assembler`. The threshold comes from 21 paired runs on three validation panels:
 SKESA assembled 0.000, 0.000 and 0.019 bases per kmer on the three where it returned nothing usable, and
 0.702 to 1.388 on the other eighteen — a 37-fold gap with nothing in it

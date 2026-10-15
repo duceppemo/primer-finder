@@ -112,7 +112,7 @@ Two things make it a harder test than the first two records:
 - **the groups are closely related and very unequal.** *B. canis* sits inside *B. suis* phylogenetically,
   and the exclusion group of a species target is every other classical species — 1,571 genomes against 120
   for *B. suis*;
-- **the panel is draft-heavy.** 872 of the 1,376 classical genomes are contig-level assemblies, which is
+- **the panel is draft-heavy.** 873 of the 1,376 classical genomes are contig-level assemblies, which is
   the hostile case for a rule that asks for an exact match in *every* inclusion genome.
 
 ```bash

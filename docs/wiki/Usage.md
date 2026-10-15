@@ -59,7 +59,7 @@ while read -r genome; do ln -sf "$genome" exclusion/; done < exclusion.list
 | `-a`, `--assembler` | `skesa` | `skesa`, `spades` or `unitig`, to assemble the inclusion-specific kmers. `unitig` needs no external program and keeps every stretch the kmers determine, including the short ones and the few: an assembler built for sequencing reads treats a kmer seen once as error. It is also used automatically, with a warning, when the chosen assembler gets almost nothing out of the kmers — see [Methods](Methods#2-assembling-the-kmers-a-unitig-walk-skesa-or-spades). |
 | `--keep-intermediate` | off | Keep the KMC databases, the kmer dump, the SAM file and the blast databases. |
 | `--debug` | off | Log every command line and the output of every program. |
-| `--no-last-resort` | off | Stop with an error when nothing meets the usual rule of two differences within 25 bases, instead of trying again for regions with a single difference. Those come back marked `last_resort` and are leads rather than results — see [Methods](Methods#3-the-differences-worth-an-assay-minimap2). |
+| `--no-last-resort` | off | Report nothing instead of trying again for regions with a single difference when nothing meets the usual rule of two differences within 25 bases: an error if steps 3 or 4 emptied the run, an empty `final_kmers.fasta` if step 5 did. Those come back marked `last_resort` and are leads rather than results — see [Methods](Methods#3-the-differences-worth-an-assay-minimap2). |
 | `-v`, `--version` | | Print the version. |
 
 `-t` and `-m` are capped at what the machine (or the control group a job scheduler put the run in) actually

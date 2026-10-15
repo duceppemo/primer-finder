@@ -2,6 +2,49 @@
 
 ## Unreleased
 
+### Fixed
+
+- **The searches used megablast, which cannot see a copy that differs.** `blastn`'s default task seeds on
+  an exact 28-base match, so an amplicon an exclusion genome holds at **97% identity** — two differences
+  25 bases apart, which is exactly the shape `find` keeps a region for — produced no hit at all and was
+  reported as *absent* from that genome. The assay on it was then labelled specific by absence, which
+  ranks above every difference-based assay and is exempt from `--min-primer-differences`. Measured on a
+  75-base amplicon with differences at 25 and 50: megablast 0 hits, `-task blastn` one hit over all 75
+  bases at 97.3%. The same blind spot could drop a contig an inclusion genome holds at 97%.
+
+  All three searches now use `-task blastn`. Measured on four *Listeria* targets: regions go slightly
+  **up** (57→59, 60→60, 1→3, 19→21) because step 4 now finds contigs megablast missed, every recovery and
+  rank is unchanged, and a run takes 1.6 to 2.3 times as long. The right trade for a search whose whole
+  purpose is to find homology an assay would amplify.
+- **A run refused before it did anything deleted the previous run's `--keep-intermediate` files.**
+  Clean-up sat in a `finally` that also covered the settings check, and it deletes by fixed path under the
+  output folder, so a typo in `-i` tidied away whatever an earlier run had left there. It is now armed
+  only once the settings have been accepted. The same ordering made an output path that is a *file* report
+  "Not a directory: .../out.txt/1_kmers/inclusion.kmc_pre"; it now says what is wrong.
+- **A failed re-run left the previous run's answer in place.** `run_info.json` is only written by a run
+  that reaches the end, so the folder held an older `final_kmers.fasta` with no record of where it came
+  from — and `design` pointed at it would design on those regions. A run now removes both as it commits
+  to replacing them, and says so.
+- **`partial (28%)` for an assay that amplified 29 of 100 genomes.** `int(29 / 100 * 100)` is 28, so the
+  label fell below a `-p 0.29` the user had asked for. Twelve such pairs occur under 300 genomes; the
+  percentage now comes from the two counts.
+- **A genome that left the input folder stayed in the staged one**, where it was counted as one more
+  inclusion genome — and that count is the denominator of every in-silico verdict, so a selective assay
+  could read `partial`. The staged folders are cleared before they are filled.
+- **`design` had no output-inside-input guard**, which `find` has had since 1.1.0. Everything the command
+  writes under its output folder is read back as an input genome when the output sits inside an input
+  folder: one run counted 16 inclusion genomes where there were 4, and a second run into the same place
+  counted 36.
+- **An assembler killed by a signal was treated as having collapsed**, so an out-of-memory kill was
+  answered by starting a second assembly in the same process — and the unitig walk honours no memory
+  budget. A negative exit code now surfaces as the failure it is. SPAdes exiting 0 without writing
+  contigs, on the other hand, now reaches the fallback like any other empty result.
+- The example's ground-truth check accepted only one placement of the planted insertion. That insertion
+  begins with `G` and the base after it is also `G`, so two placements spell the same genome and which one
+  an aligner returns depends on its gap scoring — megablast and `blastn` disagree. The check now computes
+  that ambiguity from the sequence and accepts any placement inside it, while every mismatch position
+  must still be exact.
+
 ### Added
 
 - **A last-resort pass: when nothing meets the usual rule, say what a single difference would give.**

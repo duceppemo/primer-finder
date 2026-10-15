@@ -10,6 +10,7 @@ every program on PATH; what they produce is read from the PRIMER_FINDER_STUBS en
     presence         {genome: [contig, ...]} the contigs blastn finds in each inclusion genome
     exclusion_hits   {genome: [[query, qstart, qend, evalue, qseq, sseq], ...]} for the exclusion genomes
     fail             the name of a program that should exit 1
+    kill             the name of a program that should die by a signal, as an OOM kill looks
 
 Every call is appended to the file named by PRIMER_FINDER_CALLS, one command line per line.
 """
@@ -19,6 +20,7 @@ from __future__ import annotations
 import json
 import os
 import shlex
+import signal
 import sys
 from pathlib import Path
 
@@ -288,6 +290,8 @@ def main(name: str, argv: list[str] | None = None) -> int:
     if calls:
         with open(calls, "a") as fh:
             fh.write(f"{name} {shlex.join(argv)}\n")
+    if value("kill", None) == name:
+        os.kill(os.getpid(), signal.SIGKILL)
     if argv in (["--version"], ["-version"]) or (not argv and name in ("kmc", "kmc_tools")):
         # KMC has no version flag: it prints its banner when run with no argument (see tools.VERSION_FLAGS)
         print(f"{name} stub 1.0")

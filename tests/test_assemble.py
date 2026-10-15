@@ -196,7 +196,7 @@ def test_an_assembler_that_writes_nothing_is_answered_by_assembling_the_kmers_di
     out, used = assemble(kmer_fasta, tmp_path / "assembly.fasta", "skesa", threads=1, memory_gb=1)
     assert used == "unitig"
     assert [len(record.seq) for record in iter_records(out)] == [len(SEQUENCE)]
-    assert "got nothing out of the inclusion-specific kmers" in caplog.text
+    assert "Nothing usable came out of skesa" in caplog.text
 
 
 def test_an_assembler_that_writes_almost_nothing_is_answered_the_same_way(stubs, tmp_path, caplog):
@@ -227,7 +227,7 @@ def test_an_assembler_that_works_is_left_alone(stubs, tmp_path, caplog):
                          min_contig=21)
     assert used == "skesa"
     assert sorted(record.name for record in iter_records(out)) == ["ctg1", "ctg2"]
-    assert "got nothing" not in caplog.text
+    assert "Nothing usable came out of" not in caplog.text
 
 
 def test_an_assembler_that_fails_outright_is_answered_the_same_way(stubs, tmp_path, caplog):
@@ -238,6 +238,17 @@ def test_an_assembler_that_fails_outright_is_answered_the_same_way(stubs, tmp_pa
     out, used = assemble(kmer_fasta, tmp_path / "assembly.fasta", "skesa", threads=1, memory_gb=1)
     assert used == "unitig"
     assert "it failed" in caplog.text
+
+
+def test_an_assembler_killed_by_a_signal_is_not_treated_as_a_collapse(stubs, tmp_path):
+    """A negative exit code means a signal, which on this input almost always means the machine ran out
+    of memory. Answering that by starting a second assembly in this process would be the wrong move: the
+    walk honours no memory budget at all, so the failure has to surface."""
+    kmer_fasta = tmp_path / "kmers.fasta"
+    write_fasta(kmer_fasta, [Record(f"kmer_{n}", "", one) for n, one in enumerate(kmers_of(SEQUENCE))])
+    stubs(kill="skesa")
+    with pytest.raises(PrimerFinderError, match="skesa failed"):
+        assemble(kmer_fasta, tmp_path / "assembly.fasta", "skesa", threads=1, memory_gb=1, min_contig=21)
 
 
 def test_the_collapse_threshold_sits_far_from_both_what_it_separates():

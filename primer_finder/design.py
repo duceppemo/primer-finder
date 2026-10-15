@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from primer_finder import PrimerFinderError, __version__, blast, insilico, seqio, tools
-from primer_finder.pipeline import LAST_RESORT_TAG, add_log_file
+from primer_finder.pipeline import LAST_RESORT_TAG, _inside, add_log_file
 
 log = logging.getLogger(__name__)
 
@@ -991,6 +991,18 @@ def run(settings: DesignSettings) -> int:
             f"{final} is missing: give the output folder of a finished primer-finder run."
         )
     inclusion, exclusion = genome_folders(settings)
+    for folder, group in ((inclusion, "inclusion"), (exclusion, "exclusion")):
+        # The amplicon checks write a database and a copy of each genome under the output folder, and the
+        # staged folders hold one fasta per genome. Inside an input folder, `find_genomes` reads those
+        # back as genomes of their own: a run counted 16 inclusion genomes where there were 4, and a
+        # second run into the same place counted 36, which silently changes every in-silico denominator.
+        # `find` refuses the same arrangement up front; so must this.
+        if _inside(settings.output.resolve(), folder.resolve()):
+            raise PrimerFinderError(
+                f"The output folder is inside the {group} folder: {settings.output}. Everything this "
+                f"command writes would be read back as an input genome. Choose an output folder outside "
+                f"{folder}."
+            )
     tools.require([PROGRAM, "makeblastdb", "blastn"])
     settings.output.mkdir(parents=True, exist_ok=True)
     add_log_file(settings.output / LOG_NAME)

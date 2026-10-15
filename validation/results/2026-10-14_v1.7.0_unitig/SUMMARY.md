@@ -195,7 +195,7 @@ bash validation/listeria/run.sh /path/to/work 48 128     # the baseline, with SK
 |---|---|
 | `listeria_compare.tsv` | the eighteen *Listeria* runs: contigs, regions, recovery, rank, region length, whether `last_resort` fired |
 | `xylella_compare.tsv` | the eight *Xylella* runs, the same columns |
-| `brucella_compare.tsv` | the twelve *Brucella* runs, the same columns |
+| `brucella_compare.tsv` | the twelve *Brucella* runs, the same columns. Its `target` column names the **assay** that was looked for, not the group that was run: the `genus_wide` rows say `genus` and the `suis_lato` rows say `suis`, because those are the published assays checked against them. The table above names the groups |
 | `bases_per_kmer.txt` | all 21 paired runs: kmers, bases assembled by each, SKESA's share and its bases per kmer |
 | `recheck.tsv` | the nine *Listeria* targets re-run after the hairpin fix, against the numbers above |
 | `panel.tsv.gz` | the 784 *Listeria* genomes and their clonal complexes, as this record used them |

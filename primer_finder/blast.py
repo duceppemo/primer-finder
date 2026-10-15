@@ -106,11 +106,24 @@ def make_db(genome: Path, work_dir: Path) -> Path:
     return work_dir / DB_NAME
 
 
+# blastn's default task is megablast, which seeds on an exact 28-base match. That is the wrong tool for
+# every search here, and wrong in the dangerous direction: an amplicon that an exclusion genome holds at
+# 97% identity -- two differences 25 bases apart, which is exactly the shape `find` keeps a region for --
+# produces no megablast hit at all, and is then reported as *absent* from that genome. Measured on a
+# 75-base amplicon with differences at 25 and 50: megablast 0 hits, `-task blastn` one hit over all 75
+# bases at 97.3%. The same blind spot would drop a contig that an inclusion genome holds at 97%.
+#
+# `blastn` seeds on 11 bases, so it finds those copies. It is slower; that is the right trade for a search
+# whose whole purpose is to find homology the assay would amplify.
+SEARCH_TASK = "blastn"
+
+
 def blastn(db: Path, query: Path, out_file: Path, fields: Sequence[str], max_targets: int = 10) -> Path:
     """Run blastn in the database's folder, writing the chosen tabular fields to `out_file`."""
     work_dir = db.parent
     tools.run([
         "blastn",
+        "-task", SEARCH_TASK,
         "-db", db.name,
         "-query", os.path.relpath(query, work_dir),
         "-out", os.path.relpath(out_file, work_dir),

@@ -78,20 +78,30 @@ class Settings:
 
 
 def run(settings: Settings) -> int:
-    """Run the whole pipeline. Returns 0, or raises PrimerFinderError."""
+    """Run the whole pipeline. Returns 0, or raises PrimerFinderError.
+
+    The settings are checked and the output folder made **before** the clean-up is armed. A run refused
+    before it has written anything must not tidy the folder: the same `-o` may hold the results of an
+    earlier run, and `clean_up` deletes by fixed path, so a typo in `-i` used to take the previous run's
+    `--keep-intermediate` files with it.
+    """
+    inclusion, exclusion, reference = check(settings)
     try:
-        return _run(settings)
+        settings.output.mkdir(parents=True, exist_ok=True)
+    except FileExistsError as error:  # a file, not a folder: mkdir's own message is not obvious
+        raise PrimerFinderError(f"The output path is a file, not a folder: {settings.output}") from error
+    try:
+        return _run(settings, inclusion, exclusion, reference)
     finally:
         # On the way out either way: a run that ends at "no contig differs enough" used to leave its KMC
         # databases behind, and an exclusion database for a few hundred genomes is a gigabyte
         clean_up(settings)
 
 
-def _run(settings: Settings) -> int:
+def _run(settings: Settings, inclusion: list[Path], exclusion: list[Path], reference: Path) -> int:
     started = time.time()
-    inclusion, exclusion, reference = check(settings)
-    settings.output.mkdir(parents=True, exist_ok=True)
     add_log_file(settings.output / LOG_NAME)
+    replace_previous_results(settings)
     log.info("primer-finder %s", __version__)
     log.info("%d inclusion genome(s), %d exclusion genome(s)", len(inclusion), len(exclusion))
 
@@ -472,6 +482,25 @@ def lower_positions(seq: str, positions: list[int]) -> str:
         if 0 <= position < len(bases):
             bases[position] = bases[position].lower()
     return "".join(bases)
+
+
+def replace_previous_results(settings: Settings) -> None:
+    """Remove the answer an earlier run left in this folder, before producing a new one.
+
+    A run is not resumable: a repeated command starts again from the kmers. But it can also fail part way
+    through, and `run_info.json` is only written by a run that reaches the end -- so the folder was left
+    holding the *previous* run's `final_kmers.fasta` with no record of which run it came from, and
+    `primer-finder design` pointed at it would happily design on those stale regions. Both are removed
+    here, at the point where this run commits to replacing them.
+    """
+    stale = [settings.output / FINAL_NAME, settings.output / RUN_INFO_NAME]
+    found = [path for path in stale if path.exists()]
+    if found:
+        log.warning("Replacing the results of an earlier run in %s (%s). A run is not resumable: this "
+                    "one starts again from the kmers", settings.output,
+                    ", ".join(path.name for path in found))
+    for path in found:
+        path.unlink()
 
 
 def clean_up(settings: Settings) -> None:

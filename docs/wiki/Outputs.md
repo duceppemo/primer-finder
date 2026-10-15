@@ -41,7 +41,8 @@ CACCAAAATCCTCCTGGCGAGAGGTTAGATCATCAGAGTCCGTGTACAGAAACGGCCATTGCGAACTACTGTcCCATGTG
 ```
 
 - The **name** is the contig name the assembler gave (SKESA puts its number and coverage in it, not its
-  length: `Contig_1_67.5167` is 260 bases long).
+  length: `Contig_1_67.5167` is 260 bases long). The unitig walk names them `unitig_1`, `unitig_2`… —
+  which is what they will be when a run fell back to it, as `assembler_used` in `run_info.json` says.
 - The **header** lists the positions that differ from the exclusion genomes, counted from 0 in this
   sequence. It ends with `last_resort` when the run found nothing under its usual rule and reported what a
   single difference gives instead: such a region is a lead rather than a result, and `run_info.json` says

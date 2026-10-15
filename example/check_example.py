@@ -55,6 +55,34 @@ def genome_positions(contig_seq: str, start: int, forward: bool) -> set[int]:
     }
 
 
+def equivalent_variant_sets(truth: dict, genome: str) -> list[set[int]]:
+    """Every marked-position set that describes the same alignment as the planted one.
+
+    An inserted block can sometimes be placed more than one way for the same resulting sequence: if the
+    block's first base equals the base that follows it, sliding the whole block one to the right spells
+    the genome unchanged. This walks that ambiguity to its end and returns one set per valid placement,
+    planted placement first, so a checker can accept any of them and still reject a set that is shifted,
+    mis-oriented or incomplete.
+    """
+    insertion_at = truth["insertion_at"]
+    insertion = truth["insertion"]
+    mismatches = set(truth["mismatches"])
+    sets: list[set[int]] = []
+    shift = 0
+    while True:
+        block = set(range(insertion_at + shift, insertion_at + shift + len(insertion)))
+        sets.append(mismatches | block)
+        # Sliding one further is the same sequence only when the base leaving the block at the front
+        # equals the base joining it at the back
+        rotated = insertion[shift % len(insertion):] + insertion[:shift % len(insertion)]
+        following = genome[insertion_at + shift + len(insertion):insertion_at + shift + len(insertion) + 1]
+        if not following or rotated[0] != following:
+            return sets
+        shift += 1
+        if shift > len(insertion):  # pragma: no cover - a run that long is not in this data
+            return sets
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("output", type=Path, help="The folder primer-finder wrote.")
@@ -79,16 +107,31 @@ def main(argv: list[str] | None = None) -> int:
 
     # The lower-case bases must be exactly the planted variants, no others and none missing. Mapping them
     # back to the genome is what catches a shifted or mis-oriented set of positions.
+    #
+    # With one allowance, which is a property of the planted sequence rather than a weakening of the
+    # check: the insertion is `GGCATT...AACC` and the base that follows it in the genome is also `G`, so
+    # inserting those 15 bases *before* that G and inserting a 15-base rotation of them *after* it spell
+    # the same genome. Both are correct alignments of the same pair of sequences, and which one an aligner
+    # returns depends on its gap scoring -- megablast and blastn disagree here. So the insertion block is
+    # accepted anywhere inside that ambiguity, computed from the sequence itself, while every mismatch
+    # position must still be exact.
     found = locate(sequence, whole_sequence(args.data / "inclusion" / "inclusion_1.fasta"))
     check(found is not None, "the contig is present in inclusion_1.fasta")
     if found is not None:
         start, forward = found
         marked = genome_positions(contig.seq, start, forward)
         expected = set(truth["variants"])
-        check(marked == expected,
-              "the lower-case bases are exactly the planted variants"
-              + ("" if marked == expected else
-                 f" (missing {shorten(expected - marked)}, extra {shorten(marked - expected)})"))
+        accepted = equivalent_variant_sets(truth, whole_sequence(
+            args.data / "inclusion" / "inclusion_1.fasta"))
+        if marked in accepted and marked != expected:
+            detail = (f" (the insertion sits {accepted.index(marked)} base(s) along from where it was "
+                      "planted, which spells the same genome)")
+        elif marked == expected:
+            detail = ""
+        else:
+            detail = f" (missing {shorten(expected - marked)}, extra {shorten(marked - expected)})"
+        check(marked in accepted,
+              "the lower-case bases are exactly the planted variants" + detail)
         clustered = sorted(set(truth["mismatches"]) & marked - set(range(
             truth["insertion_at"], truth["insertion_at"] + len(insertion))))
         close = [second - first for first, second in zip(clustered, clustered[1:], strict=False)

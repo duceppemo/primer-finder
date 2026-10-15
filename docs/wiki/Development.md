@@ -14,7 +14,7 @@ primer_finder/
 ├── cli.py        the command line: `find` (the default), `design` and `idt`
 ├── pipeline.py   the steps of `find`, in order, and what each writes
 ├── kmers.py      KMC: counting, subtracting, dumping
-├── assemble.py   SKESA and SPAdes
+├── assemble.py   the unitig walk, SKESA and SPAdes, and the fallback between them
 ├── mapping.py    minimap2, cigar strings, which contigs are candidates
 ├── blast.py      makeblastdb/blastn, presence, and what differs where
 ├── design.py     the steps of `design`: Primer3, the amplicon checks, the order

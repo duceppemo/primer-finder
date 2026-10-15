@@ -39,9 +39,9 @@ set — most often at a kmer size away from the default, where the specific stre
 The run assembles the kmers directly instead, as `-a unitig` does, says so in a warning, and records
 `assembler_used` in `run_info.json`. Nothing else about the run changes.
 
-It fires when the assembler returns less than 0.1 assembled bases per kmer, against 0.7 to 1.4 for a run
-that worked. If you would rather it did not, ask for `-a spades`, or read the numbers behind the threshold
-in the [validation record](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-14_v1.7.0_unitig/SUMMARY.md).
+It fires when the assembler exits with an error, or returns less than 0.1 assembled bases per kmer
+against 0.7 to 1.4 for a run that worked. It cannot be turned off, and it applies to SPAdes exactly as it does to SKESA. The numbers behind the
+threshold are in the [validation record](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-14_v1.7.0_unitig/SUMMARY.md).
 
 ## "No contig differs enough from the exclusion genome"
 

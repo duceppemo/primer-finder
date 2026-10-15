@@ -3,13 +3,13 @@
 Two different things are checked, and they answer different questions.
 
 **The tests and the example** (`pytest`, `example/run_example.sh`) check that the code does what the
-documentation says: 389 tests with stand-ins for the external programs, and a simulated dataset whose
+documentation says: 461 tests with stand-ins for the external programs, and a simulated dataset whose
 specific region is known, down to which bases must come out in lower case. They run in seconds and the CI
 runs them on every push. See [Development](Development) and [Example](Example).
 
 **The validation suite** (`validation/`) checks something the tests cannot: that primer-finder, run on public
 genomes, finds the regions that published diagnostic assays were actually designed on. Records of each run
-live in `validation/results/<date>_v<version>/` and are never rewritten.
+live in `validation/results/<date>_v<version>/`, sometimes with a word for the subject after it and are never rewritten.
 
 ## Four published *Xylella fastidiosa* subspecies assays
 
@@ -187,8 +187,10 @@ inclusion-specific 51-mers — but the find rule then asks for two differences c
 primer. Measured against the nearest relative, the published assays rest on one mismatch (BA), two
 mismatches 114 bases apart (BM_10), or a 21-base stretch that does not align (BS). The rule is deliberate
 and the default `--min-primer-differences 2` is the same judgement; 0.2.1 simply kept any unique core
-sequence longer than 28 bp. Recovering this class of assay would need the `find` side to keep a region on
-a single difference, which is a change to the tool and not to the record.
+sequence longer than 28 bp. The last-resort pass added since does keep a region on a single
+difference, but only when the strict rule reports nothing at all — and on these runs it reported 2 regions
+for *B. abortus* and 11 to 18 for *B. melitensis*, so it never fires there. The three species assays
+therefore still cannot be reported.
 
 The census also reproduces the paper independently in three places — the two genomes that lack the genus
 assay are the two the paper names, both over-fragmented *B. suis* assemblies match its Table S4 contig for
@@ -196,6 +198,15 @@ contig, and no genome of the 1,794 carries two species assays — and it finds e
 assemblies whose species label cannot be right, extending the paper's own Table S5 from six to fourteen.
 The full record is in
 [`2026-10-14_v1.7.0_brucella/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-14_v1.7.0_brucella/SUMMARY.md).
+
+### What the two new features change, measured here
+
+[`2026-10-14_v1.7.0_unitig/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-14_v1.7.0_unitig/SUMMARY.md)
+re-ran all three panels with both assemblers — 19 targets, 51 runs — to decide whether either of them
+should be a default. On this panel the unitig walk gives 466 regions against SKESA's 332, recovers the
+same four assays, and moves one rank; across all three panels it never lost a recovery. The last-resort
+pass fired **once in 51 runs**, on the one target that has a single candidate locus. That record is also
+where the 0.1-bases-per-kmer threshold of the automatic fallback is measured.
 
 ### Running the *Brucella* test
 

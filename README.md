@@ -23,8 +23,9 @@ primer or probe.
 ```
 inclusion/ ──┐                                                        ┌─► final_kmers.fasta
              ├─► kmers ─► subtract ─► assemble ─► map ─────► blast ───┤   the candidate regions
-exclusion/ ──┘   (KMC)     (KMC)     (SKESA or   (minimap2)  (every   │
-                                      SPAdes)                genome)  └─► primer-finder design
+exclusion/ ──┘   (KMC)     (KMC)     (SKESA,     (minimap2)  (every   │
+                                      SPAdes or              genome)  └─► primer-finder design
+                                      unitig)
                                                                           Primer3 + in silico PCR
                                                                           ─► assays.tsv
 ```
@@ -40,7 +41,7 @@ primer-finder -i inclusion/ -e exclusion/ -o results/
 
 > **The bioconda package is awaiting review** ([bioconda-recipes#70034](https://github.com/bioconda/bioconda-recipes/pull/70034)).
 > Until it is merged, use `pip install primer-finder` in an environment that already holds KMC, SKESA or
-> SPAdes, minimap2 and BLAST, or install from the source code with `environment.yml`, which brings them.
+> SPAdes, minimap2 and BLAST (`-a unitig` needs no assembler), or install from the source code with `environment.yml`, which brings them.
 
 `inclusion/` and `exclusion/` hold one assembled genome per file (`.fasta`, `.fna`, `.fa`, gzipped or not;
 subfolders and symbolic links are followed). The answer is `results/final_kmers.fasta`: one record per

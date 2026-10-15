@@ -11,6 +11,7 @@ from primer_finder.blast import (
     DB_NAME,
     LOCAL_FASTA,
     PRESENCE_FIELDS,
+    SEARCH_TASK,
     Alignments,
     ExclusionResult,
     Hit,
@@ -252,3 +253,18 @@ def test_blastn_asks_for_the_fields_it_parses(stubs, tmp_path, fields):
     out = blastn(db, query_file(tmp_path), tmp_path / "db" / "hits.tsv", fields)
     assert f"-outfmt '6 {' '.join(fields)}'" in calls.read_text()
     assert out.exists()
+
+
+def test_the_search_is_sensitive_enough_to_find_a_copy_that_differs(stubs, tmp_path):
+    """blastn's default task is megablast, which seeds on an exact 28-base match and therefore finds
+    *nothing* in a copy whose differences are closer together than that. Every search here exists to find
+    homology an assay would amplify, so missing it is the dangerous direction: an amplicon an exclusion
+    genome holds at 97% identity was reported absent, and the assay on it labelled specific by absence.
+    """
+    calls = stubs()
+    path = genome(tmp_path / "in", "g.fasta")
+    db = make_db(path, tmp_path / "db")
+    blastn(db, query_file(tmp_path), tmp_path / "db" / "hits.tsv", PRESENCE_FIELDS)
+    asked = [line for line in calls.read_text().splitlines() if line.startswith("blastn ")]
+    assert asked and all(f"-task {SEARCH_TASK}" in line for line in asked), asked
+    assert SEARCH_TASK == "blastn", "megablast cannot see a copy with differences under 28 bases apart"

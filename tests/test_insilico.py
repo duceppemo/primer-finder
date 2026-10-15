@@ -358,6 +358,31 @@ def test_below_the_threshold_is_not_selective():
     assert not Verdict(5, 8, 0, 17, threshold=0.75).selective
 
 
+def test_the_percentage_is_exact_for_a_fraction_a_float_cannot_hold():
+    """`int(29 / 100 * 100)` is 28, so an assay that amplified 29 of 100 genomes used to read
+    `partial (28%)` -- under a `-p 0.29` the user had asked for. Twelve such pairs occur under 300
+    genomes; these are five of them."""
+    for amplified, total in ((29, 100), (57, 100), (58, 100), (29, 50), (87, 150)):
+        exact = amplified * 100 // total
+        assert Verdict(amplified, total, 0, 1).percent == exact
+        assert int(amplified / total * 100) < exact  # what it used to give
+
+
+def test_staging_forgets_a_genome_that_has_left_the_input_folder(tmp_path):
+    """The staged folder is what the verdicts are counted against, so a genome left behind by an earlier
+    run would be counted as one more inclusion genome and make a selective assay read `partial`."""
+    source = tmp_path / "inclusion"
+    source.mkdir()
+    for name in ("a", "b"):
+        (source / f"{name}.fasta").write_text(f">chr\n{name.upper() * 4}\n")
+    staged = tmp_path / "staged"
+    assert stage_genomes(source, staged) == 2
+    (source / "b.fasta").unlink()
+    assert stage_genomes(source, staged) == 1
+    assert sorted(path.name for path in staged.glob("*.fasta")) == ["a.fasta"]
+    assert count_genomes(staged) == 1  # the number the verdicts divide by
+
+
 def test_the_percentage_is_rounded_down_so_it_never_overstates():
     assert Verdict(2, 3, 0, 1, threshold=0.6).percent == 66
     assert Verdict(0, 3, 0, 1, threshold=0.0001).percent == 0

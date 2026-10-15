@@ -40,7 +40,16 @@ ERROR_LINES = 15
 
 
 class ToolError(PrimerFinderError):
-    """An external program failed."""
+    """An external program failed.
+
+    `returncode` is what it exited with, where that is known: negative means it was killed by a signal
+    (-9 for SIGKILL, which is what an out-of-memory kill looks like), and a caller that would otherwise
+    treat a failure as "this program cannot do anything with this input" needs to tell the two apart.
+    """
+
+    def __init__(self, message: str, returncode: int | None = None) -> None:
+        super().__init__(message)
+        self.returncode = returncode
 
 
 def which(name: str) -> str | None:
@@ -95,7 +104,8 @@ def run(cmd: Sequence[str | Path], *, stdout_path: Path | None = None, cwd: Path
         tail = "\n".join(output.strip().splitlines()[-ERROR_LINES:])
         raise ToolError(
             f"{argv[0]} failed (exit code {process.returncode}):\n  {shlex.join(argv)}"
-            + (f"\n{tail}" if tail else "")
+            + (f"\n{tail}" if tail else ""),
+            returncode=process.returncode,
         )
     return output
 

@@ -701,6 +701,17 @@ def test_designing_on_ordinary_regions_says_nothing_about_a_last_resort(stubs, f
     assert "last_resort" not in caplog.text
 
 
+def test_an_output_folder_inside_an_input_folder_is_refused(stubs, finished_run, genomes, tmp_path):
+    """Everything the command writes under its output folder -- the amplicon databases, a copy of each
+    genome, the staged fasta files -- is read back as an input genome if the output sits inside an input
+    folder. One run counted 16 inclusion genomes where there were 4, which changes every in-silico
+    denominator. `find` refuses this; so does this.
+    """
+    inclusion, _ = genomes
+    with pytest.raises(PrimerFinderError, match="output folder is inside the inclusion folder"):
+        run(design_settings(finished_run, inclusion / "assays"))
+
+
 def test_an_output_path_with_a_space_is_refused(stubs, finished_run, tmp_path):
     """blast reopens a database by absolute path and cannot quote whitespace. The design command builds
     databases under its output folder, so it refuses the path up front rather than failing part way in."""

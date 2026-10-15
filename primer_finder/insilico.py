@@ -70,8 +70,16 @@ class Verdict:
 
     @property
     def percent(self) -> int:
-        """That share as a whole number, rounded down so that it never overstates the coverage."""
-        return int(self.fraction * 100)
+        """That share as a whole number, rounded down so that it never overstates the coverage.
+
+        Taken from the two counts rather than from `fraction`: the division to a float loses the exact
+        value, and `int(29 / 100 * 100)` is 28, so an assay that amplified 29 of 100 genomes was labelled
+        `partial (28%)` -- below a `-p 0.29` the user had asked for. Twelve such pairs occur under 300
+        genomes.
+        """
+        if not self.inclusion_total:
+            return 0
+        return self.inclusion_amplified * 100 // self.inclusion_total
 
     @property
     def complete(self) -> bool:
@@ -163,6 +171,11 @@ def stage_genomes(folder: Path, into: Path) -> int:
     Returns how many genomes were staged, which is what the verdicts are counted against.
     """
     into.mkdir(parents=True, exist_ok=True)
+    # Clear what an earlier run staged. Only the names about to be written were replaced before, so a
+    # genome that has since left the input folder stayed behind -- and `count_genomes` on this folder is
+    # the denominator of every in-silico verdict, so a stale file made a selective assay read `partial`.
+    for stale in into.glob("*.fasta"):
+        stale.unlink()
     used: set[str] = set()
     for path in seqio.find_genomes(folder):
         stem = seqio.base_name(path)

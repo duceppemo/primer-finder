@@ -197,7 +197,12 @@ def assemble(kmer_fasta: Path, output: Path, assembler: str, threads: int, memor
                 f'Unknown assembler "{assembler}". Choose one of: {", ".join(ASSEMBLERS)}')
     except tools.ToolError as error:
         # An assembler that exits non-zero on a kmer set has collapsed in the same way as one that writes
-        # nothing, and is answered the same way rather than ending the run
+        # nothing, and is answered the same way rather than ending the run -- unless it was killed. A
+        # negative exit code means a signal, which on this input almost always means the machine ran out
+        # of memory, and answering that by starting a second assembly in this process would be the wrong
+        # move: the walk honours no memory budget at all.
+        if error.returncode is not None and error.returncode < 0:
+            raise
         failure = error
 
     if assembler != "unitig":
@@ -206,10 +211,13 @@ def assemble(kmer_fasta: Path, output: Path, assembler: str, threads: int, memor
             reason = (f"it failed: {failure}" if failure is not None
                       else f"it assembled {recovered:.3f} bases per kmer, where a working run gives "
                            f"about 1")
-            log.warning("%s got nothing out of the inclusion-specific kmers -- %s", assembler, reason)
-            log.warning("Assembling them directly instead (as -a unitig does), which needs no minimum "
-                        "number of kmers and no coverage model. run_info.json records which assembler "
-                        "the contigs came from.")
+            # Deliberately not "it got nothing out of the kmers": a floor higher than every contig
+            # empties a perfectly healthy assembler too, and from here the two look the same
+            log.warning("Nothing usable came out of %s -- %s", assembler, reason)
+            log.warning("Assembling the kmers directly instead (as -a unitig does), which needs no "
+                        "minimum number of them and no coverage model. If --min-region is what emptied "
+                        "the assembly rather than the assembler, this will say so and stop. "
+                        "run_info.json records which assembler the contigs came from.")
             _unitig(kmer_fasta, output, min_contig)
             used = "unitig"
 
@@ -257,7 +265,9 @@ def _spades(kmer_fasta: Path, output: Path, threads: int, memory_gb: int, min_co
     ])
     contigs = work_dir / "contigs.fasta"
     if not contigs.exists():
-        raise PrimerFinderError(f"SPAdes wrote no contigs ({contigs} missing)")
+        # A ToolError, not a plain error, so that it reaches the fallback: SPAdes exiting 0 without
+        # writing contigs is the same situation as SPAdes exiting 1
+        raise tools.ToolError(f"SPAdes wrote no contigs ({contigs} missing)")
     shutil.move(str(contigs), output)
     shutil.rmtree(work_dir, ignore_errors=True)
     if min_contig:

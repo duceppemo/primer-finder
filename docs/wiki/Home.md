@@ -8,7 +8,7 @@ Give it two folders of genomes — the ones the assay should amplify (**inclusio
 
 1. counts the kmers **shared by every inclusion genome** and the kmers of **any** exclusion genome (KMC),
    and subtracts the second set from the first;
-2. **assembles** the inclusion-specific kmers into contigs (SKESA, or SPAdes), so that there are fewer and
+2. **assembles** the inclusion-specific kmers into contigs (SKESA, SPAdes, or a built-in unitig walk), so that there are fewer and
    longer sequences to examine;
 3. **maps** the contigs to one exclusion genome (minimap2) and keeps those whose differences — mismatches,
    insertions, deletions — are close enough together to fit in one primer or probe;
