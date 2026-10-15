@@ -23,6 +23,7 @@ from primer_finder.design import (
     amplicon_copies,
     assays_of,
     build_request,
+    chains_of,
     check_against_exclusion,
     check_product_size,
     count_inclusion_copies,
@@ -546,14 +547,108 @@ def test_a_difference_whose_base_is_unknown_weighs_in_between():
     assert WEAK_BASE_WEIGHT < unknown.variant_weight < STRONG_BASE_WEIGHT
 
 
-def hit(size, *, qstart=1, qend=None, gaps=0, mismatches=0):
+def hit(size, *, qstart=1, qend=None, gaps=0, mismatches=0, subject="chr", sstart=None, send=None):
     """One blast row the way blast reports it: `length` counts gap columns, `nident` does not."""
     qend = size if qend is None else qend
     aligned = qend - qstart + 1 - gaps
+    sstart = qstart if sstart is None else sstart
+    send = sstart + (qend - qstart) if send is None else send
     return Hit(query="a", qstart=qstart, qend=qend, evalue=1e-30,
                length=qend - qstart + 1, identical=aligned - mismatches, gaps=gaps,
-               identity=100.0 * (aligned - mismatches) / (qend - qstart + 1))
+               identity=100.0 * (aligned - mismatches) / (qend - qstart + 1),
+               subject=subject, sstart=sstart, send=send)
 
+
+def test_a_genome_holding_a_copy_blast_reports_in_two_pieces_is_counted(stubs, tmp_path, fasta):
+    """Through blast's own output and `amplicon_copies`, not just the chaining on its own: the genome
+    holds the whole amplicon with 300 of its own bases in the middle, which blast reports as two
+    pieces."""
+    stubs(amplicon_hits={"g1": 1}, amplicon_split=[60, 300])
+    genomes = [fasta("g1.fasta", {"chr": "ACGT" * 200})]
+    one = assay(amplicon="ACGT" * 30, forward=oligo(start=0, length=20))
+    counts, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=1)
+    assert counts[one.name] == [1]  # One copy, not two and not none
+
+
+def test_two_hits_starting_at_the_same_base_of_the_amplicon_are_not_one_copy():
+    """Two copies, one of which blast aligns further than the other. They start at the same base of the
+    amplicon, so the second does not continue the first however far apart they sit in the genome."""
+    chains = chains_of([hit(200, qstart=1, qend=30, sstart=1, send=30),
+                        hit(200, qstart=1, qend=200, sstart=500, send=699)])
+    assert len(chains) == 2
+    assert [has_the_amplicon(chain, 200) for chain in chains] == [False, True]
+
+
+def test_pieces_on_opposite_strands_are_not_one_copy():
+    """An inverted repeat: the second piece continues the amplicon and lies close by in the genome, but
+    on the other strand, so no single primer pair reads through both."""
+    # Again coordinates that would chain were both on one strand: 99 bases along, continuing the amplicon
+    chains = chains_of([hit(200, qstart=1, qend=100, sstart=1000, send=901),   # Minus
+                        hit(200, qstart=101, qend=200, sstart=1100, send=1199)])  # Plus
+    assert len(chains) == 2
+
+def test_the_pieces_blast_splits_a_copy_into_are_read_as_one_copy():
+    """Measured with real blastn 2.17: a 207-base amplicon against a genome carrying 100 extra bases in
+    the middle of it comes back as two pieces, q1-120 at s11-130 and q121-207 at s231-317, each 100%
+    identical. Judged one piece at a time neither reaches 90% of the amplicon -- 58% and 42% -- so the
+    genome counted as holding nothing, while holding every base of the amplicon and both primer sites."""
+    pieces = [hit(207, qstart=1, qend=120, sstart=11, send=130),
+              hit(207, qstart=121, qend=207, sstart=231, send=317)]
+    chains = chains_of(pieces)
+    assert len(chains) == 1
+    assert has_the_amplicon(chains[0], 207)
+    assert not any(has_the_amplicon([piece], 207) for piece in pieces)  # Which is the whole point
+
+
+def test_a_copy_split_by_a_deletion_is_read_as_one_copy():
+    """The mirror: the genome is missing 30 bases of the amplicon, so the gap is in the query instead."""
+    chains = chains_of([hit(150, qstart=1, qend=60, sstart=1, send=60),
+                        hit(150, qstart=91, qend=150, sstart=61, send=120)])
+    assert len(chains) == 1
+    assert has_the_amplicon(chains[0], 150)
+
+
+def test_a_chain_that_stops_short_of_the_amplicon_is_not_a_copy():
+    """What a primer site inside an insertion looks like: the pieces are collinear and chain, but the
+    chain does not reach the end of the amplicon, so there is nothing to amplify from."""
+    chains = chains_of([hit(200, qstart=1, qend=80, sstart=1, send=80),
+                        hit(200, qstart=81, qend=150, sstart=300, send=369)])
+    assert len(chains) == 1
+    assert not has_the_amplicon(chains[0], 200)
+
+
+def test_two_copies_side_by_side_in_the_genome_stay_two_copies():
+    """A tandem repeat of the amplicon. The second piece repeats the query rather than continuing it, so
+    chaining it would turn two copies into one."""
+    chains = chains_of([hit(100, sstart=1000, send=1099), hit(100, sstart=1100, send=1199)])
+    assert len(chains) == 2
+    assert all(has_the_amplicon(chain, 100) for chain in chains)
+
+
+def test_pieces_too_far_apart_in_the_genome_are_not_one_copy():
+    chains = chains_of([hit(200, qstart=1, qend=100, sstart=1, send=100),
+                        hit(200, qstart=101, qend=200, sstart=50_000, send=50_099)])
+    assert len(chains) == 2
+
+
+def test_pieces_on_different_sequences_of_the_genome_are_not_one_copy():
+    # Coordinates that would chain happily were they on one sequence: the second piece continues the
+    # amplicon and sits 99 bases along. Only the name of the sequence says they are two copies.
+    chains = chains_of([hit(200, qstart=1, qend=100, subject="ctg_a", sstart=1, send=100),
+                        hit(200, qstart=101, qend=200, subject="ctg_b", sstart=200, send=299)])
+    assert len(chains) == 2
+
+
+def test_the_pieces_of_a_copy_on_the_minus_strand_chain_the_other_way_round():
+    """On the minus strand the genome coordinates run down as the amplicon runs up, so a chain has to be
+    read in the opposite direction -- and two pieces that ascend together are not one copy."""
+    down = chains_of([hit(207, qstart=1, qend=120, sstart=1000, send=881),
+                      hit(207, qstart=121, qend=207, sstart=780, send=694)])
+    assert len(down) == 1
+    assert has_the_amplicon(down[0], 207)
+    up = chains_of([hit(207, qstart=1, qend=120, sstart=1000, send=881),
+                    hit(207, qstart=121, qend=207, sstart=1100, send=1014)])
+    assert len(up) == 2
 
 def test_an_amplicon_the_genome_has_apart_from_an_insertion_is_a_copy():
     """The numbers are a real hit from the bundled example: assay8's 148-base amplicon against
@@ -563,7 +658,7 @@ def test_an_amplicon_the_genome_has_apart_from_an_insertion_is_a_copy():
     amplifies it. 129 of the 133 aligned bases match."""
     one = hit(148, gaps=15, mismatches=4)
     assert one.identity < MIN_AMPLICON_IDENTITY  # What blast reports, and what this used to be judged on
-    assert has_the_amplicon(one, 148)
+    assert has_the_amplicon([one], 148)
 
 
 def test_an_amplicon_whose_hit_stops_short_of_it_is_not_a_copy():
@@ -572,23 +667,25 @@ def test_an_amplicon_whose_hit_stops_short_of_it_is_not_a_copy():
     98% identity over the 93 bases it does reach, which is why identity alone cannot tell the two apart."""
     one = hit(110, qend=93, mismatches=2)
     assert one.identity > MIN_AMPLICON_IDENTITY
-    assert not has_the_amplicon(one, 110)
+    assert not has_the_amplicon([one], 110)
 
 
 @pytest.mark.parametrize(("reaches", "expected"), [(90, True), (89, False)])
 def test_the_coverage_boundary_is_how_much_of_the_amplicon_the_hit_reaches(reaches, expected):
-    assert has_the_amplicon(hit(100, qend=reaches), 100) is expected
+    assert has_the_amplicon([hit(100, qend=reaches)], 100) is expected
 
 
 @pytest.mark.parametrize(("mismatches", "expected"), [(10, True), (11, False)])
 def test_the_identity_boundary_counts_only_the_columns_that_align(mismatches, expected):
-    assert has_the_amplicon(hit(100, mismatches=mismatches), 100) is expected
+    assert has_the_amplicon([hit(100, mismatches=mismatches)], 100) is expected
 
 
 def test_a_hit_of_nothing_but_gaps_is_not_a_copy():
     """Blast does not report one, but dividing by the aligned columns would raise if it did."""
-    assert not has_the_amplicon(Hit(query="a", qstart=1, qend=20, evalue=1e-30, length=20, gaps=20), 20)
-    assert not has_the_amplicon(hit(20), 0)
+    all_gaps = Hit(query="a", qstart=1, qend=20, evalue=1e-30, length=20, gaps=20)
+    assert not has_the_amplicon([all_gaps], 20)
+    assert not has_the_amplicon([hit(20)], 0)
+    assert not has_the_amplicon([], 20)
 
 
 def test_an_exclusion_genome_that_has_the_amplicon_apart_from_an_insertion_is_counted(stubs, tmp_path,

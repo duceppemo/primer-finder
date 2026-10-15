@@ -251,6 +251,47 @@ def test_an_assembler_killed_by_a_signal_is_not_treated_as_a_collapse(stubs, tmp
         assemble(kmer_fasta, tmp_path / "assembly.fasta", "skesa", threads=1, memory_gb=1, min_contig=21)
 
 
+def test_the_fallback_leaves_no_contigs_from_the_assembler_that_failed(stubs, tmp_path):
+    """The assembler's own folder is only removed when it succeeded, so a failed SPAdes used to leave
+    `spades/contigs.fasta` beside the walk's assembly: contigs the run did not use, named as though it
+    had, and taken by the next SPAdes as a run of its own to continue."""
+    kmer_fasta = tmp_path / "kmers.fasta"
+    write_fasta(kmer_fasta, [Record(f"kmer_{n}", "", one) for n, one in enumerate(kmers_of(SEQUENCE))])
+    output = tmp_path / "assembly.fasta"
+    stale = output.parent / "spades"
+    stale.mkdir()
+    (stale / "contigs.fasta").write_text(">left_over\n" + "A" * 300 + "\n")
+    stubs(exit_code={"spades.py": 64})
+    _, used = assemble(kmer_fasta, output, "spades", threads=1, memory_gb=1, min_contig=21)
+    assert used == "unitig"
+    assert "left_over" not in output.read_text()
+    assert not (stale / "contigs.fasta").exists()
+
+
+def test_a_spades_whose_assembler_was_killed_is_not_treated_as_a_collapse(stubs, tmp_path):
+    """SPAdes never exits by a signal: its `ErrorCode._missing_` maps a child's -9 to `GeneralError`,
+    which is -1, which the shell reports as 255. So 255 and not 68 is what an OOM-killed SPAdes gives,
+    and answering it by starting a second assembly in this process is the wrong move."""
+    kmer_fasta = tmp_path / "kmers.fasta"
+    write_fasta(kmer_fasta, [Record(f"kmer_{n}", "", one) for n, one in enumerate(kmers_of(SEQUENCE))])
+    stubs(exit_code={"spades.py": 255})
+    with pytest.raises(PrimerFinderError, match="spades.py failed"):
+        assemble(kmer_fasta, tmp_path / "assembly.fasta", "spades", threads=1, memory_gb=1,
+                 min_contig=21)
+
+
+def test_an_assembler_that_did_not_like_the_input_still_reaches_the_fallback(stubs, tmp_path):
+    """The codes SPAdes calls `user_end_error`, 64 to 67, mean it would not read what it was given --
+    which on a handful of kmers is exactly the case the walk exists for."""
+    kmer_fasta = tmp_path / "kmers.fasta"
+    write_fasta(kmer_fasta, [Record(f"kmer_{n}", "", one) for n, one in enumerate(kmers_of(SEQUENCE))])
+    stubs(exit_code={"spades.py": 64})
+    output = tmp_path / "assembly.fasta"
+    _, used = assemble(kmer_fasta, output, "spades", threads=1, memory_gb=1, min_contig=21)
+    assert used == "unitig"
+    assert output.read_text().count(">") == 1
+
+
 def test_an_assembler_that_ran_out_of_memory_is_not_treated_as_a_collapse(stubs, tmp_path):
     """SPAdes is a Python wrapper: a child it cannot fit in the memory it was given exits 68, its own
     MemoryLimitExceeded, rather than dying by a signal. Answering that by starting a second assembly in

@@ -1,5 +1,12 @@
 # setuptools ships `tests/test_*.py` by default, which leaves out conftest.py and the stand-ins for
-# the external programs -- so the tests in an sdist could not run. Ship all of them, and the
-# changelog, which a packager reads.
+# the external programs -- so the tests in an sdist could not run. Ship all of them, and everything
+# else they read: the test suite checks that the version agrees across five files, runs the two
+# compatibility wrappers, and runs the example's own scripts.
 recursive-include tests *.py
+recursive-include example *.py *.sh
+recursive-include recipe *.yaml
 include CHANGELOG.md
+include CITATION.cff
+include environment.yml
+include primer_finder.py
+include IDT_results_converter.py

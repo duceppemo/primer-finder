@@ -4,6 +4,23 @@
 
 ### Fixed
 
+- **A copy blast reported in two pieces counted as no copy at all.** Once the cost of gapping through an
+  indel exceeds what the rest of an alignment is worth, blastn stops and reports the stretches either side
+  separately. Each piece reaches only part of the amplicon, so neither met the coverage rule and the
+  genome counted as holding nothing — while holding every base of the amplicon and both primer sites
+  exactly. Measured with blastn 2.17 at its defaults on a 207-base amplicon: an insertion of about 60
+  bases splits the hit, and a deletion of about 30. A worked case, 100 bases inserted in the middle, came
+  back as `q1-120` at `s11-130` and `q121-207` at `s231-317`, both 100% identical, 58% and 42% of the
+  amplicon. All three assays on it were labelled specific by absence and carried forward as the top tier,
+  one of them with a reverse primer matching every exclusion genome exactly.
+
+  Pieces are now chained before the rule is applied: two belong to the same copy when they follow each
+  other both in the amplicon and in the genome, on one strand of one sequence and no more than 2,000
+  bases apart in either, and the reach is measured across the whole chain. Two copies side by side in the
+  genome do not chain, since the second repeats the amplicon rather than continuing it. The same worked
+  case now reports all three assays as resting on differences, with every exclusion genome holding the
+  amplicon. The bundled example is unchanged: its 15-base insertion is small enough that blast gaps
+  through it in one piece.
 - **An exclusion genome holding the whole amplicon bar an insertion was recorded as not holding it.**
   Whether a genome has an amplicon was judged on blast's own `length` and `pident`, and both mislead where
   the amplicon carries an insertion the genome does not. Blast reports that either by gapping through the
@@ -15,10 +32,18 @@
 
   Coverage is now measured over how much of the amplicon the hit reaches rather than over the alignment
   length that the gap columns inflate, and identity over the columns where both sequences have a base. On
-  the bundled example this moves **7 of 18** assays out of `absence`: all 4 exclusion genomes hold their
-  amplicons, which in silico PCR confirms by amplifying them, and they are now judged on how their primers
-  differ. The 11 assays that are specific by absence because a primer site falls inside the insertion are
-  unaffected. Counts in earlier validation records were produced under the old rule.
+  the bundled example this moves **7 of the 18 assays that claimed absence** out of it, leaving 11: for
+  those 7 all four exclusion genomes hold the amplicon, and they are now judged on how their primers
+  differ instead. The 11 that remain are specific by absence because a primer site falls inside the
+  insertion.
+
+  What in silico PCR makes of the 7, run with `--min-primer-differences 0` so that none of them is set
+  aside first: in PCR mode 4 of them amplify all four exclusion genomes — three only through a difference
+  in the last two bases of a primer, which insilicoPCR does not count, and one on evidence it will defend
+  — and in qPCR mode none of them do. The other 3 amplify no exclusion genome in either mode. That is one
+  tool's model of one dataset, not a measurement of how any of these assays behaves in a reaction; what
+  the fix rests on is the sequence, which holds both primer sites in every exclusion genome. Counts in
+  earlier validation records were produced under the old rule.
 - **The searches used megablast, which cannot see a copy that differs.** `blastn`'s default task seeds on
   an exact 28-base match, so an amplicon an exclusion genome holds at **97% identity** — two differences
   25 bases apart, which is exactly the shape `find` keeps a region for — produced no hit at all and was
@@ -31,6 +56,26 @@
   **up** (57→59, 60→60, 1→3, 19→21) because step 4 now finds contigs megablast missed, every recovery and
   rank is unchanged, and a run takes 1.6 to 2.3 times as long. The right trade for a search whose whole
   purpose is to find homology an assay would amplify.
+- **A run that could not move the previous results aside deleted that run's `--keep-intermediate`
+  files.** Moving them aside can fail — a `.previous` path that is already a directory, an output folder
+  that cannot be written to — and it happened from inside the block whose `finally` runs the clean-up, so
+  the failure tidied away the earlier run's KMC databases, mapping and blast databases on its way out:
+  the very thing that ordering exists to prevent. Both the log file and the rename now happen before the
+  clean-up is armed, and a rename that fails says which path it could not move and why, instead of letting
+  an `OSError` out.
+- **An out-of-memory SPAdes was answered by an in-process assembly, which honours no memory budget.**
+  The guard listed exit 68 as SPAdes' memory failure, which is only its own `--memory` check. Read out of
+  the installed `spades_pipeline/support.py`: `ErrorCode._missing_` maps every value it does not recognise
+  to `GeneralError`, which is -1, which the shell reports as **255** — so a SPAdes whose child was killed
+  exits 255, and 255 was treated as a collapse and answered by the walk. Confirmed against the installed
+  module: `ErrorCode(-9)` is `GeneralError`. 255 is now fatal too, while the codes SPAdes calls
+  `user_end_error` (64 to 67, "I would not read what you gave me") still reach the fallback, which on a
+  handful of kmers is exactly what it is for.
+- **A failed assembler left its own contigs beside the ones the run used.** The assembler's folder is
+  only removed when it succeeded, so a SPAdes that failed and was answered by the fallback left
+  `2_assembly/spades/contigs.fasta` next to the walk's assembly — contigs the run did not use, named as
+  though it had — and the next run's SPAdes would have taken them for a half-finished run of its own. The
+  folder is now cleared before the assembler starts.
 - **A run refused before it did anything deleted the previous run's `--keep-intermediate` files.**
   Clean-up sat in a `finally` that also covered the settings check, and it deletes by fixed path under the
   output folder, so a typo in `-i` tidied away whatever an earlier run had left there. It is now armed
@@ -38,7 +83,8 @@
   "Not a directory: .../out.txt/1_kmers/inclusion.kmc_pre"; it now says what is wrong.
 - **A failed re-run left the previous run's answer in place.** `run_info.json` is only written by a run
   that reaches the end, so the folder held an older `final_kmers.fasta` with no record of where it came
-  from — and `design` pointed at it would design on those regions. A run now removes both as it commits
+  from — and `design` pointed at it would design on those regions. A run now moves both aside, to
+  `final_kmers.fasta.previous` and `run_info.json.previous`, as it commits
   to replacing them, and says so.
 - **`partial (28%)` for an assay that amplified 29 of 100 genomes.** `int(29 / 100 * 100)` is 28, so the
   label fell below a `-p 0.29` the user had asked for. Twelve such pairs occur under 300 genomes; the
@@ -46,7 +92,7 @@
 - **A genome that left the input folder stayed in the staged one**, where it was counted as one more
   inclusion genome — and that count is the denominator of every in-silico verdict, so a selective assay
   could read `partial`. The staged folders are cleared before they are filled.
-- **`design` had no output-inside-input guard**, which `find` has had since 1.1.0. Everything the command
+- **`design` had no output-inside-input guard**, which `find` has had since 1.0.0. Everything the command
   writes under its output folder is read back as an input genome when the output sits inside an input
   folder: one run counted 16 inclusion genomes where there were 4, and a second run into the same place
   counted 36.
@@ -62,6 +108,10 @@
 
 ### Internal
 
+- **An sdist could not run the tests it shipped.** `MANIFEST.in` left out `CITATION.cff`,
+  `recipe/meta.yaml`, the two compatibility wrappers and the `example/` scripts, all of which the suite
+  reads — the version-agrees-everywhere test raised `FileNotFoundError`. Inside the sdist the suite went
+  from 3 failures and 8 errors to all 502 passing.
 - **The example's own checks passed when the run had only got through on a rescue.** Either the
   last-resort pass or the unitig fallback carries the example on its own, so a regression in the strict
   pass, or a SKESA collapse, would have left every check green. The checks now assert that neither
@@ -73,6 +123,9 @@
 - **The blast stand-in could only ever report a full-length, perfectly matching hit**, which is why no
   test reached either side of the rule above. It now works its counts out from the two aligned sequences
   the way blast does, and a scenario can ask for a partial or a gapped hit.
+- The blast stand-in can now report a copy as two pieces, which is what the chaining above has to join,
+  and a scenario asking for a key the stubs do not know is an error rather than silently ignored — that
+  silence is the mechanism behind several tests that passed while exercising nothing.
 - Tests added for what mutation testing showed was unpinned: both amplicon thresholds, the
   "absent from *every* exclusion genome" rule, the amplicon that gets blasted, and eleven command-line
   options — `--assembler`, `--min-region`, `-d`, `-k`, `--keep-intermediate`, `--no-last-resort`, `-r`,
@@ -129,7 +182,8 @@
 
   Together with the last-resort pass this takes the *Brucella* `suis_lato` locus — 15 kmers that SKESA
   refused, forming one 215-base stretch that differs from *B. abortus* by a single base — from an error to
-  a reported region, at default settings.
+  a reported region, without reaching for `-a unitig` (the run was `-k 201 -p 0.95`, as that target
+  needs).
 
 - **`-a unitig`: assemble the inclusion-specific kmers without an assembler.** SKESA and SPAdes are built
   for sequencing reads — they estimate coverage, treat what they see once as error, and reconcile
@@ -149,7 +203,6 @@
   | 15 201-mers | nothing: "was not able to assemble anything" | the one 215-base stretch they spell out |
   | 23,413 51-mers | 5 contigs, no region past step 3 | 615 contigs, **4 regions** |
   | 31,256 31-mers | exits 1, nothing assembled | 1,237 contigs, **81 regions** |
-  | 866,421 99-mers | 5,326 contigs | 11,891 contigs, about 15 seconds |
 
   On the bundled example it reports the same region as SKESA and 52 bases more of it. **It is not the
   default**: the two assemblers have years of use behind their output and this does not. Reach for it when
@@ -221,9 +274,10 @@
   is an improvement worth acting on: the margins are a fraction of a percent, the genus candidates trade
   panel coverage for breadth across the genus, and only the published assays have wet-lab validation.
 
-  The useful finding is about the defaults. **Three of the four published assays exceed
-  `--max-hairpin-tm` 47 °C** — the *B. melitensis* forward primer is predicted at 76.4 °C — and all four
-  are validated on 235 target and 192 non-target strains. `design` would never have proposed them. That is
+  The useful finding is about the defaults. **Two of the four published assays carry an oligo over
+  `--max-hairpin-tm` 47 °C** — three oligos in all: the *B. melitensis* forward primer, predicted at
+  76.4 °C, and its probe at 61.7 °C, and the *B. suis* probe at 63.9 °C — and all four assays are
+  validated on 235 target and 192 non-target strains. `design` would never have proposed them. That is
   the only wet-lab evidence in the validation suite bearing on that limit, and it says the limit is
   conservative enough to reject assays that work.
 

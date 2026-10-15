@@ -49,7 +49,7 @@ while read -r genome; do ln -sf "$genome" exclusion/; done < exclusion.list
 | `-i`, `--inclusion` | required | Folder of genomes the assay should amplify. |
 | `-e`, `--exclusion` | required | Folder of genomes the assay must not amplify. |
 | `-o`, `--output` | required | Folder for the results; it is created if needed. It must be outside both input folders, and its path must not contain a space (a BLAST limitation). |
-| `-t`, `--threads` | every CPU | CPUs for KMC, the assembler, minimap2, and how many genomes are blasted at a time. |
+| `-t`, `--threads` | every CPU | CPUs for KMC, the assembler, minimap2, and how many genomes are blasted at a time. Each blast search is given one CPU and `-t` of them run at once, rather than the other way round: `-num_threads` splits the *query*, and each search here is one small genome, so there is almost nothing to split. Measured at a fixed budget of 48 CPUs, 48 searches of one CPU beat 24 of two by 1.6x and 6 of eight by 6.8x, with no optimum in between. |
 | `-m`, `--memory` | 85% of the memory | Memory in GB, passed to KMC and the assembler. KMC refuses less than 2 GB, so it is given at least 2 whatever this says, and the default is never below 2. |
 | `-k`, `--kmer_size`, `--kmer-size` | 99 | Kmer size for KMC, 1-256. A shorter kmer finds **fewer** regions, not more, and at 51 and below whole runs start coming back empty — see [Methods](Methods#1-the-kmers-only-the-inclusion-group-has-kmc) for the measurement. Longer is more sensitive to assembly errors. |
 | `--min-region` | the kmer size | The shortest candidate region to report. An assembler stops at 200 bases of its own accord, which would hide every specific stretch shorter than that — and those are commonest where the two groups are closely related. SKESA and `-a unitig` can be asked for less; `-a spades` warns and still stops at 200. |
@@ -127,6 +127,11 @@ it starts writing temporary files to the output folder.
 Runs are not resumable: a repeated command starts again from the kmers. The intermediate files are deleted
 unless `--keep-intermediate` is given — by a run that stops on an error as well as by one that finishes,
 since its KMC databases are the largest thing it leaves behind.
+
+A run into a folder that already holds `final_kmers.fasta` or `run_info.json` moves those aside to
+`*.previous`, with a warning, as it commits to replacing them. That is so a re-run that fails partway
+cannot leave an older answer behind looking like this run's. Only one generation is kept — a third run
+overwrites what the second moved aside — and the log is not moved with them.
 
 ## Designing assays on the regions
 

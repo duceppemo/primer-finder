@@ -47,6 +47,9 @@ class Hit:
     identity: float = 0.0  # Per cent, when the caller asked for it
     identical: int = 0  # Columns where both have the same base (blast's `nident`)
     gaps: int = 0  # Gap columns, on either side (blast's `gaps`)
+    subject: str = ""  # Which sequence of the database was hit, when the caller asked for it
+    sstart: int = 0
+    send: int = 0  # Reversed against `sstart` for a hit on the minus strand
 
 
 @dataclass
@@ -169,6 +172,9 @@ def parse_hits(out_file: Path, fields: Sequence[str]) -> list[Hit]:
                 identity=float(values[index["pident"]]) if "pident" in index else 0.0,
                 identical=int(values[index["nident"]]) if "nident" in index else 0,
                 gaps=int(values[index["gaps"]]) if "gaps" in index else 0,
+                subject=values[index["sseqid"]] if "sseqid" in index else "",
+                sstart=int(values[index["sstart"]]) if "sstart" in index else 0,
+                send=int(values[index["send"]]) if "send" in index else 0,
             ))
     return hits
 

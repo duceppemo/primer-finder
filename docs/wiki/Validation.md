@@ -3,13 +3,14 @@
 Two different things are checked, and they answer different questions.
 
 **The tests and the example** (`pytest`, `example/run_example.sh`) check that the code does what the
-documentation says: 461 tests with stand-ins for the external programs, and a simulated dataset whose
+documentation says: 502 tests with stand-ins for the external programs, and a simulated dataset whose
 specific region is known, down to which bases must come out in lower case. They run in seconds and the CI
 runs them on every push. See [Development](Development) and [Example](Example).
 
 **The validation suite** (`validation/`) checks something the tests cannot: that primer-finder, run on public
 genomes, finds the regions that published diagnostic assays were actually designed on. Records of each run
-live in `validation/results/<date>_v<version>/`, sometimes with a word for the subject after it and are never rewritten.
+live in `validation/results/<date>_v<version>/`, sometimes with a word for the subject after it, and are
+never rewritten.
 
 ## Four published *Xylella fastidiosa* subspecies assays
 
@@ -208,7 +209,7 @@ The full record is in
 
 [`2026-10-14_v1.7.0_unitig/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-14_v1.7.0_unitig/SUMMARY.md)
 re-ran all three panels with both assemblers — 19 targets, 51 runs — to decide whether either of them
-should be a default. On this panel the unitig walk gives 466 regions against SKESA's 332, recovers the
+should be a default. On the *Listeria* panel the unitig walk gives 466 regions against SKESA's 332, recovers the
 same four assays, and moves one rank; across all three panels it never lost a recovery. The last-resort
 pass fired **once in 51 runs**, on the one target that has a single candidate locus. That record is also
 where the 0.1-bases-per-kmer threshold of the automatic fallback is measured.

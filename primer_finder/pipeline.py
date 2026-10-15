@@ -97,6 +97,11 @@ def run(settings: Settings) -> int:
         raise PrimerFinderError(
             f"The output path is a file, or sits under one, rather than a folder: {settings.output}"
         ) from error
+    # Both of these can fail on a folder an earlier run wrote -- a read-only folder, or a `.previous`
+    # path that is a directory -- and failing inside the block below would run `clean_up` on that earlier
+    # run's `--keep-intermediate` files, which is the very thing the ordering here exists to prevent.
+    add_log_file(settings.output / LOG_NAME)
+    replace_previous_results(settings)
     try:
         return _run(settings, inclusion, exclusion, reference)
     finally:
@@ -107,8 +112,6 @@ def run(settings: Settings) -> int:
 
 def _run(settings: Settings, inclusion: list[Path], exclusion: list[Path], reference: Path) -> int:
     started = time.time()
-    add_log_file(settings.output / LOG_NAME)
-    replace_previous_results(settings)
     log.info("primer-finder %s", __version__)
     log.info("%d inclusion genome(s), %d exclusion genome(s)", len(inclusion), len(exclusion))
 
@@ -505,13 +508,21 @@ def replace_previous_results(settings: Settings) -> None:
     found = [path for path in stale if path.exists() or path.is_symlink()]
     if found:
         log.warning("An earlier run's results are in %s (%s). This run replaces them; the old ones are "
-                    "kept with a %s suffix. A run is not resumable: this one starts again from the "
-                    "kmers", settings.output, ", ".join(path.name for path in found), PREVIOUS_SUFFIX)
+                    "kept with a %s suffix, one generation only, and the log is not kept. A run is not "
+                    "resumable: this one starts again from the kmers", settings.output,
+                    ", ".join(path.name for path in found), PREVIOUS_SUFFIX)
     for path in found:
         # Moved aside rather than deleted. What this has to prevent is a *failed* re-run leaving an older
         # answer behind for `design` to use as though it were this run's; it does not have to destroy
-        # the answer to do that.
-        path.replace(path.with_name(path.name + PREVIOUS_SUFFIX))
+        # the answer to do that. Only one generation is kept: a third run overwrites what the second
+        # moved aside, and the log is not moved with them.
+        aside = path.with_name(path.name + PREVIOUS_SUFFIX)
+        try:
+            path.replace(aside)
+        except OSError as error:  # A directory in the way, or a folder that cannot be written to
+            raise PrimerFinderError(
+                f"Cannot move the earlier run's {path.name} aside to {aside}: {error}"
+            ) from error
 
 
 def clean_up(settings: Settings) -> None:

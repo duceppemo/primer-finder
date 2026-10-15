@@ -13,6 +13,24 @@ every program on PATH; what they produce is read from the PRIMER_FINDER_STUBS en
     kill             the name of a program that should die by a signal, as an OOM kill looks
     exit_code        {program: code} for a program that should exit with that code
 
+For the amplicon searches of the design step, where blastn is asked for one query per assay:
+
+    amplicon_hits    {genome: how many copies of each amplicon it holds}
+    amplicon_mismatch   {position: base} the genome has instead, within the amplicon
+    amplicon_qstart  the base of the amplicon the alignment starts at (1 by default)
+    amplicon_covers  the fraction of the amplicon the alignment reaches (all of it by default)
+    amplicon_insertion  {position: size} bases of the amplicon the genome has nothing for
+    amplicon_split   [where to break, how much genome between] report each copy as two pieces
+
+And for Primer3:
+
+    primer3_pairs    how many pairs to return (0 for "nothing could be designed")
+    primer3_probe    False to return no internal oligo
+    primer3_structures  False to report no hairpin or dimer temperatures
+    primer3_error    the PRIMER_ERROR to report instead of an assay
+    primer3_sleep    seconds to sleep, for the time-limit tests
+    presence_evalue  the evalue the inclusion search reports
+
 Every call is appended to the file named by PRIMER_FINDER_CALLS, one command line per line.
 """
 
@@ -38,8 +56,26 @@ DEFAULT_QSEQ = "ACGTACGTACGTACGTACGT"
 DEFAULT_SSEQ = "ACGTAAGTACGTTCGTACGT"  # Mismatches at offsets 5 and 12
 
 
+# Every key the stubs understand. A scenario asking for anything else is a mistyped fixture, and silently
+# ignoring it has produced tests that passed while exercising nothing -- so it is an error instead.
+KNOWN_KEYS = frozenset({
+    "kmers", "shared_kmers", "contigs", "sam", "presence", "presence_evalue", "exclusion_hits",
+    "fail", "kill", "exit_code",
+    "amplicon_hits", "amplicon_mismatch", "amplicon_qstart", "amplicon_covers", "amplicon_insertion",
+    "amplicon_split",
+    "primer3_pairs", "primer3_probe", "primer3_structures", "primer3_error", "primer3_sleep",
+    # `stub_insilico_pcr.py` reads the same variable, so its keys are known here too
+    "insilico_fail", "insilico_misses", "insilico_extra", "insilico_terminal", "insilico_counted",
+})
+
+
 def scenario() -> dict:
-    return json.loads(os.environ.get("PRIMER_FINDER_STUBS", "{}"))
+    asked = json.loads(os.environ.get("PRIMER_FINDER_STUBS", "{}"))
+    unknown = sorted(set(asked) - KNOWN_KEYS)
+    if unknown:
+        raise SystemExit(f"stub_programs: no such scenario key: {', '.join(unknown)}. "
+                         f"Known keys: {', '.join(sorted(KNOWN_KEYS))}")
+    return asked
 
 
 def value(key: str, default):
@@ -176,18 +212,37 @@ def blastn(argv: list[str]) -> int:
                 if position < len(subject):  # The genome has nothing where the amplicon has these bases
                     subject[position:position + size] = ["-"] * min(size, len(subject) - position)
             aligned_subject = "".join(subject)
-            gaps = sequence.count("-") + aligned_subject.count("-")
-            identical = sum(1 for one, other in zip(sequence, aligned_subject, strict=True)
-                            if one != "-" and one.upper() == other.upper())
-            row = {
-                "qseqid": query, "qstart": str(qstart),
-                "qend": str(qstart + len(sequence) - 1), "evalue": "1e-30",
-                "length": str(len(sequence)),
-                "pident": f"{100.0 * identical / len(sequence):.3f}",
-                "nident": str(identical), "gaps": str(gaps),
-                "qseq": sequence, "sseq": aligned_subject,
-            }
-            rows.extend([[row[name] for name in fields]] * copies)
+            # Each copy sits somewhere else in the genome, far enough apart that nothing reads two of
+            # them as one interrupted copy. `amplicon_split` reports a copy as two pieces instead of one,
+            # the way blast does once gapping through an indel costs more than the rest of the alignment
+            # is worth: [where in the amplicon to break, how much genome lies between the pieces].
+            split = value("amplicon_split", None)
+            for copy in range(copies):
+                start = 1 + copy * 100_000
+                pieces = [(0, len(sequence), 0)]
+                if split:
+                    pieces = [(0, int(split[0]), 0), (int(split[0]), len(sequence), int(split[1]))]
+                between = 0
+                for begin, end, gap in pieces:
+                    piece, piece_subject = sequence[begin:end], aligned_subject[begin:end]
+                    if not piece:
+                        continue
+                    between += gap
+                    at = start + between + begin
+                    identical_here = sum(1 for one, other in zip(piece, piece_subject, strict=True)
+                                         if one != "-" and one.upper() == other.upper())
+                    row = {
+                        "qseqid": query, "qstart": str(qstart + begin),
+                        "qend": str(qstart + end - 1), "evalue": "1e-30",
+                        "length": str(len(piece)),
+                        "pident": f"{100.0 * identical_here / len(piece):.3f}",
+                        "nident": str(identical_here),
+                        "gaps": str(piece.count("-") + piece_subject.count("-")),
+                        "sseqid": "chr", "sstart": str(at),
+                        "send": str(at + len(piece_subject.replace("-", "")) - 1),
+                        "qseq": piece, "sseq": piece_subject,
+                    }
+                    rows.append([row[name] for name in fields])
     elif "qseq" in fields:  # The exclusion step: aligned sequences
         hits = value("exclusion_hits", {})
         default = [[query, 1, len(DEFAULT_QSEQ), 1e-30, DEFAULT_QSEQ, DEFAULT_SSEQ] for query in queries]

@@ -43,6 +43,12 @@ It fires when the assembler exits with an error, or returns less than 0.1 assemb
 against 0.7 to 1.4 for a run that worked. It cannot be turned off, and it applies to SPAdes exactly as it does to SKESA. The numbers behind the
 threshold are in the [validation record](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-14_v1.7.0_unitig/SUMMARY.md).
 
+It does not fire when the assembler was *killed* — a negative exit code, which is what a kernel
+out-of-memory kill looks like — or when SPAdes reports exit 68 (its own `--memory` check) or 255
+(`GeneralError`, what it reports when its own child was killed). Those mean the machine could not run the
+assembler, and answering them by starting a second assembly in this process, which honours no memory
+budget, would be the wrong move; the run stops with the error instead.
+
 ## "No contig differs enough from the exclusion genome"
 
 Inclusion-specific kmers were found and assembled, but none of the contigs has two differences within 25
@@ -137,8 +143,10 @@ that could tell the two groups apart, and writes the primer files
 [insilicoPCR](https://github.com/duceppemo/insilicoPCR) reads — and runs it for you with `--insilico-pcr`.
 Every oligo it proposes has already passed Primer3's length, melting temperature and GC limits, and
 hairpin and dimer limits for the oligo on its own and paired with its partner; and unless the request
-pinned a 3' end on a differing base, each primer carries a G or a C at that end — so an assay that cannot
-work is not offered. See [Designing assays](Designing-assays), which lists all of those,
+pinned a 3' end on a differing base, each primer carries a G or a C at that end — so an oligo outside
+those limits is not offered. That is not the same as the assay working: the limits are a filter on
+predicted structure, and the only wet-lab evidence in the suite says they are strict enough to reject
+assays that do work. See [Designing assays](Designing-assays), which lists all of those,
 the reaction they are predicted for, and explains how the assays are ordered and how much that order is
 worth.
 

@@ -119,11 +119,24 @@ sequence, so the assay is sent to be judged on how its primers differ instead of
 "nothing to amplify" exemption. Erring that way costs a good assay its top tier; erring the other way
 hands the top tier to an assay whose primer sites are present in every exclusion genome.
 
-> **Changed in 1.8.0.** Before this, identity and coverage were taken from blast's own `pident` and
-> `length`, so the gapped case above was scored as absence. The counts quoted from the sweeps on this page
-> and in `validation/results/` were produced under the old rule; on the bundled example the fix moves 7 of
-> 18 assays out of `absence` and into `difference`, where all 4 exclusion genomes are recorded as holding
-> the amplicon.
+### A copy blast reports in pieces
+
+Blast does not always report a copy as one alignment. Once the cost of gapping through an indel exceeds
+what the rest of the alignment is worth it stops and reports the stretches either side separately —
+measured with blastn 2.17 at its defaults, an insertion of about 60 bases does it on a 207-base amplicon,
+and a deletion of about 30. Each piece on its own reaches only part of the amplicon, so a genome holding
+every base of it either side of an insertion, and both primer sites exactly, counted as holding nothing.
+
+Pieces are therefore joined back together first. Two of them belong to the same copy when they follow each
+other both in the amplicon and in the genome, on one strand of one sequence, no more than 2,000 bases apart
+in either — and the reach is then measured across the whole chain. Two copies lying side by side in the
+genome do not join: the second repeats the amplicon rather than continuing it.
+
+> **Changed in 1.8.0.** Before this, coverage and identity were taken from blast's own `length` and
+> `pident`, and each piece was judged on its own. The counts quoted from the sweeps on this page and in
+> `validation/results/` were produced under the old rule. On the bundled example the fix moves 7 of the 18
+> assays that claimed absence into `difference`, where all 4 exclusion genomes are recorded as holding the
+> amplicon, and leaves the other 11 as they were.
 
 ### Why the probe does not count towards it
 
@@ -185,8 +198,11 @@ differences in total, and does not take a view on whether two under one primer b
 ## What an oligo has to satisfy
 
 These are **hard constraints**, not score terms: Primer3 returns nothing rather than an oligo outside them,
-so a doomed assay is never proposed and never reaches the ranking. The ranking below only ever orders assays
-that already satisfy all of this.
+so an oligo outside them is never proposed and never reaches the ranking. The ranking below only ever
+orders assays that already satisfy all of this. What it does not mean is that an assay inside the limits
+will work, or that one outside them would not: two of the four published *Brucella* assays
+[in the validation suite](Validation) carry an oligo over the hairpin limit and are validated on 427
+strains.
 
 | | Primer | Probe |
 |---|---|---|

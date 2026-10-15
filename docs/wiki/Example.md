@@ -20,7 +20,7 @@ time) with its own 20 scattered single-base changes, none of them within 500 bas
 What the four inclusion genomes all share, and the exclusion genomes do not, is one planted region around
 position 9,000:
 
-| Planted variant | Position |
+| Planted variant | Position in the backbone |
 |---|---|
 | mismatch | 9,000 |
 | mismatch | 9,008 |
@@ -29,8 +29,11 @@ position 9,000:
 | mismatch | 9,100 |
 
 Three mismatches within 16 bases, an insertion, and one isolated mismatch that could not carry an assay on
-its own. `<output_folder>/data/truth.json` records all of it: the positions of the planted variants in the
-inclusion genomes (`variants`), and the private changes of each genome.
+its own. These are positions in the backbone the genomes were built from; in the inclusion genomes
+everything after the insertion sits 15 bases further along, so the last mismatch is at 9,115 there, and
+that is the frame `truth.json` and the checks use. `<output_folder>/data/truth.json` records all of it:
+the positions of the planted variants in the inclusion genomes (`variants`), and the private changes of
+each genome.
 
 ## What primer-finder finds
 
@@ -42,7 +45,7 @@ exclusion genomes:
 
 ```
 >Contig_1_67.5167 [72, 122, 123, ..., 136, 172, 179, 187]
-CACC...TGTcCCATG...TAGACggttaacgtaatgccTGTG...TTCCCaGCGCATcTCGTTAGaGGAT...
+CACC...TGTcCCATG...TAGAcggttaacgtaatgcCTGTG...TTCCCaGCGCATcTCGTTAGaGGAT...
 ```
 
 The three clustered mismatches (172, 179, 187 — seven and eight bases apart) and the insertion (122-136) are
@@ -61,7 +64,12 @@ what an assay would be designed on.
 - three of the planted mismatches are marked within 25 bases of each other;
 - the contig is a substring of all four inclusion genomes, in either orientation, and of none of the
   exclusion genomes;
-- `run_info.json` counts one final contig, and the first exclusion genome was used as the reference.
+- `run_info.json` counts one final contig, inclusion-specific kmers were found, and the first exclusion
+  genome was used as the reference;
+- and that the run needed **neither** of its rescues: `last_resort` is false, the rule applied was two
+  differences rather than one, the contig carries no `last_resort` tag, and the assembler that was asked
+  for is the one that produced the contigs. Either rescue would carry this example on its own, so without
+  these a regression in the strict pass, or a SKESA collapse, would leave every check above green.
 
 It ends with `All checks passed`. The CI runs the same script on every push, in a conda environment built
 from `environment.yml`, so the example also checks that the pipeline still works with current versions of

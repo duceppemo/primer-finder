@@ -89,6 +89,24 @@ def test_a_collapsed_assembly_is_recorded_as_such(stubs, settings):
     assert info["parameters"]["assembler_used"] == "unitig"
 
 
+def test_a_run_that_cannot_move_the_old_results_aside_says_so_and_keeps_everything(stubs, settings):
+    """Moving the earlier results aside can fail -- a `.previous` path that is a directory, a folder that
+    cannot be written to -- and it used to fail from inside the block that runs `clean_up` on the way out,
+    so the error took that earlier run's `--keep-intermediate` files with it."""
+    first = settings(keep_intermediate=True)
+    assert run(first) == 0
+    kept = [first.output / "1_kmers" / "inclusion.kmc_pre",
+            first.output / "3_candidates" / "mapping.sam",
+            first.output / "4_blast" / "exclusion_db"]
+    assert all(path.exists() for path in kept)
+    (first.output / "final_kmers.fasta.previous").mkdir()
+    # The second run does not ask to keep them, so `clean_up` would delete the first run's if it ran
+    with pytest.raises(PrimerFinderError, match="Cannot move the earlier run's final_kmers.fasta aside"):
+        run(settings(output=first.output))
+    assert all(path.exists() for path in kept), "the earlier run's files were tidied away"
+    assert (first.output / "final_kmers.fasta").is_file()  # And its answer is still there
+
+
 def test_a_refused_run_leaves_an_earlier_runs_files_alone(stubs, settings, tmp_path):
     """Clean-up is armed only once the settings have been accepted. It deletes by fixed path under the
     output folder, so a typo in `-i` used to take a previous run's `--keep-intermediate` files with it."""

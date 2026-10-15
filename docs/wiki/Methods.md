@@ -97,7 +97,13 @@ another assembler would give.
 all out of a kmer set, and the error that used to end such a run advised a smaller `-k`, which runs into
 the same assembler from the other end. So when the chosen assembler exits with an error, or assembles **less
 than 0.1 bases per kmer**, the kmers are assembled directly instead, with a warning, and `run_info.json` records
-`assembler_used` beside `assembler`. The threshold comes from 21 paired runs on three validation panels:
+`assembler_used` beside `assembler`.
+
+Two kinds of failure are **not** answered this way, because they say the machine could not run the
+assembler rather than that the assembler could make nothing of the kmers, and the walk honours no memory
+budget at all: an assembler killed by a signal, which is what a kernel out-of-memory kill looks like, and
+SPAdes exiting 68 (its own `--memory` check) or 255 (`GeneralError`, which is what a SPAdes whose child
+was killed reports). Those end the run with the error. The threshold comes from 21 paired runs on three validation panels:
 SKESA assembled 0.000, 0.000 and 0.019 bases per kmer on the three where it returned nothing usable, and
 0.702 to 1.388 on the other eighteen — a 37-fold gap with nothing in it
 ([the record](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-14_v1.7.0_unitig/SUMMARY.md)).
@@ -217,7 +223,8 @@ Step 5 is what checks them against the whole exclusion group.
 
 ```
 makeblastdb -in <each inclusion genome> -dbtype nucl -out <output folder>/...
-blastn -db <genome> -query best_kmers.fasta -evalue 1e-10 -max_target_seqs 1 -outfmt "6 qseqid evalue"
+blastn -task blastn -db <genome> -query best_kmers.fasta -evalue 1e-10 -max_target_seqs 1 \
+       -num_threads 1 -outfmt "6 qseqid evalue"
 ```
 
 Each inclusion genome is searched for each candidate; a hit with an e-value of 1e-10 or better counts as
@@ -234,8 +241,8 @@ Gzipped genomes are decompressed into the output folder for this step: blast can
 ## 5. Different from every exclusion genome (blast)
 
 ```
-blastn -db <each exclusion genome> -query all_inclusion_contigs.fasta -evalue 1e-10 \
-       -max_target_seqs 10 -outfmt "6 qseqid qstart qend evalue qseq sseq"
+blastn -task blastn -db <each exclusion genome> -query all_inclusion_contigs.fasta -evalue 1e-10 \
+       -max_target_seqs 10 -num_threads 1 -outfmt "6 qseqid qstart qend evalue qseq sseq"
 ```
 
 Every hit of a contig in an exclusion genome is read, not just the best one, and each gives the positions of

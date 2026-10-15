@@ -43,12 +43,20 @@ SPADES_FLOOR = 200
 COLLAPSE_BASES_PER_KMER = 0.1
 
 # Exit codes that mean the machine could not run the assembler, rather than that the assembler could make
-# nothing of the kmers. A negative code is a signal, which covers a kernel OOM kill of a native program
-# like SKESA. SPAdes is a Python wrapper and turns a killed child into its own positive codes, so 68 --
-# `ErrorCode.MemoryLimitExceeded` in its support.py -- is listed too: answering "I could not stay inside
-# the memory you gave me" by starting a second assembly in this process, which honours no budget at all,
-# is the wrong move.
-FATAL_EXIT_CODES = frozenset({68})
+# nothing of the kmers. Answering either of those by starting a second assembly in this process -- which
+# honours no memory budget at all -- would be the wrong move.
+#
+# A negative code is a signal, which covers a kernel OOM kill of a native program like SKESA. SPAdes is a
+# Python wrapper and never exits by a signal, so the two codes its own machinery produces are listed
+# instead. Read out of the installed `spades_pipeline/support.py`:
+#
+#   * 68, `ErrorCode.MemoryLimitExceeded`: its own --memory check, "I could not stay inside the budget".
+#   * 255, `ErrorCode.GeneralError` (-1, and a negative status comes back from the shell as 255). Its
+#     `ErrorCode._missing_` maps every value it does not recognise to this one, and a child killed by a
+#     signal arrives as such a value -- `ErrorCode(-9)` is `GeneralError` -- so a SPAdes whose assembler
+#     was OOM-killed exits 255, not 68. The codes in 64..127, which SPAdes calls `user_end_error`, are
+#     the ones that mean it did not like the input, and those still reach the fallback.
+FATAL_EXIT_CODES = frozenset({68, 255})
 
 
 def unitigs(kmers: Iterable[str]) -> list[str]:
@@ -205,10 +213,8 @@ def assemble(kmer_fasta: Path, output: Path, assembler: str, threads: int, memor
                 f'Unknown assembler "{assembler}". Choose one of: {", ".join(ASSEMBLERS)}')
     except tools.ToolError as error:
         # An assembler that exits non-zero on a kmer set has collapsed in the same way as one that writes
-        # nothing, and is answered the same way rather than ending the run -- unless it was killed. A
-        # negative exit code means a signal, which on this input almost always means the machine ran out
-        # of memory, and answering that by starting a second assembly in this process would be the wrong
-        # move: the walk honours no memory budget at all.
+        # nothing, and is answered the same way rather than ending the run -- unless it was killed, or
+        # could not fit in the memory it was given. See FATAL_EXIT_CODES.
         if error.returncode is not None and (error.returncode < 0
                                              or error.returncode in FATAL_EXIT_CODES):
             raise
@@ -263,6 +269,11 @@ def _skesa(kmer_fasta: Path, output: Path, threads: int, memory_gb: int, min_con
 
 def _spades(kmer_fasta: Path, output: Path, threads: int, memory_gb: int, min_contig: int) -> None:
     work_dir = output.parent / "spades"
+    # Cleared first, not only on the way out: the folder is only removed when SPAdes succeeded, so a run
+    # that failed and was answered by the fallback used to leave `spades/contigs.fasta` sitting beside the
+    # walk's assembly -- contigs this run did not use, named as though it had. SPAdes would also have
+    # taken the leftovers as a half-finished run of its own to continue from.
+    shutil.rmtree(work_dir, ignore_errors=True)
     tools.run([
         "spades.py",
         "--s", "1", kmer_fasta,

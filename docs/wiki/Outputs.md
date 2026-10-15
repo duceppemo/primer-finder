@@ -31,12 +31,17 @@ stops on an error, since an exclusion KMC database for a few hundred genomes is 
 gave up is the one nobody goes back to tidy. Pass `--keep-intermediate` when the step that failed is to be
 examined. `run_info.json` is only written by a run that reaches the end.
 
+A run into a folder that already holds results moves the earlier `final_kmers.fasta` and `run_info.json`
+aside to `final_kmers.fasta.previous` and `run_info.json.previous` before it starts, so a re-run that
+fails partway cannot leave an older answer behind looking like this one's. One generation only, and the
+log is not kept with them.
+
 ## final_kmers.fasta
 
 One record per candidate region, the most promising first (the ones with the most differences):
 
 ```
->Contig_1_67.5167 [72, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 172, 179, 187]
+>Contig_1_67.5167 [72, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 172, 179, 187]
 CACCAAAATCCTCCTGGCGAGAGGTTAGATCATCAGAGTCCGTGTACAGAAACGGCCATTGCGAACTACTGTcCCATGTGAACT...
 ```
 

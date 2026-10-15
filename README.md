@@ -62,7 +62,9 @@ Every oligo proposed satisfies Primer3's length, melting temperature and GC limi
 with itself and with its partner — below 47 °C; and unless the request pinned a 3' end on a differing base,
 each primer carries a G or a C at that end. All of it is predicted for an ordinary TaqMan reaction whose salt, dNTP and oligo
 concentrations are options.
-So a doomed assay is never proposed. See
+So an oligo outside those limits is never proposed. Whether one inside them works is a question for
+the bench: two of the four published *Brucella* assays in the validation suite are over the hairpin
+limit and are validated on 427 strains. See
 [Designing assays](https://github.com/duceppemo/primer-finder/wiki/Designing-assays).
 
 To install from the source code instead, see

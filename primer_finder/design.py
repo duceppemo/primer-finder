@@ -81,6 +81,14 @@ DEFAULT_PROBE_NM = 200.0
 # "the genome has it". See `has_the_amplicon` for why neither is measured the way blast reports it.
 MIN_AMPLICON_COVERAGE = 0.9
 MIN_AMPLICON_IDENTITY = 90.0
+# How far apart two pieces of one alignment may be, in the amplicon or in the genome, and still be read as
+# one copy of it rather than two unrelated stretches of homology (`chains_of`). Deliberately generous: an
+# indel of this size between the primers makes a product far outside what the assay was designed for, and
+# counting it as held only means the assay is judged on its primers rather than granted the "nothing to
+# amplify" exemption. Two pieces further apart than this say nothing about one another.
+MAX_PRODUCT_GAP = 2000
+# Blast's pieces may overlap a little where it ends one alignment and starts the next
+MAX_PIECE_OVERLAP = 30
 # Blast hits to ask for per amplicon and genome, enough to count the copies of a repeated target.
 MAX_COPIES = 100
 
@@ -701,36 +709,83 @@ def design(regions: Iterable[seqio.Record], work_dir: Path, product_size: str = 
     return assays
 
 
-def has_the_amplicon(hit: blast.Hit, size: int) -> bool:
-    """Whether one blast hit means this genome holds something the primer pair could amplify.
+def _subject_bounds(hit: blast.Hit) -> tuple[int, int, bool]:
+    """Where a hit sits on the subject, lowest coordinate first, and whether it is on the plus strand."""
+    forward = hit.sstart <= hit.send
+    return (hit.sstart, hit.send, True) if forward else (hit.send, hit.sstart, False)
+
+
+def chains_of(hits: Sequence[blast.Hit]) -> list[list[blast.Hit]]:
+    """Group one amplicon's hits in one genome into chains, one per copy the genome holds.
+
+    Blast does not always report a copy as one alignment. Once the cost of gapping through an indel
+    exceeds what the rest of the alignment is worth, it stops and reports the pieces either side as
+    separate high-scoring pairs instead -- measured with blastn 2.17 at its defaults, an insertion of
+    about 60 bases is enough on a 207-base amplicon, and a deletion of about 30. Judged one piece at a
+    time neither reaches far enough across the amplicon to count, so a genome holding every base of it
+    either side of an insertion, and both primer sites exactly, counted as holding nothing at all.
+
+    Pieces belong to the same copy when they follow each other in the amplicon *and* in the genome, on one
+    strand of one sequence, close enough to be one product. Two copies lying side by side in the genome do
+    not chain: the second repeats the amplicon rather than continuing it, so it does not advance along the
+    query.
+    """
+    chains: list[list[blast.Hit]] = []
+    for hit in sorted(hits, key=lambda one: (one.subject, _subject_bounds(one)[2], one.qstart, one.qend)):
+        low, high, forward = _subject_bounds(hit)
+        for chain in chains:
+            last = chain[-1]
+            last_low, last_high, last_forward = _subject_bounds(last)
+            if last.subject != hit.subject or last_forward != forward:
+                continue
+            if hit.qstart <= last.qstart or hit.qend <= last.qend:
+                continue  # Not a continuation of this copy but another look at the same stretch of it
+            query_gap = hit.qstart - last.qend - 1
+            # Along the genome the pieces run the other way round on the minus strand
+            subject_gap = low - last_high - 1 if forward else last_low - high - 1
+            if min(query_gap, subject_gap) < -MAX_PIECE_OVERLAP:
+                continue  # Overlapping in the genome: a repeat rather than one stretch
+            if max(query_gap, subject_gap) > MAX_PRODUCT_GAP:
+                continue
+            chain.append(hit)
+            break
+        else:
+            chains.append([hit])
+    return chains
+
+
+def has_the_amplicon(chain: Sequence[blast.Hit], size: int) -> bool:
+    """Whether one chain of hits means this genome holds something the primer pair could amplify.
 
     What matters is that both primer sites are there with the stretch between them intact, so coverage is
-    measured over how much of the amplicon the hit *reaches* -- `qend - qstart`, the span -- and identity
-    over the columns where both sequences have a base. Blast's own `length` and `pident` are neither of
-    those, and both mislead in the same case: an insertion in the amplicon that this genome does not have.
-    Blast reports such a hit one of two ways depending on how the scores fall, and the example dataset,
-    whose inclusion group carries a planted 15-base insertion, produces both:
+    measured over how far across the amplicon the chain *reaches* -- from the first piece's `qstart` to the
+    last piece's `qend` -- and identity over the columns where both sequences have a base. Requiring the
+    reach rather than the bases covered is what makes this a question about the primer sites: a chain only
+    reaches the whole amplicon if it starts and ends where the primers sit, whatever it does in between.
 
-      * as one alignment gapped through the insertion. `length` then counts the gap columns, so coverage
-        looks complete, while `pident` counts them as mismatches: 15 gaps in a 148-column alignment read
-        as 87% identity even though 129 of the 133 aligned bases match. Judged on `pident` the genome
-        looked not to have the amplicon at all -- while holding both primer sites exactly.
-      * by stopping at the insertion. The span then really is short, and that is a genome where a primer
-        site is inside the insertion and so genuinely absent.
+    Blast's own `length` and `pident` are neither measure, and both mislead in the same case: an insertion
+    in the amplicon that this genome does not carry. The example dataset, whose inclusion group carries a
+    planted 15-base insertion, shows what that does. Gapped through, `length` counts the gap columns, so
+    coverage looks complete, while `pident` counts them as mismatches: 15 gaps in a 148-column alignment
+    read as 87% identity even though 129 of the 133 aligned bases match. Judged on `pident` the genome
+    looked not to hold the amplicon at all -- while holding both primer sites exactly.
 
-    A long insertion between the primers is still counted as held. The product would be the wrong size,
-    and in a real reaction probably no product at all, but that is a claim about a reaction rather than
-    about the sequence: counting it keeps the assay out of the "specific because there is nothing to
-    amplify" tier and sends it to be judged on how its primers differ instead, which is the cautious
-    direction to err in.
+    An indel between the primers is still counted as held, however long. The product would be the wrong
+    size, and in a real reaction quite possibly no product at all, but that is a claim about a reaction
+    rather than about the sequence: counting it keeps the assay out of the "specific because there is
+    nothing to amplify" tier and sends it to be judged on how its primers differ instead, which is the
+    cautious direction to err in. What a primer site inside the insertion looks like, by contrast, is a
+    chain that stops short of one end of the amplicon, and that is genuinely absent.
     """
-    if size <= 0:
+    if size <= 0 or not chain:
         return False
-    span = hit.qend - hit.qstart + 1
-    aligned = hit.length - hit.gaps  # Columns where both sequences have a base
+    span = chain[-1].qend - chain[0].qstart + 1
+    # Columns where both sequences have a base. Pieces may overlap by a little, which counts those columns
+    # twice; at `MAX_PIECE_OVERLAP` it cannot move a ratio across the threshold.
+    aligned = sum(piece.length - piece.gaps for piece in chain)
     if aligned <= 0:  # Only possible from a malformed row; blast never reports an all-gap alignment
         return False
-    identity = 100.0 * hit.identical / aligned
+    identity = 100.0 * sum(piece.identical for piece in chain) / aligned
     return span >= MIN_AMPLICON_COVERAGE * size and identity >= MIN_AMPLICON_IDENTITY
 
 
@@ -756,7 +811,8 @@ def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: 
     seqio.write_fasta(query, [seqio.Record(assay.name, "", assay.amplicon) for assay in assays])
     sizes = {assay.name: len(assay.amplicon) for assay in assays}
     starts = {assay.name: assay.forward.start for assay in assays}  # The amplicon starts here in the region
-    fields = ("qseqid", "qstart", "qend", "evalue", "length", "pident", "nident", "gaps")
+    fields = ("qseqid", "qstart", "qend", "evalue", "length", "pident", "nident", "gaps",
+              "sseqid", "sstart", "send")
     if with_bases:
         fields += ("qseq", "sseq")
 
@@ -767,16 +823,23 @@ def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: 
                                              max_targets=MAX_COPIES), fields)
         found: dict[str, int] = {}
         seen: dict[str, dict[int, str]] = {}
+        by_query: dict[str, list[blast.Hit]] = {}
         for hit in hits:
             if hit.evalue > blast.MAX_EVALUE:
                 continue
-            if has_the_amplicon(hit, sizes[hit.query]):
-                found[hit.query] = found.get(hit.query, 0) + 1
+            by_query.setdefault(hit.query, []).append(hit)
+        for name, found_hits in by_query.items():
+            for chain in chains_of(found_hits):
+                if not has_the_amplicon(chain, sizes[name]):
+                    continue
+                found[name] = found.get(name, 0) + 1
                 if with_bases:
-                    offset = starts[hit.query]
-                    seen.setdefault(hit.query, {}).update(
-                        {position + offset: base for position, base in blast.variant_bases(hit).items()}
-                    )
+                    offset = starts[name]
+                    for piece in chain:
+                        seen.setdefault(name, {}).update(
+                            {position + offset: base
+                             for position, base in blast.variant_bases(piece).items()}
+                        )
         return found, seen
 
     votes: dict[str, dict[int, Counter]] = {assay.name: {} for assay in assays}
