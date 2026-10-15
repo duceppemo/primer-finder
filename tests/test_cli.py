@@ -193,6 +193,91 @@ def test_the_long_and_short_threshold_options_agree(stubs, genomes, tmp_path):
         assert json.loads((out / "run_info.json").read_text())["parameters"]["min_inclusion"] == 0.5
 
 
+# Every one of these could be changed in `build_parser` -- a different default, or wired to nothing at all
+# -- without a single test noticing, which is how the `--min-region` help text came to describe a
+# restriction that no longer held. Each is passed on the command line and read back out of the run's own
+# record of what it was asked for.
+FIND_OPTIONS = [
+    (["--assembler", "spades"], "assembler", "spades"),
+    (["--min-region", "50"], "min_region", 50),
+    (["-d", "3"], "duplication", 3),
+    (["-k", "31"], "kmer_size", 31),
+]
+
+
+@pytest.mark.parametrize(("options", "name", "expected"), FIND_OPTIONS,
+                         ids=[option[0].lstrip("-") for option, _, _ in FIND_OPTIONS])
+def test_a_find_option_reaches_the_run(stubs, genomes, tmp_path, options, name, expected):
+    inclusion, exclusion = genomes
+    out = tmp_path / "out"
+    assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(out),
+                 "-t", "1", "-m", "2", *options]) == 0
+    assert json.loads((out / "run_info.json").read_text())["parameters"][name] == expected
+
+
+def test_the_no_last_resort_option_reaches_the_run(stubs, genomes, tmp_path):
+    """Recorded at the top level rather than among the parameters, because it says what the run did and
+    not only what it was asked for."""
+    inclusion, exclusion = genomes
+    out = tmp_path / "out"
+    assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(out), "-t", "1", "-m", "2",
+                 "--no-last-resort"]) == 0
+    assert json.loads((out / "run_info.json").read_text())["last_resort"] is False
+
+
+def test_the_keep_intermediate_option_reaches_the_run(stubs, genomes, tmp_path):
+    """Nothing in the record says whether it was given, so the files it keeps are what pins it."""
+    inclusion, exclusion = genomes
+    kept, tidied = tmp_path / "kept", tmp_path / "tidied"
+    assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(kept), "-t", "1", "-m", "2",
+                 "--keep-intermediate"]) == 0
+    assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(tidied), "-t", "1",
+                 "-m", "2"]) == 0
+    # `clean_up` empties `1_kmers` rather than removing it, so the databases are what to look for
+    assert (kept / "1_kmers" / "inclusion.kmc_pre").is_file()
+    assert not (tidied / "1_kmers" / "inclusion.kmc_pre").exists()
+
+
+def test_the_reference_option_reaches_the_run(stubs, genomes, tmp_path):
+    """Left alone the first exclusion genome is used; `-r` names another."""
+    inclusion, exclusion = genomes
+    chosen = sorted(exclusion.glob("*.fasta"))[-1]
+    out = tmp_path / "out"
+    assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(out), "-t", "1", "-m", "2",
+                 "-r", str(chosen)]) == 0
+    assert Path(json.loads((out / "run_info.json").read_text())["reference"]).name == chosen.name
+
+
+DESIGN_OPTIONS = [
+    (["--max-regions", "7"], "max_regions", 7),
+    (["--assays-per-region", "5"], "assays_per_region", 5),
+    (["--gc-clamp", "0"], "gc_clamp", 0),
+    (["--min-primer-differences", "1"], "min_primer_differences", 1),
+]
+
+
+@pytest.mark.parametrize(("options", "name", "expected"), DESIGN_OPTIONS,
+                         ids=[option[0].lstrip("-") for option, _, _ in DESIGN_OPTIONS])
+def test_a_design_option_reaches_the_run(stubs, genomes, tmp_path, options, name, expected):
+    results = a_finished_run(tmp_path, genomes)
+    out = tmp_path / "assays"
+    assert main(["design", str(results), "-o", str(out), "-t", "1", *options]) == 0
+    assert json.loads((out / "design_info.json").read_text())["parameters"][name] == expected
+
+
+def test_the_design_groups_can_be_named_on_the_command_line(stubs, genomes, tmp_path):
+    """`-i` and `-e` override what the run recorded, which is what lets a design be re-run against a
+    different panel."""
+    inclusion, exclusion = genomes
+    results = a_finished_run(tmp_path, genomes)
+    out = tmp_path / "assays"
+    assert main(["design", str(results), "-o", str(out), "-t", "1",
+                 "-i", str(exclusion), "-e", str(inclusion)]) == 0  # Deliberately the other way round
+    info = json.loads((out / "design_info.json").read_text())
+    assert Path(info["inclusion"]).name == exclusion.name
+    assert Path(info["exclusion"]).name == inclusion.name
+
+
 def test_the_design_command(stubs, genomes, tmp_path):
     """`primer-finder design` reads a finished run and writes the assays."""
     import json

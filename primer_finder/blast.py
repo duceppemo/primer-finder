@@ -45,6 +45,8 @@ class Hit:
     sseq: str = ""
     length: int = 0  # Of the alignment, when the caller asked for it
     identity: float = 0.0  # Per cent, when the caller asked for it
+    identical: int = 0  # Columns where both have the same base (blast's `nident`)
+    gaps: int = 0  # Gap columns, on either side (blast's `gaps`)
 
 
 @dataclass
@@ -165,6 +167,8 @@ def parse_hits(out_file: Path, fields: Sequence[str]) -> list[Hit]:
                 sseq=values[index["sseq"]] if "sseq" in index else "",
                 length=int(values[index["length"]]) if "length" in index else 0,
                 identity=float(values[index["pident"]]) if "pident" in index else 0.0,
+                identical=int(values[index["nident"]]) if "nident" in index else 0,
+                gaps=int(values[index["gaps"]]) if "gaps" in index else 0,
             ))
     return hits
 

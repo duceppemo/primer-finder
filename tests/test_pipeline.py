@@ -106,8 +106,24 @@ def test_an_output_path_that_is_a_file_says_so(stubs, settings, tmp_path):
     "Not a directory: .../out.txt/1_kmers/inclusion.kmc_pre"."""
     path = tmp_path / "out.txt"
     path.write_text("not a folder\n")
-    with pytest.raises(PrimerFinderError, match="output path is a file, not a folder"):
+    with pytest.raises(PrimerFinderError, match="output path is a file, or sits under one"):
         run(settings(output=path))
+    # And a path that runs *through* a file, which mkdir reports as NotADirectoryError instead
+    with pytest.raises(PrimerFinderError, match="output path is a file, or sits under one"):
+        run(settings(output=path / "under"))
+
+
+def test_a_dangling_symlink_where_the_results_go_is_moved_aside(stubs, settings):
+    """`exists()` is False for a dangling symlink, so one named like the results file used to survive
+    this step and then break the final write, after the whole run had been done."""
+    scenario = settings()
+    scenario.output.mkdir(parents=True)
+    link = scenario.output / "final_kmers.fasta"
+    link.symlink_to(scenario.output / "nothing_here.fasta")
+    assert link.is_symlink() and not link.exists()
+    assert run(scenario) == 0
+    assert (scenario.output / "final_kmers.fasta").is_file()
+    assert (scenario.output / "final_kmers.fasta.previous").is_symlink()
 
 
 def test_a_failed_rerun_does_not_leave_the_previous_answer_behind(stubs, settings, caplog):
@@ -122,7 +138,11 @@ def test_a_failed_rerun_does_not_leave_the_previous_answer_behind(stubs, setting
         run(settings(output=first.output))
     assert not (first.output / "final_kmers.fasta").exists()
     assert not (first.output / "run_info.json").exists()
-    assert "Replacing the results of an earlier run" in caplog.text
+    assert "An earlier run's results are in" in caplog.text
+    # Moved aside, not destroyed: preventing `design` from using them as this run's does not require
+    # throwing them away
+    assert (first.output / "final_kmers.fasta.previous").is_file()
+    assert (first.output / "run_info.json.previous").is_file()
 
 
 def test_keep_intermediate(stubs, settings):
@@ -386,9 +406,31 @@ def test_variant_in_only_one_exclusion_genome_is_dropped(stubs, settings):
         "exclusion_1": [["ctg1", 1, 20, 1e-30, "ACGTACGTACGTACGTACGT", "ACGTAAGTACGTTCGTACGT"]],
         "exclusion_2": [["ctg1", 1, 20, 1e-30, "ACGTACGTACGTACGTACGT", "ACGTACGTACGTACGTACGT"]],
     })
-    scenario = settings()
+    scenario = settings(last_resort=False)  # The rule under test is the strict one
     assert run(scenario) == 0
     assert final_records(scenario.output) == {}
+
+
+def test_a_contig_one_exclusion_genome_holds_identically_is_dropped(stubs, settings):
+    """`genomes_hit == 0` is what makes a contig specific on its own, and it has to mean *every* exclusion
+    genome. Here one holds it with no difference at all and another does not hold it; relaxing the rule to
+    "all but one" would report it."""
+    stubs(exclusion_hits={
+        "exclusion_1": [["ctg1", 1, 20, 1e-30, "ACGTACGTACGTACGTACGT", "ACGTACGTACGTACGTACGT"]],
+        "exclusion_2": [],
+    })
+    scenario = settings(last_resort=False)
+    assert run(scenario) == 0
+    assert final_records(scenario.output) == {}
+
+
+def test_a_contig_no_exclusion_genome_holds_needs_no_difference(stubs, settings):
+    """The mirror: hit by none of them, so it is kept whatever it carries."""
+    stubs(exclusion_hits={"exclusion_1": [], "exclusion_2": []})
+    scenario = settings(last_resort=False)
+    assert run(scenario) == 0
+    assert list(final_records(scenario.output)) == ["ctg1"]
+    assert "last_resort" not in (scenario.output / "final_kmers.fasta").read_text()
 
 
 def test_no_candidate_after_mapping(stubs, settings):
@@ -517,11 +559,21 @@ def test_several_genomes_are_blasted_in_parallel(stubs, settings, tmp_path):
     inclusion = tmp_path / "inclusion"
     for number in range(3, 9):
         (inclusion / f"inclusion_{number}.fasta").write_text(">chr\n" + "ACGT" * 50 + "\n")
-    stubs(presence={f"inclusion_{number}": ["ctg1"] for number in range(1, 9)})
+    # A second contig that one genome -- and only that genome -- does not hold. Were every genome given
+    # the same answer, the columns would read the same in any order and a mix-up would be invisible.
+    stubs(contigs={"ctg1": "ACGT" * 25, "ctg2": "TTGA" * 25},
+          sam=[["ctg1", 0, "40=1X7=1X50="], ["ctg2", 0, "40=1X7=1X50="]],
+          presence={f"inclusion_{number}": ["ctg1"] if number == 5 else ["ctg1", "ctg2"]
+                    for number in range(1, 9)})
     scenario = settings(threads=4)
     assert run(scenario) == 0
     rows = (scenario.output / "4_blast" / "inclusion_blast_hits.tsv").read_text().splitlines()
-    assert len(rows[0].split("\t")) == 1 + 8  # The contig column and one per genome
+    header = rows[0].split("\t")
+    assert len(header) == 1 + 8  # The contig column and one per genome
+    counts = dict(zip(header[1:], rows[2].split("\t")[1:], strict=True))
+    assert rows[2].startswith("ctg2\t")
+    assert counts["inclusion_5.fasta"] == "0"  # The one that lacks it, in its own column
+    assert sorted(counts.values()) == ["0"] + ["1"] * 7
     assert rows[1] == "ctg1\t" + "\t".join(["1"] * 8)
 
 
@@ -561,9 +613,14 @@ def test_an_output_path_with_a_space_is_refused_before_anything_runs(stubs, sett
 
 
 def test_input_folders_may_hold_a_space(stubs, genomes, tmp_path):
-    """Each genome is linked into the output folder, so blast never sees the input path."""
+    """Each genome is linked into the output folder, so blast never sees the input path.
+
+    The stubs do not mind a space, so a run that merely finishes proves nothing: what is checked is what
+    the programs were handed. BLAST splits its path arguments on whitespace and would read `my` and
+    `genomes` as two files."""
     import shutil
 
+    calls = stubs()
     inclusion, exclusion = genomes
     spaced = tmp_path / "my genomes"
     shutil.copytree(inclusion, spaced)
@@ -571,6 +628,11 @@ def test_input_folders_may_hold_a_space(stubs, genomes, tmp_path):
     assert run(Settings(inclusion=spaced, exclusion=exclusion, output=output,
                         threads=1, memory_gb=2)) == 0
     assert (output / "final_kmers.fasta").exists()
+    blasted = [line for line in calls.read_text().splitlines()
+               if line.startswith(("blastn", "makeblastdb"))]
+    assert blasted
+    for line in blasted:
+        assert "my genomes" not in line, line
 
 
 @pytest.fixture

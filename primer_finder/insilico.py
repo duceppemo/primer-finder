@@ -170,6 +170,13 @@ def stage_genomes(folder: Path, into: Path) -> int:
 
     Returns how many genomes were staged, which is what the verdicts are counted against.
     """
+    # This folder is emptied below, so it must not be, or contain, the folder being read from
+    here, there = into.resolve(), folder.resolve()
+    if here == there or there in here.parents or here in there.parents:
+        raise PrimerFinderError(
+            f"Refusing to stage {folder} into {into}: one is inside the other, and staging empties the "
+            "folder it writes to, which would delete the genomes it is about to read."
+        )
     into.mkdir(parents=True, exist_ok=True)
     # Clear what an earlier run staged. Only the names about to be written were replaced before, so a
     # genome that has since left the input folder stayed behind -- and `count_genomes` on this folder is

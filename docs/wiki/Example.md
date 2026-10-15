@@ -41,11 +41,11 @@ orientation — is present in all four inclusion genomes, and keeps 19 variant p
 exclusion genomes:
 
 ```
->Contig_1_67.5167 [72, 123, 124, ..., 137, 172, 179, 187]
+>Contig_1_67.5167 [72, 122, 123, ..., 136, 172, 179, 187]
 CACC...TGTcCCATG...TAGACggttaacgtaatgccTGTG...TTCCCaGCGCATcTCGTTAGaGGAT...
 ```
 
-The three clustered mismatches (172, 179, 187 — seven and eight bases apart) and the insertion (123-137) are
+The three clustered mismatches (172, 179, 187 — seven and eight bases apart) and the insertion (122-136) are
 what an assay would be designed on.
 
 ## What the checks verify

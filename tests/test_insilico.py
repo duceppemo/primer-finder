@@ -438,3 +438,18 @@ def test_staging_can_be_run_again_over_the_same_folder(tmp_path):
     staged = tmp_path / "staged"
     stage_genomes(source, staged)
     assert stage_genomes(source, staged) == 1
+
+
+def test_staging_into_a_folder_that_holds_the_genomes_is_refused(tmp_path):
+    """`stage_genomes` empties what it writes to, so it must refuse to write into the folder it reads
+    from -- or into a parent of it. The design command refuses the arrangement too; this is the layer
+    that protects any other caller."""
+    folder = tmp_path / "genomes"
+    folder.mkdir()
+    (folder / "g.fasta").write_text(">chr\nACGT\n")
+    for into in (folder, folder / "staged", tmp_path):
+        with pytest.raises(PrimerFinderError, match="one is inside the other"):
+            stage_genomes(folder, into)
+    assert (folder / "g.fasta").is_file()
+    # A folder that is neither is fine
+    assert stage_genomes(folder, tmp_path / "elsewhere" / "staged") == 1

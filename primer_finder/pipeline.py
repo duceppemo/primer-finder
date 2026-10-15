@@ -38,6 +38,9 @@ INCLUSION_TAG = "inclusion="
 # whole point is that it cannot be missed by anything reading the file, this tool included.
 LAST_RESORT_TAG = "last_resort"
 
+# What an earlier run's results are renamed to when a new run replaces them.
+PREVIOUS_SUFFIX = ".previous"
+
 KMER_FOLDER = "1_kmers"
 ASSEMBLY_FOLDER = "2_assembly"
 CANDIDATE_FOLDER = "3_candidates"
@@ -88,8 +91,12 @@ def run(settings: Settings) -> int:
     inclusion, exclusion, reference = check(settings)
     try:
         settings.output.mkdir(parents=True, exist_ok=True)
-    except FileExistsError as error:  # a file, not a folder: mkdir's own message is not obvious
-        raise PrimerFinderError(f"The output path is a file, not a folder: {settings.output}") from error
+    except (FileExistsError, NotADirectoryError) as error:
+        # mkdir's own message is not obvious: a file where the folder should be gives FileExistsError,
+        # and a file part way along the path gives NotADirectoryError
+        raise PrimerFinderError(
+            f"The output path is a file, or sits under one, rather than a folder: {settings.output}"
+        ) from error
     try:
         return _run(settings, inclusion, exclusion, reference)
     finally:
@@ -494,13 +501,17 @@ def replace_previous_results(settings: Settings) -> None:
     here, at the point where this run commits to replacing them.
     """
     stale = [settings.output / FINAL_NAME, settings.output / RUN_INFO_NAME]
-    found = [path for path in stale if path.exists()]
+    # `exists()` is False for a dangling symlink, which would then survive this and break the final write
+    found = [path for path in stale if path.exists() or path.is_symlink()]
     if found:
-        log.warning("Replacing the results of an earlier run in %s (%s). A run is not resumable: this "
-                    "one starts again from the kmers", settings.output,
-                    ", ".join(path.name for path in found))
+        log.warning("An earlier run's results are in %s (%s). This run replaces them; the old ones are "
+                    "kept with a %s suffix. A run is not resumable: this one starts again from the "
+                    "kmers", settings.output, ", ".join(path.name for path in found), PREVIOUS_SUFFIX)
     for path in found:
-        path.unlink()
+        # Moved aside rather than deleted. What this has to prevent is a *failed* re-run leaving an older
+        # answer behind for `design` to use as though it were this run's; it does not have to destroy
+        # the answer to do that.
+        path.replace(path.with_name(path.name + PREVIOUS_SUFFIX))
 
 
 def clean_up(settings: Settings) -> None:

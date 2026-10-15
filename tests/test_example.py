@@ -91,7 +91,9 @@ def fake_results(folder: Path, dataset: Path, shift: int = 0) -> Path:
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "final_kmers.fasta").write_text(f">Contig_1 {truth['variants']}\n{''.join(bases)}\n")
     (folder / "run_info.json").write_text(json.dumps(
-        {"counts": {"final": 1, "kmers": 214}, "reference": "x/exclusion_1.fasta"}))
+        {"counts": {"final": 1, "kmers": 214}, "reference": "x/exclusion_1.fasta",
+         "last_resort": False,
+         "parameters": {"min_differences": 2, "assembler": "skesa", "assembler_used": "skesa"}}))
     return folder
 
 

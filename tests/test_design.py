@@ -8,10 +8,12 @@ from pathlib import Path
 import pytest
 
 from primer_finder import PrimerFinderError
+from primer_finder.blast import Hit
 from primer_finder.design import (
     DEFAULT_MIN_PRIMER_DIFFERENCES,
     DEFAULT_MISMATCHES,
     DEFAULT_PRODUCT_SIZE,
+    MIN_AMPLICON_IDENTITY,
     STRONG_BASE_WEIGHT,
     WEAK_BASE_WEIGHT,
     Assay,
@@ -28,6 +30,7 @@ from primer_finder.design import (
     difference_targets,
     forced_requests,
     genome_folders,
+    has_the_amplicon,
     parse_records,
     rank,
     requests_for,
@@ -35,7 +38,7 @@ from primer_finder.design import (
     specific_by,
     write_assays,
 )
-from primer_finder.seqio import Record
+from primer_finder.seqio import Record, reverse_complement
 
 
 def oligo(start=100, length=20, variants=(), reverse=False) -> Oligo:
@@ -424,6 +427,29 @@ def test_assays_of_converts_the_right_primer_coordinates():
     assert designed.reverse.start == 100 and designed.reverse.end == 120 and designed.reverse.reverse
     assert designed.probe is None
     assert designed.product_size == 110
+    # The amplicon is what gets blasted to decide specificity, so it has to be the whole product: from
+    # the forward primer's first base to the reverse primer's last, both included.
+    assert designed.amplicon == region.seq[10:120]
+    assert len(designed.amplicon) == designed.product_size
+
+
+def test_a_right_primer_keeps_the_strand_primer3_reports_it_on():
+    """Primer3 reports a right primer as the oligo to order, which is the reverse complement of the
+    template under it. That sequence is what goes into the order sheet and the insilicoPCR files, so it
+    is passed through untouched -- while the coordinates still describe the template."""
+    # Not a palindrome over the right primer: "ACGT" * n is its own reverse complement, which would make
+    # the test pass whichever strand the sequence came back on
+    region = Record("ctg1", "", "ACGT" * 25 + "AAAACCCCGGGGTTTT" * 2 + "ACGT" * 25)
+    template = region.seq[100:120]
+    fields = {
+        "SEQUENCE_ID": "ctg1", "PRIMER_PAIR_NUM_RETURNED": "1",
+        "PRIMER_LEFT_0": "10,20", "PRIMER_LEFT_0_SEQUENCE": region.seq[10:30],
+        "PRIMER_RIGHT_0": "119,20", "PRIMER_RIGHT_0_SEQUENCE": reverse_complement(template),
+        "PRIMER_PAIR_0_PRODUCT_SIZE": "110", "PRIMER_PAIR_0_PENALTY": "0.25",
+    }
+    designed = assays_of(region, fields)[0]
+    assert designed.reverse.sequence == reverse_complement(template) != template
+    assert region.seq[designed.reverse.start:designed.reverse.end] == template
 
 
 def test_assays_of_counts_the_differences_each_oligo_covers():
@@ -452,13 +478,24 @@ def test_design_runs_both_kinds_of_request_and_numbers_what_comes_back(stubs, tm
 
 
 def test_design_drops_the_duplicates_the_two_kinds_of_request_produce(stubs, tmp_path):
-    stubs(primer3_pairs=1)
-    region = Record("ctg1", "", "A" * 100 + "cgt" + "A" * 100)
+    """The plain request and a forced one can propose the same assay, and only one of them is kept.
+
+    The stub places its left primer so that its 3' end lands on base 29, which is where a run of
+    differences at 27-29 forces it, so the plain request and that forced one really do come back with the
+    same oligos -- Primer3 asked twice about overlapping neighbourhoods of the same region. Without a raw
+    duplicate among the records there would be nothing for the de-duplication to remove, and the
+    assertion below would hold with it taken out."""
+    stubs(primer3_pairs=1, primer3_probe=False)
+    region = Record("ctg1", "", "A" * 27 + "cgt" + "A" * 170)
     designed = design([region], tmp_path / "work", how_many=1)
-    # Two assays may share their primers and differ in their probe, which is not a duplicate
     seen = [(one.forward.sequence, one.reverse.sequence, one.probe.sequence if one.probe else "")
             for one in designed]
     assert len(seen) == len(set(seen))
+    # The duplicate was in what Primer3 returned: more records came back than assays came out
+    records = sum(text.count("PRIMER_PAIR_NUM_RETURNED=1")
+                  for text in [path.read_text()
+                               for path in sorted((tmp_path / "work").glob("*_output.txt"))])
+    assert records > len(designed)
 
 
 def test_a_primer3_error_is_reported(stubs, tmp_path):
@@ -509,12 +546,70 @@ def test_a_difference_whose_base_is_unknown_weighs_in_between():
     assert WEAK_BASE_WEIGHT < unknown.variant_weight < STRONG_BASE_WEIGHT
 
 
+def hit(size, *, qstart=1, qend=None, gaps=0, mismatches=0):
+    """One blast row the way blast reports it: `length` counts gap columns, `nident` does not."""
+    qend = size if qend is None else qend
+    aligned = qend - qstart + 1 - gaps
+    return Hit(query="a", qstart=qstart, qend=qend, evalue=1e-30,
+               length=qend - qstart + 1, identical=aligned - mismatches, gaps=gaps,
+               identity=100.0 * (aligned - mismatches) / (qend - qstart + 1))
+
+
+def test_an_amplicon_the_genome_has_apart_from_an_insertion_is_a_copy():
+    """The numbers are a real hit from the bundled example: assay8's 148-base amplicon against
+    exclusion_1, which holds all of it but the planted 15-base insertion. blast calls that 87.2% identity
+    because the 15 gap columns count as mismatches, so judging it on `pident` said the exclusion genome
+    did not have the amplicon at all -- while it holds both primer sites exactly, and in silico PCR
+    amplifies it. 129 of the 133 aligned bases match."""
+    one = hit(148, gaps=15, mismatches=4)
+    assert one.identity < MIN_AMPLICON_IDENTITY  # What blast reports, and what this used to be judged on
+    assert has_the_amplicon(one, 148)
+
+
+def test_an_amplicon_whose_hit_stops_short_of_it_is_not_a_copy():
+    """The other half of that example: where a primer site is inside the insertion, blast stops the
+    alignment at it instead of gapping through. Those 11 assays are specific by absence, and stay so --
+    98% identity over the 93 bases it does reach, which is why identity alone cannot tell the two apart."""
+    one = hit(110, qend=93, mismatches=2)
+    assert one.identity > MIN_AMPLICON_IDENTITY
+    assert not has_the_amplicon(one, 110)
+
+
+@pytest.mark.parametrize(("reaches", "expected"), [(90, True), (89, False)])
+def test_the_coverage_boundary_is_how_much_of_the_amplicon_the_hit_reaches(reaches, expected):
+    assert has_the_amplicon(hit(100, qend=reaches), 100) is expected
+
+
+@pytest.mark.parametrize(("mismatches", "expected"), [(10, True), (11, False)])
+def test_the_identity_boundary_counts_only_the_columns_that_align(mismatches, expected):
+    assert has_the_amplicon(hit(100, mismatches=mismatches), 100) is expected
+
+
+def test_a_hit_of_nothing_but_gaps_is_not_a_copy():
+    """Blast does not report one, but dividing by the aligned columns would raise if it did."""
+    assert not has_the_amplicon(Hit(query="a", qstart=1, qend=20, evalue=1e-30, length=20, gaps=20), 20)
+    assert not has_the_amplicon(hit(20), 0)
+
+
+def test_an_exclusion_genome_that_has_the_amplicon_apart_from_an_insertion_is_counted(stubs, tmp_path,
+                                                                                     fasta):
+    """End to end, through blast's own output: the label has to say the genome has it."""
+    stubs(amplicon_hits={"g1": 1}, amplicon_insertion={"40": 15})
+    genomes = [fasta("g1.fasta", {"chr": "ACGT" * 50})]
+    one = assay(amplicon="ACGT" * 25, forward=oligo(start=0, length=20))
+    check_against_exclusion([one], genomes, tmp_path / "work", threads=1)
+    assert one.exclusion_genomes_with_amplicon == 1
+    assert not one.specific_by_absence
+
+
 def test_the_bases_come_from_the_exclusion_alignments(stubs, tmp_path, fasta):
     """What an oligo has to mismatch is what the exclusion genomes have there, so it is read from their
     own alignments of the amplicon."""
     stubs(amplicon_hits={"g1": 1}, amplicon_mismatch={"3": "G", "7": "A"})
     genomes = [fasta("g1.fasta", {"chr": "ACGT" * 50})]
-    one = assay(amplicon="ACGTACGTACGT", forward=oligo(start=0, length=12, variants=[3, 7]))
+    # Long enough that two mismatches leave the alignment well above `MIN_AMPLICON_IDENTITY`, which is
+    # what this test needs: a genome that holds the amplicon and differs from the primer inside it.
+    one = assay(amplicon="ACGT" * 10, forward=oligo(start=0, length=12, variants=[3, 7]))
     check_against_exclusion([one], genomes, tmp_path / "work", threads=1)
     assert one.forward.variant_bases == {3: "G", 7: "A"}
     assert one.forward.strong_variants == 1
@@ -710,6 +805,20 @@ def test_an_output_folder_inside_an_input_folder_is_refused(stubs, finished_run,
     inclusion, _ = genomes
     with pytest.raises(PrimerFinderError, match="output folder is inside the inclusion folder"):
         run(design_settings(finished_run, inclusion / "assays"))
+
+
+def test_an_input_folder_inside_the_output_folder_is_refused(stubs, finished_run, tmp_path, genomes):
+    """The staged folders are emptied before they are filled, so pointing -i at something under the
+    output folder deletes those files. Reached by pointing a second run at the first run's staged folder,
+    which the documentation describes as a flat folder of plain fasta -- and that run wiped it, including
+    the one genome that was a real file rather than a symlink."""
+    inclusion, exclusion = genomes
+    staged = tmp_path / "assays" / "insilico_genomes" / "inclusion"
+    staged.mkdir(parents=True)
+    (staged / "g.fasta").write_text(">chr\nACGT\n")
+    with pytest.raises(PrimerFinderError, match="inclusion folder is inside the output folder"):
+        run(design_settings(finished_run, tmp_path / "assays", inclusion=staged, exclusion=exclusion))
+    assert (staged / "g.fasta").is_file(), "the refusal has to come before anything is deleted"
 
 
 def test_an_output_path_with_a_space_is_refused(stubs, finished_run, tmp_path):

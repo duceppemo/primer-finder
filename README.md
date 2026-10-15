@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/primer-finder-logo.svg" alt="primer-finder" width="680">
+  <img src="https://raw.githubusercontent.com/duceppemo/primer-finder/main/docs/images/primer-finder-logo.svg" alt="primer-finder" width="680">
 </p>
 
 <p align="center">

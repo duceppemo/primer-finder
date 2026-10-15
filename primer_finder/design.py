@@ -77,7 +77,8 @@ DEFAULT_DIVALENT_MM = 3.0      # MgCl2
 DEFAULT_DNTP_MM = 0.8          # 0.2 mM of each
 DEFAULT_PRIMER_NM = 250.0
 DEFAULT_PROBE_NM = 200.0
-# A hit covering at least this much of an amplicon, at this identity, counts as "the exclusion genome has it".
+# A hit reaching at least this much of an amplicon, at this identity among the bases that align, counts as
+# "the genome has it". See `has_the_amplicon` for why neither is measured the way blast reports it.
 MIN_AMPLICON_COVERAGE = 0.9
 MIN_AMPLICON_IDENTITY = 90.0
 # Blast hits to ask for per amplicon and genome, enough to count the copies of a repeated target.
@@ -700,6 +701,39 @@ def design(regions: Iterable[seqio.Record], work_dir: Path, product_size: str = 
     return assays
 
 
+def has_the_amplicon(hit: blast.Hit, size: int) -> bool:
+    """Whether one blast hit means this genome holds something the primer pair could amplify.
+
+    What matters is that both primer sites are there with the stretch between them intact, so coverage is
+    measured over how much of the amplicon the hit *reaches* -- `qend - qstart`, the span -- and identity
+    over the columns where both sequences have a base. Blast's own `length` and `pident` are neither of
+    those, and both mislead in the same case: an insertion in the amplicon that this genome does not have.
+    Blast reports such a hit one of two ways depending on how the scores fall, and the example dataset,
+    whose inclusion group carries a planted 15-base insertion, produces both:
+
+      * as one alignment gapped through the insertion. `length` then counts the gap columns, so coverage
+        looks complete, while `pident` counts them as mismatches: 15 gaps in a 148-column alignment read
+        as 87% identity even though 129 of the 133 aligned bases match. Judged on `pident` the genome
+        looked not to have the amplicon at all -- while holding both primer sites exactly.
+      * by stopping at the insertion. The span then really is short, and that is a genome where a primer
+        site is inside the insertion and so genuinely absent.
+
+    A long insertion between the primers is still counted as held. The product would be the wrong size,
+    and in a real reaction probably no product at all, but that is a claim about a reaction rather than
+    about the sequence: counting it keeps the assay out of the "specific because there is nothing to
+    amplify" tier and sends it to be judged on how its primers differ instead, which is the cautious
+    direction to err in.
+    """
+    if size <= 0:
+        return False
+    span = hit.qend - hit.qstart + 1
+    aligned = hit.length - hit.gaps  # Columns where both sequences have a base
+    if aligned <= 0:  # Only possible from a malformed row; blast never reports an all-gap alignment
+        return False
+    identity = 100.0 * hit.identical / aligned
+    return span >= MIN_AMPLICON_COVERAGE * size and identity >= MIN_AMPLICON_IDENTITY
+
+
 def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: Path, threads: int,
                     with_bases: bool = True) -> tuple[dict[str, list[int]], dict[str, dict[int, str]]]:
     """How many copies of each amplicon each genome holds, and what those genomes have where they differ.
@@ -722,7 +756,7 @@ def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: 
     seqio.write_fasta(query, [seqio.Record(assay.name, "", assay.amplicon) for assay in assays])
     sizes = {assay.name: len(assay.amplicon) for assay in assays}
     starts = {assay.name: assay.forward.start for assay in assays}  # The amplicon starts here in the region
-    fields = ("qseqid", "qstart", "qend", "evalue", "length", "pident")
+    fields = ("qseqid", "qstart", "qend", "evalue", "length", "pident", "nident", "gaps")
     if with_bases:
         fields += ("qseq", "sseq")
 
@@ -736,8 +770,7 @@ def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: 
         for hit in hits:
             if hit.evalue > blast.MAX_EVALUE:
                 continue
-            # A copy is the amplicon in one piece: that is what a primer pair can amplify
-            if hit.length >= MIN_AMPLICON_COVERAGE * sizes[hit.query] and hit.identity >= MIN_AMPLICON_IDENTITY:
+            if has_the_amplicon(hit, sizes[hit.query]):
                 found[hit.query] = found.get(hit.query, 0) + 1
                 if with_bases:
                     offset = starts[hit.query]
@@ -1002,6 +1035,16 @@ def run(settings: DesignSettings) -> int:
                 f"The output folder is inside the {group} folder: {settings.output}. Everything this "
                 f"command writes would be read back as an input genome. Choose an output folder outside "
                 f"{folder}."
+            )
+        # And the other way round, which is worse than confusing: the staged folders are emptied before
+        # they are filled, so pointing -i or -e at something under the output folder -- the staged folder
+        # of an earlier run, say, which the documentation describes as a flat folder of plain fasta --
+        # deletes those files. `find` refuses both directions; so does this.
+        if _inside(folder.resolve(), settings.output.resolve()):
+            raise PrimerFinderError(
+                f"The {group} folder is inside the output folder: {folder}. This command empties the "
+                f"folders it stages genomes into, which would delete those files. Choose an {group} "
+                f"folder outside {settings.output}."
             )
     tools.require([PROGRAM, "makeblastdb", "blastn"])
     settings.output.mkdir(parents=True, exist_ok=True)

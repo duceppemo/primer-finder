@@ -91,7 +91,39 @@ So the design step has to actually do it, and two things make sure of it:
    `--min-primer-differences 0` turns the filter off altogether and accepts those too.
 
 An assay that is **specific by absence** is exempt: it does not rest on a difference at all, so how many
-sit under its primers is beside the point.
+sit under its primers is beside the point. That exemption, and the top ranking tier that goes with it, is
+only as good as the rule deciding an exclusion genome does not hold the amplicon.
+
+### When an exclusion genome counts as holding the amplicon
+
+The amplicon is blasted against each exclusion genome, and a hit counts as "this genome has it" when it
+**reaches at least 90% of the amplicon** and **at least 90% of the bases that align match**. Neither is
+what blast reports in its `length` and `pident` columns, and the difference matters in one common case: an
+insertion in the amplicon that the exclusion genome does not carry.
+
+Blast reports such a hit one of two ways, depending on how its scores fall, and the bundled example --
+whose inclusion group carries a planted 15-base insertion -- produces both:
+
+* **Gapped through the insertion.** `pident` counts the gap columns as mismatches, so an exclusion genome
+  holding the whole amplicon bar the insertion reads as 87% identity. Judged that way it looked not to
+  hold the amplicon at all, while in fact holding both primer sites exactly. Identity is therefore
+  measured over the columns where both sequences have a base.
+* **Stopped at the insertion.** The hit then really does reach only part of the amplicon, and that is a
+  genome where a primer site falls inside the insertion and so is genuinely missing. Coverage is therefore
+  measured over how much of the amplicon the hit *reaches*, not over the length of the alignment, which
+  the gap columns inflate.
+
+A long insertion between the primers still counts as held. The product would be the wrong size, and in a
+real reaction quite possibly no product at all — but that is a claim about a reaction rather than about the
+sequence, so the assay is sent to be judged on how its primers differ instead of being granted the
+"nothing to amplify" exemption. Erring that way costs a good assay its top tier; erring the other way
+hands the top tier to an assay whose primer sites are present in every exclusion genome.
+
+> **Changed in 1.8.0.** Before this, identity and coverage were taken from blast's own `pident` and
+> `length`, so the gapped case above was scored as absence. The counts quoted from the sweeps on this page
+> and in `validation/results/` were produced under the old rule; on the bundled example the fix moves 7 of
+> 18 assays out of `absence` and into `difference`, where all 4 exclusion genomes are recorded as holding
+> the amplicon.
 
 ### Why the probe does not count towards it
 

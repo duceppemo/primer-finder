@@ -32,7 +32,7 @@ problem from the one above, and the run says which of the two it hit. Things to 
    only where the region of interest is repeated; it cannot make a kmer the exclusion group holds
    specific.
 
-## "skesa got nothing out of the inclusion-specific kmers"
+## "Nothing usable came out of skesa"
 
 Not an error. SKESA and SPAdes are built for sequencing reads and can get nothing at all out of a kmer
 set — most often at a kmer size away from the default, where the specific stretches are short and few.
@@ -84,6 +84,10 @@ genome did not hold up against the whole exclusion group. The 90% rule means a p
 nearly every exclusion genome that matches the contig. Comparing `4_blast/all_inclusion_contigs.fasta` —
 what went into this step — with the empty `final_kmers.fasta` shows what was dropped; neither file needs
 `--keep-intermediate`.
+
+With the defaults this message means the last-resort pass found nothing either — it logs a line of its own
+saying so, and `run_info.json` then reads `min_differences: 1` with `last_resort: false`. With
+`--no-last-resort` it means only that the strict rule found nothing.
 
 ## "The output folder path contains a space" / "the output folder and the inclusion folder overlap"
 

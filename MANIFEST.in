@@ -1,0 +1,5 @@
+# setuptools ships `tests/test_*.py` by default, which leaves out conftest.py and the stand-ins for
+# the external programs -- so the tests in an sdist could not run. Ship all of them, and the
+# changelog, which a packager reads.
+recursive-include tests *.py
+include CHANGELOG.md

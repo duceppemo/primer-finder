@@ -42,6 +42,14 @@ SPADES_FLOOR = 200
 # healthy band above, so a run cannot tell from its own numbers that it is losing most of the signal.
 COLLAPSE_BASES_PER_KMER = 0.1
 
+# Exit codes that mean the machine could not run the assembler, rather than that the assembler could make
+# nothing of the kmers. A negative code is a signal, which covers a kernel OOM kill of a native program
+# like SKESA. SPAdes is a Python wrapper and turns a killed child into its own positive codes, so 68 --
+# `ErrorCode.MemoryLimitExceeded` in its support.py -- is listed too: answering "I could not stay inside
+# the memory you gave me" by starting a second assembly in this process, which honours no budget at all,
+# is the wrong move.
+FATAL_EXIT_CODES = frozenset({68})
+
 
 def unitigs(kmers: Iterable[str]) -> list[str]:
     """The maximal unambiguous stretches a set of exact kmers spells out.
@@ -201,7 +209,8 @@ def assemble(kmer_fasta: Path, output: Path, assembler: str, threads: int, memor
         # negative exit code means a signal, which on this input almost always means the machine ran out
         # of memory, and answering that by starting a second assembly in this process would be the wrong
         # move: the walk honours no memory budget at all.
-        if error.returncode is not None and error.returncode < 0:
+        if error.returncode is not None and (error.returncode < 0
+                                             or error.returncode in FATAL_EXIT_CODES):
             raise
         failure = error
 

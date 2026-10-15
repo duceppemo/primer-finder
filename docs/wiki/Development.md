@@ -72,10 +72,14 @@ on GitHub directly: the next push overwrites them.
    that all five agree.
 2. `pytest` and `bash example/run_example.sh` green; update the tarball version in the README and in
    `docs/wiki/Installation.md`.
-3. Tag and push: `git tag v1.0.1 && git push --tags`. `release.yml` publishes the release, and
+3. Update what the five-file test cannot see: `date-released` and `doi` in `CITATION.cff` (the concept DOI
+   until Zenodo mints the version one), the recipe's `sha256` (only computable once the tag exists), and
+   the version-dependent prose — any "since the release after X" in the FAQ, the sample log in
+   `docs/wiki/Usage.md`, and the expected output in `docs/wiki/Example.md` if the run's output moved.
+4. Tag and push: `git tag v1.0.1 && git push --tags`. `release.yml` publishes the release, and
    `publish.yml` then uploads the wheel and the sdist to PyPI.
-4. Zenodo archives the release and mints a DOI; add the new version DOI to `CITATION.cff`.
-5. Update the bioconda recipe: bump `version`, recompute the sha256 of the release tarball
+5. Zenodo archives the release and mints a DOI; add the new version DOI to `CITATION.cff`.
+6. Update the bioconda recipe: bump `version`, recompute the sha256 of the release tarball
    (`curl -sL <url> | sha256sum`), reset `number` to 0, and open a pull request against
    [bioconda-recipes](https://github.com/bioconda/bioconda-recipes) (its autobump bot often does it first).
    Keep `recipe/meta.yaml` in this repository the same as the one there.

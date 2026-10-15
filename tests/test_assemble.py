@@ -251,6 +251,18 @@ def test_an_assembler_killed_by_a_signal_is_not_treated_as_a_collapse(stubs, tmp
         assemble(kmer_fasta, tmp_path / "assembly.fasta", "skesa", threads=1, memory_gb=1, min_contig=21)
 
 
+def test_an_assembler_that_ran_out_of_memory_is_not_treated_as_a_collapse(stubs, tmp_path):
+    """SPAdes is a Python wrapper: a child it cannot fit in the memory it was given exits 68, its own
+    MemoryLimitExceeded, rather than dying by a signal. Answering that by starting a second assembly in
+    this process -- which honours no memory budget at all -- is the wrong move."""
+    kmer_fasta = tmp_path / "kmers.fasta"
+    write_fasta(kmer_fasta, [Record(f"kmer_{n}", "", one) for n, one in enumerate(kmers_of(SEQUENCE))])
+    stubs(exit_code={"spades.py": 68})
+    with pytest.raises(PrimerFinderError, match="spades.py failed"):
+        assemble(kmer_fasta, tmp_path / "assembly.fasta", "spades", threads=1, memory_gb=1,
+                 min_contig=21)
+
+
 def test_the_collapse_threshold_sits_far_from_both_what_it_separates():
     """The measurements behind it: three runs at 0.000, 0.000 and 0.019 bases per kmer against eighteen
     at 0.702 to 1.388. A threshold that drifted into either group would be the wrong kind of wrong."""

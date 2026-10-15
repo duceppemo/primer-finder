@@ -199,6 +199,11 @@ assemblies whose species label cannot be right, extending the paper's own Table 
 The full record is in
 [`2026-10-14_v1.7.0_brucella/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-14_v1.7.0_brucella/SUMMARY.md).
 
+> The tables above are labelled with the version that produced them and are not updated. From 1.8.0 the
+> counts move a little, because the blast searches changed from megablast to the more sensitive `blastn`
+> task: on four of these targets the regions went 57→59, 60→60, 1→3 and 19→21, with every recovery and
+> rank unchanged. The changelog entry explains why.
+
 ### What the two new features change, measured here
 
 [`2026-10-14_v1.7.0_unitig/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-14_v1.7.0_unitig/SUMMARY.md)

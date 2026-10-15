@@ -67,20 +67,29 @@ def equivalent_variant_sets(truth: dict, genome: str) -> list[set[int]]:
     insertion_at = truth["insertion_at"]
     insertion = truth["insertion"]
     mismatches = set(truth["mismatches"])
-    sets: list[set[int]] = []
-    shift = 0
-    while True:
-        block = set(range(insertion_at + shift, insertion_at + shift + len(insertion)))
-        sets.append(mismatches | block)
-        # Sliding one further is the same sequence only when the base leaving the block at the front
-        # equals the base joining it at the back
-        rotated = insertion[shift % len(insertion):] + insertion[:shift % len(insertion)]
-        following = genome[insertion_at + shift + len(insertion):insertion_at + shift + len(insertion) + 1]
-        if not following or rotated[0] != following:
-            return sets
-        shift += 1
-        if shift > len(insertion):  # pragma: no cover - a run that long is not in this data
-            return sets
+
+    # Both ways from the planted placement, because an aligner may put the gap on either side of an
+    # ambiguous run: sliding right spells the same genome when the base leaving the block at the front
+    # equals the one joining at the back, and sliding left when the base joining at the front equals the
+    # one leaving at the back. Bounded by the block length, since a longer run means periodic data this
+    # example does not have.
+    starts = [insertion_at]
+    for direction in (1, -1):
+        at = insertion_at
+        for _ in range(len(insertion)):
+            if direction == 1:
+                arriving = genome[at + len(insertion):at + len(insertion) + 1]
+                leaving = genome[at:at + 1]
+            else:
+                arriving = genome[at - 1:at]
+                leaving = genome[at + len(insertion) - 1:at + len(insertion)]
+            if not arriving or arriving != leaving:
+                break
+            at += direction
+            if at < 0:  # pragma: no cover - not reachable from this planted position
+                break
+            starts.append(at)
+    return [mismatches | set(range(start, start + len(insertion))) for start in starts]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -144,6 +153,22 @@ def main(argv: list[str] | None = None) -> int:
             present = locate(sequence, whole_sequence(genome)) is not None
             check(present is expected_presence,
                   f"the contig is {'present in' if expected_presence else 'absent from'} {genome.name}")
+
+    # The run has two rescues built in -- the last-resort pass at one difference, and the unitig walk when
+    # the assembler makes nothing of the kmers -- and either would carry this example on its own. So a
+    # regression in the strict pass, or a SKESA collapse, would leave every check above passing. The
+    # expected run uses neither.
+    # Read with `get`, so a record missing a field fails the check it belongs to instead of raising
+    parameters = info.get("parameters", {})
+    asked, used = parameters.get("assembler"), parameters.get("assembler_used")
+    check(info.get("last_resort") is False,
+          f"the strict pass found the region, without the last-resort pass ({info.get('last_resort')})")
+    check(parameters.get("min_differences") == 2,
+          f"the reported region needs two differences (got {parameters.get('min_differences')})")
+    check(asked is not None and used == asked,
+          f"the chosen assembler produced the contigs (asked for {asked}, {used} did it)")
+    check("last_resort" not in contig.desc.split(),
+          f"the contig is not tagged as a last-resort candidate: {contig.desc[:60]}")
 
     counts = info["counts"]
     check(counts["final"] == 1, f"run_info.json counts one final contig (got {counts['final']})")

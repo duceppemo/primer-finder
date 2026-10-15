@@ -4,6 +4,21 @@
 
 ### Fixed
 
+- **An exclusion genome holding the whole amplicon bar an insertion was recorded as not holding it.**
+  Whether a genome has an amplicon was judged on blast's own `length` and `pident`, and both mislead where
+  the amplicon carries an insertion the genome does not. Blast reports that either by gapping through the
+  insertion — the gap columns then count as mismatches, so an exclusion genome holding every base of the
+  amplicon except the insertion, and both primer sites exactly, reads as 87% identity and fails a 90%
+  threshold — or by stopping the alignment at the insertion, where coverage really is short. The first case
+  was scored as *absence*, which ranks above every difference-based assay and is exempt from
+  `--min-primer-differences`.
+
+  Coverage is now measured over how much of the amplicon the hit reaches rather than over the alignment
+  length that the gap columns inflate, and identity over the columns where both sequences have a base. On
+  the bundled example this moves **7 of 18** assays out of `absence`: all 4 exclusion genomes hold their
+  amplicons, which in silico PCR confirms by amplifying them, and they are now judged on how their primers
+  differ. The 11 assays that are specific by absence because a primer site falls inside the insertion are
+  unaffected. Counts in earlier validation records were produced under the old rule.
 - **The searches used megablast, which cannot see a copy that differs.** `blastn`'s default task seeds on
   an exact 28-base match, so an amplicon an exclusion genome holds at **97% identity** — two differences
   25 bases apart, which is exactly the shape `find` keeps a region for — produced no hit at all and was
@@ -45,21 +60,42 @@
   that ambiguity from the sequence and accepts any placement inside it, while every mismatch position
   must still be exact.
 
+### Internal
+
+- **The example's own checks passed when the run had only got through on a rescue.** Either the
+  last-resort pass or the unitig fallback carries the example on its own, so a regression in the strict
+  pass, or a SKESA collapse, would have left every check green. The checks now assert that neither
+  rescue was needed.
+- **The Primer3 stand-in returned a right primer on the wrong strand**: the forward-strand slice of the
+  template, where `primer3_core` returns its reverse complement — the oligo to order. Nothing in the code
+  depended on the strand, so no behaviour was wrong, but no stub-driven test could have caught it if
+  something had. Checked against the real program and fixed, and the strand is now pinned by a test.
+- **The blast stand-in could only ever report a full-length, perfectly matching hit**, which is why no
+  test reached either side of the rule above. It now works its counts out from the two aligned sequences
+  the way blast does, and a scenario can ask for a partial or a gapped hit.
+- Tests added for what mutation testing showed was unpinned: both amplicon thresholds, the
+  "absent from *every* exclusion genome" rule, the amplicon that gets blasted, and eleven command-line
+  options — `--assembler`, `--min-region`, `-d`, `-k`, `--keep-intermediate`, `--no-last-resort`, `-r`,
+  `--max-regions`, `--assays-per-region`, `--gc-clamp` and `--min-primer-differences` — each of which
+  could have been wired to nothing without a test noticing. Four tests that passed with the code they
+  named taken out were rewritten.
+
 ### Added
 
 - **A last-resort pass: when nothing meets the usual rule, say what a single difference would give.**
   `find` keeps a region when two of its differences are close enough to share one primer, which is the
   judgement the tool is built around — one mismatch under a primer still amplifies the wrong template
-  often enough to be useless. A run where nothing met that rule used to stop with an error, which threw
-  away the one thing it did know: which regions *are* specific, by less than the rule wants.
+  often enough to be useless. A run where nothing met that rule used to stop with an error from step 3 or 4, or report
+  nothing from step 5, which threw away the one thing it did know: which regions *are* specific, by less than the rule wants.
 
   Such a run now tries once more accepting any single difference. It is a fallback and not a second
   opinion: the second pass runs only when the first reported nothing at all, so no region it reports would
   have passed strictly, and a run that works is never relaxed. Everything the pass reports is marked, in
   four places, because the two answers are different claims: `last_resort` in the header of every region,
   `last_resort: true` and `min_differences: 1` in `run_info.json`, a warning from `find`, and a warning
-  from `design` for anyone who comes to the results folder later. `--no-last-resort` asks for the strict
-  answer and the error.
+  from `design` for anyone who comes to the results folder later, and `last_resort_regions` in
+  `design_info.json` so the design folder says it on its own. `--no-last-resort` asks for the strict
+  answer only: an error if steps 3 or 4 emptied the run, an empty result if step 5 did.
 
   Only the number of differences is relaxed. A contig identical to the exclusion genome is still not a
   candidate, and the 21-base clipped end is unchanged. `--min-primer-differences` (2 by default) will set
@@ -129,7 +165,6 @@
 
 - `seqio.reverse_complement` — moved from `mapping`, which the assembly step now needs too. It stays
   importable from `primer_finder.mapping` as well, so nothing that used it there has to change.
-
 
 - **A `suis_lato` target, and the measured reason there is no *B. suis* assay** (record in
   `validation/results/2026-10-14_v1.7.0_brucella/SUIS_LATO.md`). *B. canis* is a lineage inside

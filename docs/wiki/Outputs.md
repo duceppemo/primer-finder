@@ -119,7 +119,9 @@ assays/
 ├── assays_qpcr.fasta       the assays that have a probe, for insilicoPCR in qPCR mode
 ├── assays_pcr.fasta        every assay carried forward, primers only, for insilicoPCR in PCR mode
 ├── run_insilico_pcr.sh     the in silico PCR of both files against both groups
-├── design_info.json        parameters, programs and versions, counts
+├── design_info.json        parameters, programs and versions, counts (including
+│                        last_resort_regions: how many of the regions only a single
+│                        difference accepted)
 ├── primer_finder_design.log
 ├── primer3/                what was sent to Primer3 and what came back
 ├── amplicons/              the blast checks of each amplicon against both groups
@@ -139,7 +141,7 @@ the ones that would amplify both groups are kept at the end for the record.
 |---|---|
 | `assay` | its name, which is also the prefix of its oligos in the fasta files (`<assay>-F`, `-R`, `-P`) |
 | `region` | the candidate region it was designed in |
-| `specific_by` | `absence` (no exclusion genome holds the amplicon), `difference` (an oligo sits on differing bases), or `nothing` (it would amplify both groups) |
+| `specific_by` | `absence` (no exclusion genome holds the amplicon: no blast hit reaching 90% of it at 90% identity among the aligned bases, see [Designing assays](Designing-assays#when-an-exclusion-genome-counts-as-holding-the-amplicon)), `difference` (an oligo sits on differing bases), or `nothing` (it would amplify both groups) |
 | `exclusion_genomes_with_amplicon` | how many exclusion genomes hold the amplicon in one piece |
 | `best_terminal_run` | the longest run of differences ending at a primer's 3' end |
 | `inclusion_copies_min`, `inclusion_copies_max` | copies of the amplicon per inclusion genome; above 1 only for a run made with `-d 2` or more |

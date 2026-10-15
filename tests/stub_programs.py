@@ -11,6 +11,7 @@ every program on PATH; what they produce is read from the PRIMER_FINDER_STUBS en
     exclusion_hits   {genome: [[query, qstart, qend, evalue, qseq, sseq], ...]} for the exclusion genomes
     fail             the name of a program that should exit 1
     kill             the name of a program that should die by a signal, as an OOM kill looks
+    exit_code        {program: code} for a program that should exit with that code
 
 Every call is appended to the file named by PRIMER_FINDER_CALLS, one command line per line.
 """
@@ -23,6 +24,11 @@ import shlex
 import signal
 import sys
 from pathlib import Path
+
+
+def reverse_complement(sequence: str) -> str:
+    return sequence[::-1].translate(str.maketrans("ACGTacgtNn", "TGCAtgcaNn"))
+
 
 DEFAULT_KMERS = ["ACGT" * 5, "TTGA" * 5, "GGCA" * 5]
 DEFAULT_CONTIGS = {"ctg1": "ACGT" * 25}
@@ -151,17 +157,35 @@ def blastn(argv: list[str]) -> int:
         # `amplicon_qstart` makes the alignment start partway into the amplicon, as a real hit may: the
         # design step has to shift every reported position by it to land on the region's coordinates.
         qstart = int(value("amplicon_qstart", 1))
+        # `amplicon_covers` ends the alignment partway through the amplicon, as a real hit does where a
+        # primer site is missing, and `amplicon_insertion` gives the genome a gap of that many bases at
+        # that position of the amplicon, as a real hit does where the amplicon has bases the genome lacks.
+        # Both are needed to reach either side of `design.has_the_amplicon`. The counts below are worked
+        # out from the two aligned strings the way blast works them out, so they stay consistent.
+        covers = float(value("amplicon_covers", 1.0))
+        insertion = {int(position): int(size)
+                     for position, size in value("amplicon_insertion", {}).items()}
         for query in queries:
-            sequence = sequences.get(query, "A" * 100)[qstart - 1:]
+            whole = sequences.get(query, "A" * 100)
+            sequence = whole[qstart - 1:qstart - 1 + max(1, round(covers * len(whole)))]
             subject = list(sequence)
             for position, base in mismatches.items():
                 if position < len(subject):
                     subject[position] = base
+            for position, size in insertion.items():
+                if position < len(subject):  # The genome has nothing where the amplicon has these bases
+                    subject[position:position + size] = ["-"] * min(size, len(subject) - position)
+            aligned_subject = "".join(subject)
+            gaps = sequence.count("-") + aligned_subject.count("-")
+            identical = sum(1 for one, other in zip(sequence, aligned_subject, strict=True)
+                            if one != "-" and one.upper() == other.upper())
             row = {
-                "qseqid": query, "qstart": str(qstart), "qend": str(qstart + len(sequence) - 1),
-                "evalue": "1e-30",
-                "length": str(len(sequence)), "pident": "100.0",
-                "qseq": sequence, "sseq": "".join(subject),
+                "qseqid": query, "qstart": str(qstart),
+                "qend": str(qstart + len(sequence) - 1), "evalue": "1e-30",
+                "length": str(len(sequence)),
+                "pident": f"{100.0 * identical / len(sequence):.3f}",
+                "nident": str(identical), "gaps": str(gaps),
+                "qseq": sequence, "sseq": aligned_subject,
             }
             rows.extend([[row[name] for name in fields]] * copies)
     elif "qseq" in fields:  # The exclusion step: aligned sequences
@@ -231,7 +255,11 @@ def primer3_core(argv: list[str]) -> int:
                 f"PRIMER_LEFT_{number}_TM=60.0",
                 f"PRIMER_LEFT_{number}_GC_PERCENT=50.0",
                 f"PRIMER_RIGHT_{number}={right_end},{size}",
-                f"PRIMER_RIGHT_{number}_SEQUENCE={template[right_start:right_end + 1] or 'T' * size}",
+                # Primer3 reports a right primer as the oligo to order, which is the reverse complement
+                # of the template it sits on -- checked against primer3_core, whose PRIMER_RIGHT_0_SEQUENCE
+                # is the reverse complement of template[start:end + 1] and not that slice itself.
+                f"PRIMER_RIGHT_{number}_SEQUENCE="
+                f"{reverse_complement(template[right_start:right_end + 1]) or 'T' * size}",
                 f"PRIMER_RIGHT_{number}_TM=60.0",
                 f"PRIMER_RIGHT_{number}_GC_PERCENT=50.0",
                 f"PRIMER_PAIR_{number}_PRODUCT_SIZE={right_end - left + 1}",
@@ -292,6 +320,10 @@ def main(name: str, argv: list[str] | None = None) -> int:
             fh.write(f"{name} {shlex.join(argv)}\n")
     if value("kill", None) == name:
         os.kill(os.getpid(), signal.SIGKILL)
+    chosen = value("exit_code", {}).get(name)
+    if chosen is not None:
+        print(f"{name}: exiting {chosen} as the scenario asked", file=sys.stderr)
+        return int(chosen)
     if argv in (["--version"], ["-version"]) or (not argv and name in ("kmc", "kmc_tools")):
         # KMC has no version flag: it prints its banner when run with no argument (see tools.VERSION_FLAGS)
         print(f"{name} stub 1.0")
