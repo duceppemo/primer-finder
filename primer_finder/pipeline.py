@@ -120,7 +120,8 @@ def _run(settings: Settings) -> int:
     counts: dict[str, int] = info["counts"]  # type: ignore[assignment]
 
     kmer_fasta, counts["kmers"] = find_specific_kmers(settings, inclusion, exclusion)
-    assembly = assemble_kmers(settings, kmer_fasta)
+    assembly, assembler_used = assemble_kmers(settings, kmer_fasta)
+    info["parameters"]["assembler_used"] = assembler_used  # type: ignore[index]
     counts["contigs"] = seqio.count_records(assembly)
 
     final, min_differences = check_the_contigs(settings, assembly, reference, inclusion, exclusion, counts)
@@ -257,16 +258,22 @@ def find_specific_kmers(settings: Settings, inclusion: list[Path], exclusion: li
     return kmer_fasta, count
 
 
-def assemble_kmers(settings: Settings, kmer_fasta: Path) -> Path:
-    """Assemble the inclusion-specific kmers, to have fewer and longer sequences to check."""
+def assemble_kmers(settings: Settings, kmer_fasta: Path) -> tuple[Path, str]:
+    """Assemble the inclusion-specific kmers, to have fewer and longer sequences to check.
+
+    Returns the assembly and the assembler that filled it, which is not always the one that was asked
+    for: an assembler that gets nothing out of a kmer set is answered by assembling them directly.
+    """
     folder = settings.output / ASSEMBLY_FOLDER
     folder.mkdir(parents=True, exist_ok=True)
     assembly = folder / "assembly.fasta"
     log.info("Assembling the kmers with %s...", settings.assembler)
-    assemble.assemble(kmer_fasta, assembly, settings.assembler, settings.threads, settings.memory_gb,
-                      min_contig=settings.min_region or settings.kmer_size)
-    log.info("Assembled %d contig(s)", seqio.count_records(assembly))
-    return assembly
+    _, used = assemble.assemble(kmer_fasta, assembly, settings.assembler, settings.threads,
+                                settings.memory_gb,
+                                min_contig=settings.min_region or settings.kmer_size)
+    log.info("Assembled %d contig(s)%s", seqio.count_records(assembly),
+             "" if used == settings.assembler else f" (with {used}, not {settings.assembler})")
+    return assembly, used
 
 
 def check_the_contigs(settings: Settings, assembly: Path, reference: Path, inclusion: list[Path],

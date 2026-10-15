@@ -94,7 +94,7 @@ Everything needed to repeat or report the run:
 |---|---|
 | `version` | the version of primer-finder |
 | `command_line` | the command as it was typed |
-| `parameters` | the input folders, output folder, `kmer_size`, `duplication`, `min_inclusion`, `min_region`, `inclusion_genomes_required`, `assembler`, `threads`, `memory_gb` after capping, and `min_differences`: 2 for the usual rule, 1 if the run fell back to the last-resort pass |
+| `parameters` | the input folders, output folder, `kmer_size`, `duplication`, `min_inclusion`, `min_region`, `inclusion_genomes_required`, `assembler`, `assembler_used` (the one that actually filled the assembly, which differs when the chosen one got nothing out of the kmers), `threads`, `memory_gb` after capping, and `min_differences`: 2 for the usual rule, 1 if the run fell back to the last-resort pass |
 | `last_resort` | true when the regions are the ones only a single difference accepted, which is also marked in each header. The two fields answer different questions: `min_differences` is the rule the run ended on, and so what `3_candidates/best_kmers.fasta` holds; `last_resort` is whether any region survived to `final_kmers.fasta` under it. A run that fell back and still found nothing has `min_differences: 1` with `last_resort: false` |
 | `inclusion_genomes`, `exclusion_genomes` | every genome file used, in the order they were given to KMC |
 | `reference` | the exclusion genome the contigs were mapped to |

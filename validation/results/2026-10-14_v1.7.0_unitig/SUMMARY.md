@@ -162,10 +162,13 @@ CC7, 8,142 bases to 6,591); and a rank moves in both directions as the pool grow
 the assay is still found but makes `--max-regions 50` cover a smaller share of a bigger pool.
 
 **The fallback the evidence does support** is to use the unitig walk when the chosen assembler assembles
-essentially nothing — below roughly 0.1 bases per kmer, against a healthy 0.7 to 1.4. It would have fired
-on 3 of these 21 runs, every one of them a total failure, and on none of the eighteen that worked. Today
-those three runs end in an error that tells the user to lower `-k`, which runs into the same assembler from
-the other end; with the fallback they would report regions and say which assembler produced them.
+essentially nothing — below roughly 0.1 bases per kmer, against a healthy 0.7 to 1.4. It fires on 3 of
+these 21 runs, every one of them a total failure, and on none of the eighteen that worked. **Implemented**
+(`assemble.COLLAPSE_BASES_PER_KMER`): those three runs used to end in an error advising a smaller `-k`,
+which runs into the same assembler from the other end, and now report regions with `assembler_used` in
+`run_info.json` saying where the contigs came from. Checked afterwards on both ends: the *Brucella*
+`suis_lato` target reports its one locus at default settings, and *Listeria* CC5 is untouched — 57 regions,
+rank 10, SKESA, no warning.
 
 **The fallback the evidence does not support** is anything cleverer than that. A run that is quietly
 leaving 90% of its signal behind looks, from the inside, exactly like one that is not.

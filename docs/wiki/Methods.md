@@ -89,9 +89,23 @@ Measured on the *Brucella* panel, where the two differ most:
 
 On the bundled example it reports the same region as SKESA and 52 bases more of it. It is not the default:
 the two assemblers have years of use behind their output and this does not, so it is there to be chosen.
-Choose it when a run ends at "could not assemble", when the specific stretches are short, or when the kmer
-count is small — and note that a kmer set says nothing about which strand it came from, so a stretch may
-be reported as the reverse complement of what another assembler would give.
+Choose it when the specific stretches are short or the kmer count is small — and note that a kmer set says
+nothing about which strand it came from, so a stretch may be reported as the reverse complement of what
+another assembler would give.
+
+**A run does not have to ask for it to be rescued by it.** An assembler built for reads can get nothing at
+all out of a kmer set, and the error that used to end such a run advised a smaller `-k`, which runs into
+the same assembler from the other end. So when the chosen assembler assembles **less than 0.1 bases per
+kmer** the kmers are assembled directly instead, with a warning, and `run_info.json` records
+`assembler_used` beside `assembler`. The threshold comes from 21 paired runs on three validation panels:
+SKESA assembled 0.000, 0.000 and 0.019 bases per kmer on the three where it returned nothing usable, and
+0.702 to 1.388 on the other eighteen — a 37-fold gap with nothing in it
+([the record](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-14_v1.7.0_unitig/SUMMARY.md)).
+
+The fallback deliberately does not try to catch an assembler that is merely leaving a lot behind. On those
+same panels SKESA recovered between 10.7% and 69.8% of the bases the walk found while staying inside the
+healthy band, so a run cannot tell from its own numbers that it is losing most of the signal — and a rule
+that guessed would either fire on healthy runs or miss the worst case.
 
 **`--min_contig` is set to the kmer size, which is not the assembler's own default.** Both assemblers stop
 at 200 bases if left alone, and a kmer is 99: an inclusion-specific stretch shorter than 200 bases would

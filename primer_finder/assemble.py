@@ -30,6 +30,18 @@ def programs_for(assembler: str) -> set[str]:
 # unlike SKESA's --min_contig it cannot be lowered by asking.
 SPADES_FLOOR = 200
 
+# Below how many assembled bases per kmer the chosen assembler is treated as having collapsed rather than
+# merely done less well, and the unitig walk is used instead. Measured over 21 runs on three validation
+# panels (validation/results/2026-10-14_v1.7.0_unitig/bases_per_kmer.txt): SKESA assembled 0.000, 0.000
+# and 0.019 bases per kmer on the three runs where it returned nothing usable, and 0.702 to 1.388 on the
+# other eighteen. A 37-fold gap with nothing in it, so the exact value matters little; what matters is
+# that no healthy run comes near it.
+#
+# It deliberately does not try to catch an assembler that is merely leaving a lot behind. On the same
+# panels SKESA recovered between 10.7% and 69.8% of the bases the walk found while staying inside the
+# healthy band above, so a run cannot tell from its own numbers that it is losing most of the signal.
+COLLAPSE_BASES_PER_KMER = 0.1
+
 
 def unitigs(kmers: Iterable[str]) -> list[str]:
     """The maximal unambiguous stretches a set of exact kmers spells out.
@@ -127,9 +139,24 @@ def unitigs(kmers: Iterable[str]) -> list[str]:
     return sorted(found, key=lambda one: (-len(one), one))
 
 
+def bases_per_kmer(kmer_fasta: Path, output: Path) -> float:
+    """How many assembled bases the assembler got out of each kmer it was given.
+
+    A kmer set of N separate stretches spells out `kmers + N(k-1)` bases, so this sits a little above 1
+    when an assembler is working on this kind of input and collapses to nearly nothing when it is not.
+    It needs no second assembly to compute, which is what makes it usable as a trigger.
+    """
+    kmers = seqio.count_records(kmer_fasta)
+    if not kmers:
+        return 0.0
+    if not output.is_file():
+        return 0.0
+    return sum(len(record.seq) for record in seqio.iter_records(output)) / kmers
+
+
 def assemble(kmer_fasta: Path, output: Path, assembler: str, threads: int, memory_gb: int,
-             min_contig: int = 0) -> Path:
-    """Assemble a fasta file of kmers into `output`. Returns `output`.
+             min_contig: int = 0) -> tuple[Path, str]:
+    """Assemble a fasta file of kmers into `output`. Returns `output` and the assembler that filled it.
 
     `min_contig` is the shortest contig to report. Left alone both assemblers stop at 200 bases, which is
     longer than a kmer: an inclusion-specific stretch shorter than that is then never reported, and nothing
@@ -143,30 +170,56 @@ def assemble(kmer_fasta: Path, output: Path, assembler: str, threads: int, memor
     reaches its output and asking cannot change it; here the value is only applied to what SPAdes did
     write, which keeps the assemblers from reporting *longer* contigs than asked for. `-a spades` with a
     floor below `SPADES_FLOOR` is warned about rather than silently ignored.
+
+    **If the chosen assembler collapses, the unitig walk is used instead and the return says so.** An
+    assembler built for sequencing reads can get nothing at all out of a kmer set -- it fails outright, or
+    writes a handful of bases out of tens of thousands of kmers -- and the error it used to raise advised
+    a smaller `-k`, which runs into the same assembler from the other end. `COLLAPSE_BASES_PER_KMER` says
+    where "collapsed" starts, and the measurements behind it are beside that constant. This is not a
+    judgement about which assembler is better on a run that worked: the fallback is only for the case
+    where there is nothing to lose.
     """
-    if assembler == "unitig":
-        _unitig(kmer_fasta, output, min_contig)
-    elif assembler == "skesa":
-        _skesa(kmer_fasta, output, threads, memory_gb, min_contig)
-    elif assembler == "spades":
-        if 0 < min_contig < SPADES_FLOOR:
-            log.warning("SPAdes does not report a contig shorter than about %d bases and has no option "
-                        "for it, so regions down to %d will be missing. Use the default assembler to get "
-                        "them", SPADES_FLOOR, min_contig)
-        _spades(kmer_fasta, output, threads, memory_gb, min_contig)
-    else:  # pragma: no cover - the command line only accepts the three of ASSEMBLERS
-        raise PrimerFinderError(f'Unknown assembler "{assembler}". Choose one of: {", ".join(ASSEMBLERS)}')
+    used = assembler
+    failure: tools.ToolError | None = None
+    try:
+        if assembler == "unitig":
+            _unitig(kmer_fasta, output, min_contig)
+        elif assembler == "skesa":
+            _skesa(kmer_fasta, output, threads, memory_gb, min_contig)
+        elif assembler == "spades":
+            if 0 < min_contig < SPADES_FLOOR:
+                log.warning("SPAdes does not report a contig shorter than about %d bases and has no "
+                            "option for it, so regions down to %d will be missing. Use the default "
+                            "assembler to get them", SPADES_FLOOR, min_contig)
+            _spades(kmer_fasta, output, threads, memory_gb, min_contig)
+        else:  # pragma: no cover - the command line only accepts the three of ASSEMBLERS
+            raise PrimerFinderError(
+                f'Unknown assembler "{assembler}". Choose one of: {", ".join(ASSEMBLERS)}')
+    except tools.ToolError as error:
+        # An assembler that exits non-zero on a kmer set has collapsed in the same way as one that writes
+        # nothing, and is answered the same way rather than ending the run
+        failure = error
+
+    if assembler != "unitig":
+        recovered = 0.0 if failure is not None else bases_per_kmer(kmer_fasta, output)
+        if failure is not None or recovered < COLLAPSE_BASES_PER_KMER:
+            reason = (f"it failed: {failure}" if failure is not None
+                      else f"it assembled {recovered:.3f} bases per kmer, where a working run gives "
+                           f"about 1")
+            log.warning("%s got nothing out of the inclusion-specific kmers -- %s", assembler, reason)
+            log.warning("Assembling them directly instead (as -a unitig does), which needs no minimum "
+                        "number of kmers and no coverage model. run_info.json records which assembler "
+                        "the contigs came from.")
+            _unitig(kmer_fasta, output, min_contig)
+            used = "unitig"
+
     if not output.exists() or output.stat().st_size == 0:
-        advice = ("A single kmer is already a unitig, so with a floor of the kmer size this happens only "
-                  "when --min-region is longer than every stretch the kmers spell out."
-                  if assembler == "unitig" else
-                  "There may be too few of them for an assembler built for sequencing reads: `-a unitig` "
-                  "assembles the kmers directly and needs no minimum number of them. A different kmer "
-                  "size (-k) may also help.")
         raise PrimerFinderError(
-            f"{assembler} could not assemble the inclusion-specific kmers into contigs. {advice}"
+            f"{used} could not assemble the inclusion-specific kmers into contigs. A single kmer is "
+            "already a unitig, so with a floor of the kmer size this happens only when --min-region is "
+            "longer than every stretch the kmers spell out."
         )
-    return output
+    return output, used
 
 
 def _unitig(kmer_fasta: Path, output: Path, min_contig: int) -> None:

@@ -30,6 +30,28 @@
   `NothingSelectiveEnough` is a new `PrimerFinderError` subclass, so that the retry answers an empty
   result and never a failed program — which is a `PrimerFinderError` too.
 
+- **When the chosen assembler gets nothing out of the kmers, the kmers are assembled directly instead.**
+  SKESA and SPAdes can return nothing usable from a kmer set — they fail outright, or write a handful of
+  bases out of tens of thousands of kmers — and the error that used to end such a run advised a smaller
+  `-k`, which runs into the same assembler from the other end. Below **0.1 assembled bases per kmer** the
+  unitig walk is used instead, with two warnings, and `run_info.json` records `assembler_used` beside
+  `assembler`.
+
+  The threshold is measured, not guessed: over 21 paired runs on three validation panels SKESA assembled
+  0.000, 0.000 and 0.019 bases per kmer on the three runs where it returned nothing usable, and 0.702 to
+  1.388 on the other eighteen — a 37-fold gap with nothing in it, and every collapse at a kmer size away
+  from the default (`validation/results/2026-10-14_v1.7.0_unitig/`).
+
+  It deliberately does not try to catch an assembler that is merely leaving a lot behind: on those same
+  panels SKESA recovered between 10.7% and 69.8% of the bases the walk found while staying inside the
+  healthy band, so a run cannot tell from its own numbers that it is losing most of the signal. SKESA
+  therefore stays the default and `-a unitig` stays a choice; this is only for the case where there is
+  nothing to lose.
+
+  Together with the last-resort pass this takes the *Brucella* `suis_lato` locus — 15 kmers that SKESA
+  refused, forming one 215-base stretch that differs from *B. abortus* by a single base — from an error to
+  a reported region, at default settings.
+
 - **`-a unitig`: assemble the inclusion-specific kmers without an assembler.** SKESA and SPAdes are built
   for sequencing reads — they estimate coverage, treat what they see once as error, and reconcile
   disagreement. A kmer set has none of those problems: every kmer is an exact substring of real genomes,

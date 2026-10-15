@@ -70,6 +70,25 @@ def test_a_run_that_gives_up_still_removes_its_databases(stubs, settings):
     assert not (folder / "inclusion_kmers.txt").exists()
 
 
+def test_a_collapsed_assembly_is_recorded_as_such(stubs, settings):
+    """A run whose assembler got nothing out of the kmers still reports regions, and run_info.json says
+    which assembler the contigs actually came from -- otherwise the output looks like a SKESA run."""
+    import json
+    import random
+
+    # Kmers that tile one 100-base stretch, so that assembling them directly gives a contig the rest of
+    # the run can work with. The assembler writes nothing, so the fallback is what produces it.
+    rng = random.Random(11)
+    stretch = "".join(rng.choice("ACGT") for _ in range(100))
+    stubs(contigs={}, kmers=[stretch[at:at + 21] for at in range(len(stretch) - 20)],
+          sam=[["unitig_1", 0, "40=1X7=1X51="]])
+    scenario = settings(kmer_size=21)
+    assert run(scenario) == 0
+    info = json.loads((scenario.output / "run_info.json").read_text())
+    assert info["parameters"]["assembler"] == "skesa"
+    assert info["parameters"]["assembler_used"] == "unitig"
+
+
 def test_keep_intermediate(stubs, settings):
     scenario = settings(keep_intermediate=True)
     run(scenario)

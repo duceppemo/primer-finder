@@ -32,6 +32,17 @@ problem from the one above, and the run says which of the two it hit. Things to 
    only where the region of interest is repeated; it cannot make a kmer the exclusion group holds
    specific.
 
+## "skesa got nothing out of the inclusion-specific kmers"
+
+Not an error. SKESA and SPAdes are built for sequencing reads and can get nothing at all out of a kmer
+set — most often at a kmer size away from the default, where the specific stretches are short and few.
+The run assembles the kmers directly instead, as `-a unitig` does, says so in a warning, and records
+`assembler_used` in `run_info.json`. Nothing else about the run changes.
+
+It fires when the assembler returns less than 0.1 assembled bases per kmer, against 0.7 to 1.4 for a run
+that worked. If you would rather it did not, ask for `-a spades`, or read the numbers behind the threshold
+in the [validation record](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-14_v1.7.0_unitig/SUMMARY.md).
+
 ## "No contig differs enough from the exclusion genome"
 
 Inclusion-specific kmers were found and assembled, but none of the contigs has two differences within 25

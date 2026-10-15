@@ -7,7 +7,14 @@ import random
 import pytest
 
 from primer_finder import PrimerFinderError
-from primer_finder.assemble import SPADES_FLOOR, assemble, programs_for, unitigs
+from primer_finder.assemble import (
+    COLLAPSE_BASES_PER_KMER,
+    SPADES_FLOOR,
+    assemble,
+    bases_per_kmer,
+    programs_for,
+    unitigs,
+)
 from primer_finder.seqio import Record, iter_records, reverse_complement, write_fasta
 
 SEQUENCE = "ACGTTGCAAGGCTTACCGGATTCAGGCTAACTTGCCAATGCCGTTAAGCCTTAGGCAATTGGCCAATTGG"
@@ -150,7 +157,8 @@ def test_assembling_with_the_unitig_walk_writes_the_contigs(tmp_path):
     kmer_fasta = tmp_path / "kmers.fasta"
     write_fasta(kmer_fasta, [Record(f"kmer_{n}", "", one)
                              for n, one in enumerate(kmers_of(SEQUENCE))])
-    out = assemble(kmer_fasta, tmp_path / "assembly.fasta", "unitig", threads=1, memory_gb=1)
+    out, used = assemble(kmer_fasta, tmp_path / "assembly.fasta", "unitig", threads=1, memory_gb=1)
+    assert used == "unitig"
     written = list(iter_records(out))
     assert len(written) == 1
     assert len(written[0].seq) == len(SEQUENCE)
@@ -164,8 +172,8 @@ def test_the_unitig_assembler_honours_a_floor_below_what_spades_can_do(tmp_path)
     kmer_fasta = tmp_path / "kmers.fasta"
     write_fasta(kmer_fasta, [Record(f"kmer_{n}", "", one) for n, one in enumerate(kmers_of(short))])
     assert len(short) < SPADES_FLOOR
-    out = assemble(kmer_fasta, tmp_path / "assembly.fasta", "unitig", threads=1, memory_gb=1,
-                   min_contig=len(short))
+    out, _ = assemble(kmer_fasta, tmp_path / "assembly.fasta", "unitig", threads=1, memory_gb=1,
+                      min_contig=len(short))
     assert len(next(iter(iter_records(out))).seq) == len(short)
 
 
@@ -178,13 +186,77 @@ def test_a_floor_above_every_unitig_is_an_error_not_an_empty_file(tmp_path):
                  min_contig=len(SEQUENCE) + 1)
 
 
-def test_the_error_from_an_assembler_for_reads_points_at_the_unitig_walk(stubs, tmp_path):
-    """The old advice was to lower -k, which runs into the same assembler from the other end."""
+def test_an_assembler_that_writes_nothing_is_answered_by_assembling_the_kmers_directly(stubs, tmp_path,
+                                                                                        caplog):
+    """What used to be an error. An assembler built for sequencing reads can get nothing at all out of a
+    kmer set, and the advice then given -- lower -k -- runs into the same assembler from the other end."""
+    kmer_fasta = tmp_path / "kmers.fasta"
+    write_fasta(kmer_fasta, [Record(f"kmer_{n}", "", one) for n, one in enumerate(kmers_of(SEQUENCE))])
+    stubs(contigs={})
+    out, used = assemble(kmer_fasta, tmp_path / "assembly.fasta", "skesa", threads=1, memory_gb=1)
+    assert used == "unitig"
+    assert [len(record.seq) for record in iter_records(out)] == [len(SEQUENCE)]
+    assert "got nothing out of the inclusion-specific kmers" in caplog.text
+
+
+def test_an_assembler_that_writes_almost_nothing_is_answered_the_same_way(stubs, tmp_path, caplog):
+    """The case that is neither an error nor an empty file: on one real run SKESA returned 456 bases from
+    23,413 kmers, which is 0.019 per kmer where a working run gives about 1. Modelled here as one 21-base
+    contig out of 500 kmers, 0.042 per kmer -- still a collapse, and still not an error."""
+    rng = random.Random(3)  # one generator, not a fresh one per base
+    long_enough = "".join(rng.choice("ACGT") for _ in range(520))
+    kmers = kmers_of(long_enough)
+    assert len(kmers) == 500
+    kmer_fasta = tmp_path / "kmers.fasta"
+    write_fasta(kmer_fasta, [Record(f"kmer_{n}", "", one) for n, one in enumerate(kmers)])
+    stubs(contigs={"tiny": long_enough[:21]})
+    out, used = assemble(kmer_fasta, tmp_path / "assembly.fasta", "skesa", threads=1, memory_gb=1,
+                         min_contig=21)
+    assert used == "unitig"
+    assert "0.042 bases per kmer" in caplog.text  # not an empty file: the number is what decided it
+    assert sum(len(record.seq) for record in iter_records(out)) > len(long_enough) * 0.9
+
+
+def test_an_assembler_that_works_is_left_alone(stubs, tmp_path, caplog):
+    """The fallback is for the case where there is nothing to lose, not a judgement about which assembler
+    is better. A run that assembled normally keeps its own contigs."""
+    kmer_fasta = tmp_path / "kmers.fasta"
+    write_fasta(kmer_fasta, [Record(f"kmer_{n}", "", one) for n, one in enumerate(kmers_of(SEQUENCE))])
+    stubs(contigs={"ctg1": SEQUENCE, "ctg2": OTHER})  # about 2.4 bases per kmer, as a real run gives
+    out, used = assemble(kmer_fasta, tmp_path / "assembly.fasta", "skesa", threads=1, memory_gb=1,
+                         min_contig=21)
+    assert used == "skesa"
+    assert sorted(record.name for record in iter_records(out)) == ["ctg1", "ctg2"]
+    assert "got nothing" not in caplog.text
+
+
+def test_an_assembler_that_fails_outright_is_answered_the_same_way(stubs, tmp_path, caplog):
+    """SKESA exits 1 on a small kmer set rather than writing an empty file, which used to end the run."""
+    kmer_fasta = tmp_path / "kmers.fasta"
+    write_fasta(kmer_fasta, [Record(f"kmer_{n}", "", one) for n, one in enumerate(kmers_of(SEQUENCE))])
+    stubs(fail="skesa")
+    out, used = assemble(kmer_fasta, tmp_path / "assembly.fasta", "skesa", threads=1, memory_gb=1)
+    assert used == "unitig"
+    assert "it failed" in caplog.text
+
+
+def test_the_collapse_threshold_sits_far_from_both_what_it_separates():
+    """The measurements behind it: three runs at 0.000, 0.000 and 0.019 bases per kmer against eighteen
+    at 0.702 to 1.388. A threshold that drifted into either group would be the wrong kind of wrong."""
+    assert 0.019 < COLLAPSE_BASES_PER_KMER < 0.702
+
+
+def test_bases_per_kmer_of_a_missing_or_empty_assembly(tmp_path):
     kmer_fasta = tmp_path / "kmers.fasta"
     write_fasta(kmer_fasta, [Record("kmer_0", "", SEQUENCE[:21])])
-    stubs(contigs={})
-    with pytest.raises(PrimerFinderError, match="-a unitig"):
-        assemble(kmer_fasta, tmp_path / "assembly.fasta", "skesa", threads=1, memory_gb=1)
+    assert bases_per_kmer(kmer_fasta, tmp_path / "gone.fasta") == 0.0
+    empty = tmp_path / "empty.fasta"
+    empty.write_text("")
+    assert bases_per_kmer(kmer_fasta, empty) == 0.0
+    # And no kmers at all is 0, not a division by zero
+    no_kmers = tmp_path / "none.fasta"
+    no_kmers.write_text("")
+    assert bases_per_kmer(no_kmers, empty) == 0.0
 
 def every_kmer_once(kmers: list[str], built: list[str]) -> None:
     """The two invariants that define a correct decomposition, which no single example pins down:
