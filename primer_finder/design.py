@@ -731,7 +731,17 @@ def chains_of(hits: Sequence[blast.Hit]) -> list[list[blast.Hit]]:
     query.
     """
     chains: list[list[blast.Hit]] = []
-    for hit in sorted(hits, key=lambda one: (one.subject, _subject_bounds(one)[2], one.qstart, one.qend)):
+    # Sorted by where each piece sits in the genome as well as in the amplicon. Without that last term
+    # pieces covering the same stretch of the amplicon keep the order blast printed them in -- which is by
+    # score -- and each piece joins the first chain that will take it. Two split copies within
+    # MAX_PRODUCT_GAP of each other then cross: measured on real output, the downstream copy's second
+    # piece scored higher, came first, and joined the upstream copy's chain, leaving one countable copy
+    # where there are two. It also made the count depend on the scores rather than on the sequence.
+    def in_order(one: blast.Hit) -> tuple:
+        low, _, forward = _subject_bounds(one)
+        return one.subject, forward, one.qstart, one.qend, low
+
+    for hit in sorted(hits, key=in_order):
         low, high, forward = _subject_bounds(hit)
         for chain in chains:
             last = chain[-1]
@@ -780,12 +790,23 @@ def has_the_amplicon(chain: Sequence[blast.Hit], size: int) -> bool:
     if size <= 0 or not chain:
         return False
     span = chain[-1].qend - chain[0].qstart + 1
-    # Columns where both sequences have a base. Pieces may overlap by a little, which counts those columns
-    # twice; at `MAX_PIECE_OVERLAP` it cannot move a ratio across the threshold.
-    aligned = sum(piece.length - piece.gaps for piece in chain)
+    # Columns where both sequences have a base, counting a column of the amplicon once however many
+    # pieces reach into it. Blast's pieces do overlap -- by one to four bases in every split copy
+    # measured -- and counting those columns twice is not harmless: two pieces of a 100-base amplicon
+    # overlapping by 30, the first matching throughout and the second carrying 10 mismatches among its
+    # own 30 columns, is 80 of 90 columns matching, which should fail, but reads as 110 of 120, which
+    # passes. The overlap is subtracted from both counts, which treats its columns as the matches they
+    # are wherever the pieces agree.
+    aligned = identical = 0
+    reached = None
+    for piece in chain:
+        overlap = 0 if reached is None else max(0, reached - piece.qstart + 1)
+        aligned += max(0, piece.length - piece.gaps - overlap)
+        identical += max(0, piece.identical - overlap)
+        reached = piece.qend if reached is None else max(reached, piece.qend)
     if aligned <= 0:  # Only possible from a malformed row; blast never reports an all-gap alignment
         return False
-    identity = 100.0 * sum(piece.identical for piece in chain) / aligned
+    identity = 100.0 * identical / aligned
     return span >= MIN_AMPLICON_COVERAGE * size and identity >= MIN_AMPLICON_IDENTITY
 
 

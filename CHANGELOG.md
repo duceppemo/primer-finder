@@ -16,7 +16,14 @@
 
   Pieces are now chained before the rule is applied: two belong to the same copy when they follow each
   other both in the amplicon and in the genome, on one strand of one sequence and no more than 2,000
-  bases apart in either, and the reach is measured across the whole chain. Two copies side by side in the
+  bases apart in either, and the reach is measured across the whole chain. They are taken in order of
+  where they sit in the genome as well as in the amplicon, because blast prints its hits by score: two
+  split copies within 2,000 bases of each other otherwise crossed, the higher-scoring second piece of one
+  joining the chain of the other, which left one countable copy where there were two and made the count
+  depend on the scores rather than on the sequence. A base of the amplicon is counted once however many
+  pieces reach into it: blast overlaps its pieces by one to four bases in every split copy measured, and
+  adding the pieces up without regard to that put a chain of 80 matching columns in 90 over the 90%
+  rule as 110 in 120. Two copies side by side in the
   genome do not chain, since the second repeats the amplicon rather than continuing it. The same worked
   case now reports all three assays as resting on differences, with every exclusion genome holding the
   amplicon. The bundled example is unchanged: its 15-base insertion is small enough that blast gaps

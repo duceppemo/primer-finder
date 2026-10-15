@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from itertools import permutations
 from pathlib import Path
 
 import pytest
@@ -586,6 +587,78 @@ def test_pieces_on_opposite_strands_are_not_one_copy():
     chains = chains_of([hit(200, qstart=1, qend=100, sstart=1000, send=901),   # Minus
                         hit(200, qstart=101, qend=200, sstart=1100, send=1199)])  # Plus
     assert len(chains) == 2
+
+@pytest.mark.parametrize("overlap", [1, 4])
+def test_the_pieces_of_a_split_copy_usually_overlap_by_a_base_or_two(overlap):
+    """Where blast breaks a copy the two pieces rarely abut exactly. Over fifteen real cases -- five
+    sequences at three insertion sizes -- the break came back as q1-120/q121-207 (abutting), but also
+    q1-120/q120-207, q1-121/q120-207, q1-120/q118-207 and q1-123/q120-207: overlaps of one to four
+    bases. Refusing any overlap would leave those copies counted as absent, which is the thing this is
+    all here to avoid."""
+    pieces = [hit(207, qstart=1, qend=120, sstart=11, send=130),
+              hit(207, qstart=121 - overlap, qend=207, sstart=231, send=317 - overlap)]
+    chains = chains_of(pieces)
+    assert len(chains) == 1
+    assert has_the_amplicon(chains[0], 207)
+
+
+def test_a_chain_counts_a_base_of_the_amplicon_once_however_many_pieces_reach_it():
+    """Two pieces overlapping by 30 bases, the first matching throughout and the second carrying 10
+    mismatches among its own 30 columns: 80 of the 90 covered columns match, which is under the 90% rule.
+    Adding the pieces up without regard to the overlap gives 110 of 120, which passes it."""
+    pieces = [hit(100, qstart=1, qend=60, sstart=1, send=60),
+              hit(100, qstart=31, qend=90, sstart=31, send=90, mismatches=10)]
+    chains = chains_of(pieces)
+    assert len(chains) == 1
+    assert not has_the_amplicon(chains[0], 100)
+    # And the same pieces without the mismatches are held, so it is the identity that decided it
+    clean = chains_of([hit(100, qstart=1, qend=60, sstart=1, send=60),
+                       hit(100, qstart=31, qend=90, sstart=31, send=90)])
+    assert has_the_amplicon(clean[0], 100)
+
+
+def test_two_split_copies_near_each_other_are_counted_whatever_order_blast_prints_them_in():
+    """Blast prints its hits by score, not by position, and each piece joins the first chain that will
+    take it. These four pieces are two copies 1,200 bases apart, each split by an insertion; in the order
+    blast actually emitted them -- the downstream copy's second piece scored highest -- the second piece
+    of one copy joined the chain of the other, leaving one countable copy where there are two."""
+    first = [hit(207, qstart=1, qend=120, sstart=501, send=620),
+             hit(207, qstart=120, qend=207, sstart=720, send=807, mismatches=1)]
+    second = [hit(207, qstart=1, qend=120, sstart=1808, send=1927),
+              hit(207, qstart=120, qend=207, sstart=2027, send=2114)]
+    blast_order = [first[0], second[0], second[1], first[1]]  # What blastn printed
+    counted = [sum(1 for chain in chains_of(list(order)) if has_the_amplicon(chain, 207))
+               for order in permutations(blast_order)]
+    assert set(counted) == {2}, "the count depends on the order blast printed its hits in"
+
+
+def test_the_bases_come_from_every_piece_of_a_split_copy(stubs, tmp_path, fasta):
+    """What an oligo has to mismatch is read off these alignments, so a copy blast split in two has to be
+    read in both halves -- including where the second half is the one carrying the difference."""
+    # Bases that really differ: "ACGT" * 30 has G at 10 and A at 80
+    stubs(amplicon_hits={"g1": 1}, amplicon_split=[60, 300], amplicon_mismatch={"10": "T", "80": "T"})
+    genomes = [fasta("g1.fasta", {"chr": "ACGT" * 200})]
+    one = assay(amplicon="ACGT" * 30, forward=oligo(start=0, length=20, variants=[10]),
+                reverse=oligo(start=70, length=20, variants=[80]))
+    check_against_exclusion([one], genomes, tmp_path / "work", threads=1)
+    assert one.forward.variant_bases == {10: "T"}   # In the first piece
+    assert one.reverse.variant_bases == {80: "T"}   # In the second
+
+@pytest.mark.parametrize(("overlap", "chained"), [(30, True), (31, False)])
+def test_how_much_two_pieces_may_overlap_before_they_are_two_copies(overlap, chained):
+    """Blast overlaps its pieces by a base or two where it breaks a copy; an overlap much larger than that
+    is two things aligning to the same stretch rather than one copy reported in parts."""
+    pieces = [hit(207, qstart=1, qend=120, sstart=1, send=120),
+              hit(207, qstart=121 - overlap, qend=207, sstart=121 - overlap, send=207)]
+    assert (len(chains_of(pieces)) == 1) is chained
+
+
+@pytest.mark.parametrize(("gap", "chained"), [(2000, True), (2001, False)])
+def test_how_far_apart_two_pieces_may_be_before_they_are_two_copies(gap, chained):
+    """`MAX_PRODUCT_GAP`, measured from the last base of one piece to the first of the next."""
+    pieces = [hit(200, qstart=1, qend=100, sstart=1, send=100),
+              hit(200, qstart=101, qend=200, sstart=101 + gap, send=200 + gap)]
+    assert (len(chains_of(pieces)) == 1) is chained
 
 def test_the_pieces_blast_splits_a_copy_into_are_read_as_one_copy():
     """Measured with real blastn 2.17: a 207-base amplicon against a genome carrying 100 extra bases in
