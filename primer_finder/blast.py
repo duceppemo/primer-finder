@@ -129,6 +129,18 @@ def blastn(db: Path, query: Path, out_file: Path, fields: Sequence[str], max_tar
         "-out", os.path.relpath(out_file, work_dir),
         "-evalue", str(MAX_EVALUE),
         "-max_target_seqs", str(max_targets),
+        # One CPU per search, with as many searches at once as `-t` allows, rather than the other way
+        # round. `-num_threads` splits the *query*, and each search here is one small genome, so there is
+        # almost nothing to split: measured on 200 genomes at a fixed budget of 48 CPUs, with the two
+        # kinds of parallelism traded against each other --
+        #
+        #   query of 181 contigs:    48x1 1.4 s | 24x2 2.3 s | 12x4 4.7 s | 6x8 9.5 s
+        #   query of 5,430 contigs:  48x1 22 s  | 24x2 33 s  | 12x4 60 s  | 6x8 117 s
+        #
+        # monotonic in both, with no optimum in between, and the same shape for `-task megablast`
+        # (0.9 s to 35 s across the full 48x1 .. 1x48 range). A thirty-fold larger query does not change
+        # the answer. makeblastdb behaves the same way: 200 of them take 18.7 s one at a time and 0.6 s
+        # at 48 at once.
         "-num_threads", "1",
         "-outfmt", "6 " + " ".join(fields),
     ], cwd=work_dir)
