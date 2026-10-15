@@ -1,0 +1,13 @@
+panel	target	settings	assembler	contigs	regions	recovered	rank	region_bp	last_resort	status	seconds
+brucella	genus	-p 0.99	skesa	5547	5344	True	4249	127	no	ok	600
+brucella	genus	-p 0.99	unitig	11755	11156	True	8497	179	no	ok	836
+brucella	genus	default	skesa	722	398	False	-	-	no	ok	158
+brucella	genus	default	unitig	3664	2159	False	-	-	no	ok	241
+brucella	genus	default	skesa	98	56	False	-	-	no	ok	144
+brucella	genus	default	unitig	1049	537	False	-	-	no	ok	158
+brucella	abortus	-p 0.994	skesa	334	2	False	-	-	no	ok	135
+brucella	abortus	-p 0.994	unitig	632	2	False	-	-	no	ok	141
+brucella	melitensis	-p 0.994	skesa	720	11	False	-	-	no	ok	145
+brucella	melitensis	-p 0.994	unitig	1237	18	False	-	-	no	ok	137
+brucella	suis	-k 201 -p 0.95	skesa	0	0		-	-	no	could not assemble	133
+brucella	suis	-k 201 -p 0.95	unitig	1	1	False	-	-	YES	ok	182

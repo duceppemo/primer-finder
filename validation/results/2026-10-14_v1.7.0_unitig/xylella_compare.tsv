@@ -1,0 +1,9 @@
+panel	target	settings	assembler	contigs	regions	recovered	rank	region_bp	last_resort	status	seconds
+xylella	multiplex	default	skesa	3494	923	True	1	4010	no	ok	24
+xylella	multiplex	default	unitig	7132	1223	True	1	3907	no	ok	27
+xylella	fastidiosa	default	skesa	3205	612	True	5	1111	no	ok	21
+xylella	fastidiosa	default	unitig	5506	782	True	2	1163	no	ok	21
+xylella	pauca	default	skesa	3150	2040	True	173	488	no	ok	43
+xylella	pauca	default	unitig	7246	3471	True	263	540	no	ok	60
+xylella	morus	default	skesa	2956	410	True	5	1171	no	ok	31
+xylella	morus	default	unitig	4974	514	True	3	924	no	ok	34
