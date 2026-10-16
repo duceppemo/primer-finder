@@ -1,0 +1,17 @@
+# What "absent from the exclusion group" is worth when the group is small.
+#
+# CC7's 47 inclusion genomes against nested exclusion groups sampled (seed 42) from its own 716. Every
+# marked run of 40 bases or more that a run reported was then blasted against ALL 716 at -evalue 1: a
+# stretch the full set holds at half its length or more was absent only from the group that was given.
+#
+# false   the full set holds it: true of the group given, not of the species
+# real    nothing in any of the 716 genomes at evalue 1
+# weak    a partial hit only (one 8 kb stretch, 20-21% covered at 88-89%)
+exclusion_genomes	regions	absences_claimed	false	real	weak	false_share
+1	2528	188	183	4	1	0.97
+2	2559	170	165	4	1	0.97
+3	2572	110	105	4	1	0.95
+5	522	28	23	4	1	0.82
+10	373	9	4	4	1	0.44
+25	151	6	1	4	1	0.17
+716	60	5	0	5	0	0.00

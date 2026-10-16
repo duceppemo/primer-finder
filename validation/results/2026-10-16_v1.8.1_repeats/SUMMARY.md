@@ -145,6 +145,37 @@ change that lands inside one copy in place rather than scrubbing it. It also mea
 trying on a repeat target: the walk stops at a branch for the same reason, but it is reached when SKESA
 returns almost nothing, and the two fail differently.
 
+## What a small exclusion group is worth
+
+The rule credits a stretch on whatever the group says. The differences rule needs 90% of the genomes
+covering a position to agree, so no single genome can carry it; an absence has no such check, and with one
+genome a single alignment gap of 6,888 bases becomes an absence. Measured, because the earlier draft of
+this record said only that it "would be the case to be careful about".
+
+CC7's 47 inclusion genomes against nested exclusion groups sampled from its own 716, every reported
+absence then blasted against all 716 at `-evalue 1` ([`small_group.tsv`](small_group.tsv)):
+
+| exclusion genomes | regions | absences claimed | false | real | false share |
+|---|---|---|---|---|---|
+| 1 | 2,528 | 188 | 183 | 4 | **97%** |
+| 2 | 2,559 | 170 | 165 | 4 | 97% |
+| 3 | 2,572 | 110 | 105 | 4 | 95% |
+| 5 | 522 | 28 | 23 | 4 | 82% |
+| 10 | 373 | 9 | 4 | 4 | 44% |
+| 25 | 151 | 6 | 1 | 4 | 17% |
+| 716 | 60 | 5 | 0 | 5 | 0% |
+
+The four real absences are found at **every** group size, so the signal the rule exists for is robust;
+what grows as the group shrinks is the false ones, to the point where nearly everything reported at one to
+three genomes is held somewhere else in the species.
+
+It is worth being exact about what "false" means here. Those stretches really are missing from the genomes
+that were given — the tool answered the question it was asked. What fails is the generalisation from three
+genomes to a species. That is why the answer is not a more sensitive search: re-blasting the stretch
+against the same three genomes confirms the same absence. It is also why nothing is refused below a group
+size. A run that credits an absence now says what the evidence rests on, naming the group size, when the
+group is under 25 genomes (`pipeline.ABSENCE_WANTS_GENOMES`), and leaves the decision where it belongs.
+
 ## What is still worth knowing
 
 The bundled example's contig is aligned end to end by every exclusion genome — blast gaps through its

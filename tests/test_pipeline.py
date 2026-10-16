@@ -10,6 +10,7 @@ import pytest
 
 from primer_finder import PrimerFinderError
 from primer_finder.pipeline import (
+    ABSENCE_WANTS_GENOMES,
     HITS_NAME,
     Settings,
     lower_positions,
@@ -460,6 +461,45 @@ def test_a_region_whose_specificity_is_a_block_no_exclusion_genome_holds_is_repo
     assert list(records) == ["ctg1"]
     marked = sum(1 for base in records["ctg1"] if base.islower())
     assert marked == 60, marked  # The 60 bases between the two aligned ends
+
+
+def test_a_region_resting_on_absence_says_what_a_small_group_is_worth(stubs, settings, caplog):
+    """The differences rule needs 90% of the covering genomes to agree, so no one genome can carry it. A
+    stretch missing from the group is credited on whatever the group says -- with a handful of genomes, one
+    alignment gap becomes an absence. Measured on a Listeria complex: against 3 genomes, 95% of the
+    stretches reported absent were held by others of its 716."""
+    ends = [["ctg1", 1, 20, 1e-30, "ACGT" * 5, "ACGT" * 5],
+            ["ctg1", 81, 100, 1e-30, "ACGT" * 5, "ACGT" * 5]]  # 60 bases unaligned between them
+    stubs(exclusion_hits={"exclusion_1": ends, "exclusion_2": ends})
+    with caplog.at_level("WARNING"):
+        assert run(settings(last_resort=False)) == 0
+    assert "missing from all 2 exclusion genome(s)" in caplog.text
+    assert "Widen the exclusion group" in caplog.text
+
+
+def test_a_region_resting_on_differences_alone_says_nothing_about_the_group(stubs, settings, caplog):
+    """The warning is about absence, so an ordinary region must not draw it."""
+    with caplog.at_level("WARNING"):
+        assert run(settings(last_resort=False)) == 0
+    assert "missing from all" not in caplog.text
+
+
+def test_an_exclusion_group_big_enough_to_mean_it_draws_no_warning(stubs, settings, caplog, tmp_path):
+    """The same absence, said by enough genomes to be worth something, passes without comment: the point
+    is what a *small* group's say-so is worth, not that absence is doubtful in itself."""
+    exclusion = tmp_path / "many"
+    ends = [["ctg1", 1, 20, 1e-30, "ACGT" * 5, "ACGT" * 5],
+            ["ctg1", 81, 100, 1e-30, "ACGT" * 5, "ACGT" * 5]]
+    hits = {}
+    for number in range(1, ABSENCE_WANTS_GENOMES + 1):
+        (exclusion / f"exclusion_{number}.fasta").parent.mkdir(parents=True, exist_ok=True)
+        (exclusion / f"exclusion_{number}.fasta").write_text(">chr\n" + "ACGT" * 50 + "\n")
+        hits[f"exclusion_{number}"] = ends
+    stubs(exclusion_hits=hits)
+    with caplog.at_level("WARNING"):
+        assert run(settings(exclusion=exclusion, last_resort=False)) == 0
+    assert list(final_records(settings(exclusion=exclusion).output)) == ["ctg1"]
+    assert "missing from all" not in caplog.text
 
 
 def test_a_contig_no_exclusion_genome_holds_needs_no_difference(stubs, settings):

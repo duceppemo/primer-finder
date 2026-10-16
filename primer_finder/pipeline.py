@@ -438,6 +438,34 @@ def genome_labels(genomes: list[Path], root: Path) -> dict[str, str]:
     return labels
 
 
+# How many exclusion genomes make "absent from the group" worth much. Not a limit -- nothing is refused
+# below it -- only the point under which the log says what the evidence is worth. Measured on one
+# *Listeria* complex by running it against exclusion groups sampled from its own 716 genomes and testing
+# every absence against all of them: with 1 to 3 genomes, 95 to 97% of the stretches reported absent are
+# held somewhere in the full set; with 10, 44%; with 25, 17%; with all 716, none. The real absences were
+# found at every group size, so what grows as the group shrinks is the false ones.
+ABSENCE_WANTS_GENOMES = 25
+
+
+def warn_about_absence(regions: int, genomes: int) -> None:
+    """Say what a region resting on an absent stretch is worth, given how many genomes said so.
+
+    The differences rule needs 90% of the genomes covering a position to agree, so no single genome can
+    carry it. A stretch missing from the group is credited on whatever the group says -- with one genome,
+    one alignment gap of 6,888 bases becomes an absence. It is a true statement about the genomes given
+    and it generalises only as far as they do, which is worth saying when they are few.
+    """
+    if genomes >= ABSENCE_WANTS_GENOMES:
+        return
+    log.warning(
+        "%d region(s) are specific because a stretch of them is missing from all %d exclusion genome(s). "
+        "That is a statement about those %d genomes: with a group this small such a stretch is often "
+        "present elsewhere in the species -- measured on one Listeria complex, 95%% of the stretches "
+        "reported absent against 3 genomes were held by others of its 716. Widen the exclusion group, or "
+        "check these regions against more genomes before trusting the specificity.",
+        regions, genomes, genomes)
+
+
 def write_presence_table(path: Path, presence: dict[str, dict[str, bool]],
                          labels: dict[str, str] | None = None) -> None:
     """A table of contigs (rows) against genomes (columns), 1 when the contig is present."""
@@ -469,6 +497,7 @@ def keep_absent_from_exclusion(
     candidates = seqio.read_fasta(all_inclusion)
 
     records: list[seqio.Record] = []
+    resting_on_absence: list[str] = []
     for name, record in candidates.items():
         result = results.get(name, blast.ExclusionResult())
         if result.genomes_hit == 0:  # Absent from every exclusion genome: specific on its own
@@ -479,12 +508,17 @@ def keep_absent_from_exclusion(
         # it is missing from the group. Without this a region whose specificity is a novel block in shared
         # backbone -- a repeat-targeted marker, most often -- was dropped for having no differences, while
         # the mapping step two steps earlier had called the same contig a candidate on that very block.
-        positions = sorted(set(blast.shared_variants(result))
-                           | set(blast.unaligned_positions(result, len(record.seq))))
+        absent = blast.unaligned_positions(result, len(record.seq))
+        if absent:
+            resting_on_absence.append(name)
+        positions = sorted(set(blast.shared_variants(result)) | set(absent))
         if blast.enough_variants(positions, min_differences):
             tag = next((part for part in record.desc.split() if part.startswith(INCLUSION_TAG)), "")
             desc = " ".join(part for part in (f"{positions}", tag, mark) if part)
             records.append(seqio.Record(name, desc, lower_positions(record.seq, positions)))
+    kept = {record.name for record in records}
+    if any(name in kept for name in resting_on_absence):
+        warn_about_absence(sum(1 for name in resting_on_absence if name in kept), len(exclusion))
     final = settings.output / FINAL_NAME
     count = seqio.write_fasta(final, records)
     return final, count

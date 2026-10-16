@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **A run that reports a region specific by absence now says what that rests on, when the exclusion group
+  is small.** The differences rule needs 90% of the genomes covering a position to agree, so no single
+  genome can carry it; an absence has no such check, and with one exclusion genome a lone alignment gap of
+  6,888 bases becomes an absence.
+
+  Measured rather than assumed, on CC7's 47 *Listeria* inclusion genomes against nested exclusion groups
+  sampled from its own 716, with every reported absence blasted back against all 716: with 1 to 3 genomes
+  **95 to 97%** of the stretches called absent are held somewhere in the full set; with 10, 44%; with 25,
+  17%; with all 716, none. The four real absences are found at every group size, so what grows as the
+  group shrinks is the false ones. The table is in
+  `validation/results/2026-10-16_v1.8.1_repeats/small_group.tsv`.
+
+  Nothing is refused and no threshold gates the rule: those stretches genuinely are missing from the
+  genomes given, so a more sensitive search would only confirm them — what fails is the generalisation
+  from a few genomes to a species, and that is the user's call. Under 25 exclusion genomes the run now
+  names the group size and says so.
+
 ## 1.9.0
 
 ### Fixed
