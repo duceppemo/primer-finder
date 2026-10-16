@@ -44,7 +44,8 @@ nine clonal complexes against the other 78:
 | 127 | 319 | 0 | 4 of 9 |
 
 All four were measured under the span rule of the time — a 22-base pair rather than the 25 of step 3 below —
-so the comparison between kmer sizes holds, but the absolute counts run a little under what 1.7.0 gives: at
+so the comparison between kmer sizes holds, but the absolute counts are two releases old: they run a little
+under what 1.7.0 gives, and 1.8.0's move from megablast to `-task blastn` moved them again. At
 `-k 99` it reports 332 regions over those nine targets rather than 306.
 
 Which assays are recovered does not change, so the kmer size buys candidates rather than answers. 99 is a
@@ -242,8 +243,12 @@ Gzipped genomes are decompressed into the output folder for this step: blast can
 
 ```
 blastn -task blastn -db <each exclusion genome> -query all_inclusion_contigs.fasta -evalue 1e-10 \
-       -max_target_seqs 10 -num_threads 1 -outfmt "6 qseqid qstart qend evalue qseq sseq"
+       -max_target_seqs 500 -num_threads 1 -outfmt "6 qseqid qstart qend evalue qseq sseq"
 ```
+
+Every matching subject is asked for rather than the ten best: a draft assembly can put a short stretch of
+a contig on a sequence of its own, which at ten could be crowded out by the sequences holding the rest —
+and that would read as the genome lacking a stretch it has.
 
 Every hit of a contig in an exclusion genome is read, not just the best one, and each gives the positions of
 the contig that differ from that copy: mismatches, bases the contig has and the genome does not, and the
@@ -255,7 +260,18 @@ there: one matching copy is enough for the assay to amplify that genome. A posit
 differs in at least **90%** of the exclusion genomes that align it — a few exclusion genomes carrying the
 inclusion allele do not spoil an assay, and the threshold leaves room for them. A genome whose hits do not
 reach that position is left out of the count rather than counted as identical: it does not hold that region,
-which only makes the assay more selective. A contig is kept when:
+which only makes the assay more selective.
+
+A stretch that **no** exclusion genome aligns is a different matter: the whole of it is missing from the
+group, which is the strongest evidence of specificity there is, so it counts as differing. It has to run to
+at least **40 bases** — not because that is what a primer needs, but because of what this search can see.
+Measured against a 3 Mb genome at this step's own `-evalue 1e-10`, an exact island of 25 or 30 bases is not
+reported at all while one of 33 is, so a shorter run could be present and merely invisible. The shape this
+is for is a novel block sitting in shared backbone — a repeat-targeted marker, most often — where every
+exclusion genome matches the flanks either side and nothing in between
+([the record](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-16_v1.8.1_repeats/SUMMARY.md)).
+
+A contig is kept when:
 
 - no exclusion genome hits it at all (it is specific on its own), in which case it is written as it came out
   of step 3; or

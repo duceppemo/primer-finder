@@ -55,8 +55,10 @@ credit it: only positions that *differ somewhere* become candidates there.
 
 **Fixed in 1.8.1** by `blast.unaligned_positions`: a stretch no exclusion genome aligns counts as
 differing, because that is what it does. With `-d 3` the marker is now reported as one 444-base region
-with its 300 marker bases marked, and `design` proposes 28 assays on it, all specific by absence, every
-one reporting `inclusion_copies 2-4` — the copy number that makes a repeat worth targeting.
+with its 300 marker bases marked, `design` proposes 28 assays on it, all specific by absence. **17** of them
+report `inclusion_copies 2-4` — the copy number that makes a repeat worth targeting — while the other 11
+report 1, their amplicon straddling a junction between the marker and the backbone, which is unique to
+each copy site.
 
 ## What the threshold is for, and how it was chosen
 

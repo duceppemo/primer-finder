@@ -14,18 +14,23 @@ MIN_KMER_SIZE, MAX_KMER_SIZE = 1, 256  # What KMC accepts
 # What KMC accepts for -m. Its own help says "from 1 to 1024", but 1 is refused at run time with
 # "min memory must be at least 2GB", so the floor here is 2 -- measured, not read off the help.
 MIN_MEMORY_GB, MAX_MEMORY_GB = 2, 1024
-# KMC stores a count in one byte unless -cs says otherwise, so a kmer seen more than 255 times is *reported*
-# with a count of 255. The filtering is not done on that stored value: -ci and -cx are both applied to the
-# true count. Measured with kmc 3.2.4 on one kmer repeated 300 and 301 times, with no -cs:
+# KMC stores a count in one byte unless -cs says otherwise, so a kmer seen more than 255 times is stored
+# with a count of 255 -- and -ci is applied to that stored value, which is why -cs below is not optional.
+# Measured with kmc 3.2.4 on one kmer repeated 300 and 301 times, reading the `kmc_tools transform dump`
+# output rather than KMC's own statistics:
 #
-#   -ci250, -ci255, -ci256, -ci300  all keep the 300 -- so a threshold above the counter maximum is met
-#   -cx300                          keeps the 300 and drops the 301 -- so is a ceiling above it
-#   -cx255, -cx254                  drop the 300, as the true count exceeds them
-#   the dump reports 255 throughout, and -cs300 makes it report the true 300
+#   no -cs:    -ci250, -ci255  keep it, reported with a count of 255
+#              -ci256, -ci300  keep NOTHING: the threshold is above the counter and can never be met
+#              -cx300          keeps the 300 and drops the 301, so -cx sees the true count
+#              -cx255, -cx254  drop the 300, likewise
+#   -cs300:    -ci300 keeps it and reports 300; -ci301 keeps nothing
 #
-# So -cs is not what makes the kept-or-dropped decision right; it is raised below only so that the counts
-# in the intermediate files mean what they say. (An earlier version of this comment had it the other way
-# round, from a measurement that read the *reported* count and took it for the filtered one.)
+# So -ci is bounded by the counter and -cx is not, and -cs has to be raised whenever `min_count` could
+# pass 255 -- which it can, since it is the number of inclusion genomes required.
+#
+# Read the dump, not the statistics. "No. of unique counted k-mers" is 1 for -ci256 and -ci300 above,
+# where the dump is empty: it does not reflect -ci. Both earlier versions of this comment were wrong, the
+# second because it was written from that line.
 DEFAULT_COUNTER_MAX = 255
 # KMC's second stage refuses more than this: "number of threads for 2nd stage must be in range <1,128>".
 # The command line's -t defaults to every CPU, which on a large node is more than this, so it is capped
@@ -67,10 +72,11 @@ def count(
         "-fm",  # multi-fasta input
     ]
     if DEFAULT_COUNTER_MAX < max_count < NO_MAX_COUNT:
-        # Widen the counters so the counts in the dump are the true ones rather than a saturated 255. The
-        # filtering is right either way (see DEFAULT_COUNTER_MAX); this is for anything that reads them.
-        # Where nothing is filtered out by max_count at all -- the exclusion group -- there is nothing to
-        # widen them for, and leaving them alone keeps KMC's counters one byte wide.
+        # Widen the counters. -ci is applied to the stored count, so with the default one-byte counter a
+        # `min_count` above 255 could never be met and the step would return nothing at all (see
+        # DEFAULT_COUNTER_MAX). Where nothing is filtered out by max_count -- the exclusion group, which
+        # passes NO_MAX_COUNT -- there is no min_count near the ceiling either, and leaving the counters
+        # one byte wide is cheaper.
         command.append(f"-cs{max_count}")
     command += [f"-ci{min_count}", f"-cx{max_count}", f"@{list_file}", str(db_prefix), str(work_dir)]
     tools.run(command)

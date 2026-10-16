@@ -57,7 +57,7 @@ Eight of the ten concern one or two exclusion genomes each, where the label flip
 The other two are `Contig_120_57.4688_assay0` and `_assay1`, where **630 of 951** exclusion genomes went
 from holding the amplicon to not holding it.
 
-This is a defect in 1.8.0, found by this re-run and not yet fixed. It is the same failure the release set
+This was a defect in 1.8.0, found by this re-run. It is the same failure the release set
 out to correct, arriving from the other side: a genome that holds an amplicon is recorded as not holding
 it, and the assay is handed a specificity claim it has not earned. Neither version is right in general —
 1.7.0's own count rested on megablast, whose blind spot for a copy that differs every ~25 bases is what

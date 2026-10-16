@@ -8,7 +8,7 @@ Each record of a validation run is kept in `validation/results/<date>_v<version>
 produced. Records are never rewritten: a later run that contradicts one gets its own record, and the old one
 keeps an erratum pointing at it.
 
- re-designs the Brucella regions under 1.8.0 to measure what the
+`2026-10-16_v1.8.0_brucella_recheck/` re-designs the Brucella regions under 1.8.0 to measure what the
 corrected amplicon rule changes, and reports a defect it found in that rule.
 
 `2026-10-16_v1.8.1_repeats/` is about markers in repeated regions: where a repeat-targeted assay was being

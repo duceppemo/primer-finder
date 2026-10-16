@@ -169,7 +169,9 @@ which contigs come out:
   was "within 21 bases" in 1.0.0; since 1.7.0 the pair may span 25 bases, the widest primer, while the
   clipped end is still 21;
 - a position has to differ in every copy of the region a given exclusion genome holds, and genomes that do
-  not hold the region at all no longer count towards the 90%;
+  not hold the region at all no longer count towards the 90% — and a stretch of at least 40 bases that *no*
+  exclusion genome aligns counts as differing in its own right, since the whole of it is missing from the
+  group;
 - two shared variant positions are enough to keep a contig; the old code needed four because of an
   off-by-three in its loop.
 

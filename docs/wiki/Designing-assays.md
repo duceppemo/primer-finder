@@ -132,11 +132,32 @@ other both in the amplicon and in the genome, on one strand of one sequence, no 
 in either — and the reach is then measured across the whole chain. Two copies lying side by side in the
 genome do not join: the second repeats the amplicon rather than continuing it.
 
-> **Changed in 1.8.0.** Before this, coverage and identity were taken from blast's own `length` and
-> `pident`, and each piece was judged on its own. The counts quoted from the sweeps on this page and in
+### An end blast stopped short of
+
+Blast will not always pay its gap costs to carry an alignment across an indel for the sake of a few bases,
+so it can report a hit that stops short of the amplicon's ends although the genome holds them. Measured on
+real output: a 72-base amplicon whose first eight bases sit either side of a one-base insertion and a
+one-base deletion came back as `q9-72` — 88.9% of the amplicon, just under the coverage rule — while
+megablast aligned all 72 and called it a copy. There is one alignment there, so the chaining above has
+nothing to join.
+
+Each unaligned end is therefore compared, base for base, against the stretch of genome it would have to
+occupy, and added to the chain as the piece blast did not report — columns and mismatches alike, so a flank
+the genome does not hold still fails the rule on its own evidence. It is consulted **only** for a chain
+that fell short, never to reconsider a copy that blast's own evidence reaches, so it can shed an unearned
+`absence` but never create one.
+
+Comparing it in place rather than aligning it is deliberate. An aligner maximises over every way of
+placing a short sequence, and with gaps to spend it finds half of any fifteen bases in any other: aligning
+the flank turned eight of the bundled example's eleven genuine absences into copies. A flank is a handful
+of bases that either sit where they have to or do not.
+
+> **Changed in 1.8.0 and 1.8.1.** Before 1.8.0, coverage and identity were taken from blast's own `length`
+> and `pident`, and each piece was judged on its own. The counts quoted from the sweeps on this page and in
 > `validation/results/` were produced under the old rule. On the bundled example the fix moves 7 of the 18
 > assays that claimed absence into `difference`, where all 4 exclusion genomes are recorded as holding the
-> amplicon, and leaves the other 11 as they were.
+> amplicon, and leaves the other 11 as they were. 1.8.1 added the end-of-amplicon comparison above, which
+> leaves those 11 as they were too.
 
 ### Why the probe does not count towards it
 
@@ -564,10 +585,12 @@ A target present several times in each genome gives more template per cell, whic
 of detection. `assays.tsv` reports `inclusion_copies_min` and `inclusion_copies_max`, counted by blasting
 each amplicon against the inclusion genomes, and the ranking prefers more copies.
 
-**The default `-d 1` of the `find` command discards repeated regions before any of this.** `-d` caps how
-often a kmer may occur per inclusion genome, and KMC counts over the whole group: with `N` genomes and
-`-d 1`, a kmer occurring twice in each genome has a count of `2N`, above the `-cx N` limit, and is dropped.
-Verified with two genomes holding a region twice: `-d 1` returns only the single-copy kmers, `-d 2` returns
+**The default `-d 1` of the `find` command discards repeated regions before any of this.** `-d` is a
+ceiling on a kmer's **total** count across the inclusion group, not a per-genome one: with `N` genomes the
+limit is `-cx N x d`, so a kmer occurring twice in each genome has a count of `2N` and is dropped at
+`-d 1`. What `-d` has to reach is therefore the marker's *mean* copy number rather than its highest —
+measured on a dataset whose copies are `(2, 2, 2, 6)`, mean 3, where `-d 3` keeps the marker. Verified
+also with two genomes holding a region twice: `-d 1` returns only the single-copy kmers, `-d 2` returns
 both. So if a multi-copy target is what you want:
 
 ```bash
@@ -576,7 +599,13 @@ primer-finder design results/ -o assays/
 ```
 
 and look at `inclusion_copies_min` in the table. The trade-off is that `-d` above 1 also lets through kmers
-that occur several times inside a single genome, which is why it is not the default.
+that occur several times inside a single genome, which is why it is not the default. Two further things a
+repeat target runs into are measured in
+[the record](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-16_v1.8.1_repeats/SUMMARY.md):
+copies that are *exactly* identical branch the assembly graph at every junction, so the assembler returns
+one kmer's worth of the marker and no more; and an assay inside a block that is simply missing from the
+exclusion group reports large `best_primer_variants` and `forward_terminal_run` figures, which are counts
+over bases that are absent rather than differing.
 
 ## What comes out
 
