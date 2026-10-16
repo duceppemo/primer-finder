@@ -1,0 +1,5 @@
+target	assays	absence_1.7.0	absence_1.8.0	difference_1.7.0	difference_1.8.0	lost_absence	gained_absence
+genus_as_labelled_p1.0	520	417	377	100	140	45	5
+genus_wide_as_labelled_p1.0	334	227	207	104	124	23	3
+melitensis_corrected_p0.994	98	0	2	92	90	0	2
+abortus_corrected_p1.0	6	0	0	6	6	0	0
