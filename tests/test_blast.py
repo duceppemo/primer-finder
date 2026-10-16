@@ -10,6 +10,7 @@ from primer_finder.blast import (
     ALIGNMENT_FIELDS,
     DB_NAME,
     LOCAL_FASTA,
+    MOST_SUBJECTS,
     PRESENCE_FIELDS,
     SEARCH_TASK,
     SHORTEST_ABSENT_STRETCH,
@@ -333,3 +334,16 @@ def test_a_position_one_exclusion_genome_aligns_is_not_unaligned():
     second.spans.append((50, 100, {}))  # and this one the second
     result.genomes.extend([first, second])
     assert unaligned_positions(result, 100) == []
+
+
+def test_the_exclusion_search_asks_for_more_than_ten_subjects(stubs, tmp_path, fasta):
+    """A draft assembly can put a short stretch of a contig on a sequence of its own, and blast's default
+    of ten subjects can crowd that sequence out -- which reads as the genome lacking a stretch it has.
+    The stand-in ignores `-max_target_seqs`, so what the search was asked for is what can be checked."""
+    calls = stubs()
+    query = tmp_path / "contigs.fasta"
+    query.write_text(">ctg1\n" + "ACGT" * 25 + "\n")
+    exclusion_variants(query, [fasta("g1.fasta", {"chr": "ACGT" * 50})], tmp_path / "work", threads=1)
+    asked = [line for line in calls.read_text().splitlines() if line.startswith("blastn")]
+    assert asked, "no search was run"
+    assert all(f"-max_target_seqs {MOST_SUBJECTS}" in line for line in asked), asked

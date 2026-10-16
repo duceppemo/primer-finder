@@ -35,8 +35,16 @@ MAX_EVALUE = 1e-10
 # evalues are worse in proportion. The real absences in the validation panels run from 300 to 6,348
 # bases, so nothing of interest is lost by the margin.
 SHORTEST_ABSENT_STRETCH = 40
-# Subjects to ask for when reading what the exclusion genomes hold. Enough that a draft assembly of a few
-# hundred contigs cannot push the one carrying a short stretch out of the list.
+# Subjects to ask for when reading what the exclusion genomes hold. Enough that a draft assembly cannot
+# push the sequence carrying a short stretch out of the list.
+#
+# Measured both ways. It costs nothing: on the *Listeria* panel (single-contig genomes) and on the most
+# fragmented *Brucella* drafts (506 to 1,519 contigs), the hits come back byte-identical at 10 and at 500
+# and the timings are the same to a hundredth of a second -- the cap limits subjects per query, and a
+# query contig rarely matches ten of them. And the case it closes is real, though not one seen on those
+# panels: a genome of 13 contigs, twelve carrying a query contig's two flanks and one carrying only the
+# 40 bases between them, reports 10 subjects at the default and does not include the block's contig,
+# where at 500 it reports all 13 and does. Those 40 bases would otherwise read as absent.
 MOST_SUBJECTS = 500
 MIN_EXCLUSION_FRACTION = 0.90
 

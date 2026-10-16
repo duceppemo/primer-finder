@@ -26,9 +26,15 @@
   it is for: the repeat dataset goes from no region to one holding its marker, while *Listeria* CC1 and
   CC3 stay at 8 and 43 regions and the bundled example is untouched.
 
-  The exclusion search now asks blast for every matching subject rather than the best ten. A draft
-  assembly can put a short stretch of a contig on a sequence of its own, and at ten that sequence could be
-  crowded out by others holding the rest — which would read as the genome lacking a stretch it has.
+  The exclusion search now asks blast for 500 subjects rather than the default ten. A draft assembly can
+  put a short stretch of a contig on a sequence of its own, and at ten that sequence can be crowded out by
+  the ones holding the rest — which would read as the genome lacking a stretch it has. Constructed: a
+  genome of 13 contigs, twelve carrying a query contig's flanks and one carrying only the 40 bases between
+  them, reports ten subjects at the default and omits the block's contig, where at 500 it reports all
+  thirteen. It costs nothing and changes nothing on the validation panels: against *Listeria* (single-contig
+  genomes) and the most fragmented *Brucella* drafts (506 to 1,519 contigs) the hits are byte-identical at
+  10 and at 500, with the same timings — the cap is on subjects per query, and a query contig rarely
+  matches ten.
 
   `-d/--duplication` still governs whether a repeat's kmers survive counting at all. Its ceiling is on a
   kmer's **total** count across the inclusion group (`max_count = n x d`), not a per-genome one, so what
