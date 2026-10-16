@@ -1,0 +1,15 @@
+# What the exclusion-alignment picture looks like on five Listeria complexes, 1.8.1 plus the
+# unaligned-stretch rule, measured from each run's kept 4_blast/exclusion_db hits.
+#
+# per_genome_gap_max  the longest gap between ONE genome's own alignments of a candidate contig
+# gaps_over_40        how many such gaps exceed SHORTEST_ABSENT_STRETCH
+# union_absences_40   stretches that NO exclusion genome aligns, 40 bases or longer
+# regions             what the run reported
+# regions_without     the same run with the rule removed, for the two complexes where it fires
+# marking_changed     regions already reported whose marked positions the rule adds to
+complex	exclusion_genomes	contigs	per_genome_gap_max	gaps_over_40	union_absences_40	union_absence_lengths	regions	regions_without	marking_changed
+CC1	681	76	21	0	0	-	8	-	0
+CC3	745	161	48	83	0	-	43	-	0
+CC7	716	476	1584	15	5	445,488,518,748,6348	60	60	2
+CC224	715	107	919	58	1	384	36	36	1
+CC37	742	371	137	970	0	-	48	-	0

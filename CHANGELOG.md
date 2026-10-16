@@ -22,9 +22,20 @@
   measured against a 3 Mb genome at the exclusion search's own `-evalue 1e-10`, an exact island of 25
   bases (evalue 1.16e-06) or 30 bases (8.15e-09) is not reported at all, while 33 bases (5.62e-11) is. A
   shorter run could therefore be present and merely invisible. The real absences in the validation panels
-  run from 300 to 6,348 bases, so the margin costs nothing. With the floor the change is confined to what
-  it is for: the repeat dataset goes from no region to one holding its marker, while *Listeria* CC1 and
-  CC3 stay at 8 and 43 regions and the bundled example is untouched.
+  run from 384 to 6,348 bases, so the margin costs nothing.
+
+  What the rule does on real panels is narrower than "unchanged counts" suggests, and the record now
+  measures it on five *Listeria* complexes, each run twice. It adds and removes **no regions on any of
+  them**: on three there is no qualifying absence for it to act on at all, and on the two where it fires
+  the contigs were already being kept by the differences rule, so what changes is the marking inside
+  them — 165 marked positions becoming 6,513 on one 8,142-base region, and two smaller cases. That
+  marking is what `design` reads to place primers. The outcome it changes is the case it was built for:
+  the repeat dataset goes from no region to one holding its marker, and the bundled example is untouched.
+
+  The same measurement confirms what the floor is and is not for. CC37 has **970** per-genome alignment
+  gaps longer than 40 bases and not one union absence; CC3 has 83 and none. A gap in one genome says
+  nothing because the stretch must be missing from all ~700 — so it is the union that protects, and a
+  small exclusion group is the case to be careful about.
 
   The exclusion search now asks blast for 500 subjects rather than the default ten. A draft assembly can
   put a short stretch of a contig on a sequence of its own, and at ten that sequence can be crowded out by

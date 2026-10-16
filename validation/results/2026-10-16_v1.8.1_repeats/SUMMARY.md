@@ -86,21 +86,47 @@ an exact island flanked by unrelated sequence:
 
 So a run shorter than 33 bases could be present and merely invisible, and an earlier floor of 25 sat
 inside that blind spot. 40 leaves room for a larger genome, whose evalues are worse in proportion. The
-real absences in these panels run from 300 to 6,348 bases, so the margin costs nothing.
+real absences in these panels run from 384 to 6,348 bases, so the margin costs nothing.
 
 One blind spot the floor does not close: `-task blastn` seeds on 11 contiguous matches, so a block the
 exclusion genome holds at 90% identity is reported in full when its mismatches fall at random, and **not
 at all** when they fall every tenth base. Such a block would be marked absent in its entirety. Real
 divergence is not periodic, but the shape exists.
 
-With the threshold in place the change is confined to what it was for:
+With the floor in place, what the rule does on real panels is narrower than "unchanged counts" suggests.
+Five *Listeria* complexes, each run twice — once as shipped and once with the rule removed — and the
+per-genome and union figures measured from the kept exclusion hits
+([`listeria_absence.tsv`](listeria_absence.tsv)):
 
-| | before | after |
-|---|---|---|
-| the repeat dataset, `-d 3` | 0 regions | **1**, holding the marker |
-| *Listeria* CC1 | 8 regions | 8 |
-| *Listeria* CC3 | 43 regions | 43 |
-| the bundled example | 1 region, 11 absence assays | unchanged |
+| complex | exclusion genomes | longest per-genome gap | gaps over 40 | union absences ≥ 40 | regions, with / without |
+|---|---|---|---|---|---|
+| CC1 | 681 | 21 | 0 | 0 | 8 / 8 |
+| CC3 | 745 | 48 | 83 | 0 | 43 / 43 |
+| CC7 | 716 | **1,584** | 15 | 5 (445 to 6,348 bases) | 60 / 60 |
+| CC224 | 715 | 919 | 58 | 1 (384 bases) | 36 / 36 |
+| CC37 | 742 | 137 | **970** | 0 | 48 / 48 |
+
+Three things follow, and the first two matter more than the third.
+
+**The union is what protects, not the floor.** CC37 has 970 per-genome gaps longer than the 40-base floor
+and not one union absence; CC3 has 83 and none. A gap in one genome says nothing, because the stretch has
+to be missing from all 700-odd of them. With a small exclusion group those gaps would be credited in full,
+and that is the case to be careful about — not these panels.
+
+**It adds and removes no regions on any of the five.** On CC1, CC3 and CC37 there is nothing for it to act
+on, so their unchanged counts are not evidence that it behaves well. On CC7 and CC224 it does fire, and the
+counts are still identical, because the contigs carrying those absences were already being kept by the
+differences rule. What changes is the **marking** inside them, which is what `design` reads to place
+primers:
+
+| region | length | marked without the rule | with it |
+|---|---|---|---|
+| CC7 `Contig_207_78.6509` | 8,142 bp | 165 | **6,513** |
+| CC7 `Contig_450_75.8999` | 909 bp | 13 | 501 |
+| CC224 `Contig_277_74.5974` | 646 bp | 11 | 395 |
+
+**Where it changes an outcome is the case it was built for.** The repeat dataset goes from no region to one
+holding its marker, and the bundled example — 1 region, 11 assays specific by absence — is untouched.
 
 The *Listeria* figures are against 1.8.1 with the change reverted, measured for this purpose. The numbers
 recorded in `2026-10-14_v1.7.0_unitig/` for the same complexes are 1 and 16, which is a separate matter:

@@ -32,7 +32,7 @@ MAX_EVALUE = 1e-10
 #   40 bases  evalue 3.27e-14   reported
 #
 # So anything under 33 is inside the search's blind spot, and 40 leaves room for a larger genome, whose
-# evalues are worse in proportion. The real absences in the validation panels run from 300 to 6,348
+# evalues are worse in proportion. The real absences in the validation panels run from 384 to 6,348
 # bases, so nothing of interest is lost by the margin.
 SHORTEST_ABSENT_STRETCH = 40
 # Subjects to ask for when reading what the exclusion genomes hold. Enough that a draft assembly cannot
