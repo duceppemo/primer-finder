@@ -6,6 +6,7 @@ import pytest
 
 from primer_finder import PrimerFinderError
 from primer_finder.kmers import (
+    MAX_KMC_THREADS,
     NO_MAX_COUNT,
     count,
     dump,
@@ -78,3 +79,15 @@ def test_the_counter_ceiling_is_raised_for_a_large_inclusion_group(stubs, tmp_pa
     text = calls.read_text()
     assert "-fm -ci4 -cx4" in text  # Up to 255, KMC's default counter is enough
     assert "-fm -cs600 -ci300 -cx600" in text
+
+
+def test_kmc_is_never_asked_for_more_threads_than_it_takes(tmp_path, stubs):
+    """KMC's second stage refuses more than 128: "number of threads for 2nd stage must be in range
+    <1,128>". `-t` defaults to every CPU, so on a large node the run died at the first call."""
+    calls = stubs()
+    list_file = tmp_path / "list.txt"
+    list_file.write_text("")
+    count(list_file, tmp_path / "db", tmp_path / "work", kmer_size=31, threads=512, memory_gb=4,
+          min_count=1, max_count=1)
+    asked = [line for line in calls.read_text().splitlines() if line.startswith("kmc ")]
+    assert asked and all(f"-t{MAX_KMC_THREADS}" in line for line in asked), asked

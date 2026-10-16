@@ -87,6 +87,35 @@ def test_find_genomes_is_recursive_sorted_and_follows_links(tmp_path):
     assert [path.name for path in find_genomes(tmp_path)] == ["b.fasta", "c.fasta", "a.fna"]
 
 
+def test_a_fasta_with_an_unaccepted_extension_is_reported_not_ignored(tmp_path, caplog):
+    """A genome left out of the exclusion group is the dangerous direction: its kmers then read as
+    specific to the inclusion group. Being quietly dropped for its extension is how that happens."""
+    folder = tmp_path / "exclusion"
+    folder.mkdir()
+    for name in ("g1.fasta", "g2.fasta"):
+        (folder / name).write_text(">chr\nACGT\n")
+    (folder / "g3.fas").write_text(">chr\nACGT\n")      # fasta, unaccepted extension
+    (folder / "notes.txt").write_text("nothing to see\n")  # not fasta: no warning for this one
+    with caplog.at_level("WARNING"):
+        found = require_genomes(folder, "exclusion")
+    assert [path.name for path in found] == ["g1.fasta", "g2.fasta"]
+    assert "g3.fas" in caplog.text
+    assert "notes.txt" not in caplog.text
+
+
+def test_two_paths_to_one_genome_count_once(tmp_path, caplog):
+    """`find_genomes` follows links, so a link to the folder itself used to multiply the whole group by
+    the depth it descended."""
+    folder = tmp_path / "inclusion"
+    folder.mkdir()
+    (folder / "g1.fasta").write_text(">chr\nACGT\n")
+    (folder / "also_g1.fasta").symlink_to(folder / "g1.fasta")
+    with caplog.at_level("WARNING"):
+        found = require_genomes(folder, "inclusion")
+    assert len(found) == 1
+    assert "already counted" in caplog.text
+
+
 def test_require_genomes_reports_what_is_wrong(tmp_path):
     with pytest.raises(PrimerFinderError, match="inclusion folder does not exist"):
         require_genomes(tmp_path / "gone", "inclusion")

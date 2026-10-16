@@ -55,6 +55,18 @@ def test_a_program_that_does_not_exist(tmp_path):
         tools.run([tmp_path / "nothing"])
 
 
+def test_a_program_that_is_there_but_cannot_be_run(tmp_path):
+    """Not the same thing as missing, and only `FileNotFoundError` was caught -- so this came out as a raw
+    `PermissionError`, which the command line does not turn into a message."""
+    present = tmp_path / "not_executable"
+    present.write_text("#!/bin/sh\necho hello\n")
+    present.chmod(0o644)
+    with pytest.raises(tools.ToolError, match="Cannot run"):
+        tools.run([present])
+    with pytest.raises(tools.ToolError, match="Cannot run"):
+        tools.run([tmp_path])  # A folder, which is also not a program
+
+
 def test_version_never_raises(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", str(tmp_path))
     assert tools.version("nothing") == "not found"

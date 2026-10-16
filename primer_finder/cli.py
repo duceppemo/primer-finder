@@ -226,6 +226,22 @@ def main(argv: list[str] | None = None) -> int:
             checked = design.check_product_size(args.product_size)
             if checked != args.product_size:
                 parser.error(checked)
+            # Left unchecked these reach Primer3, which refuses them in its own words and exit code --
+            # "PRIMER_NUM_RETURN < 1", "PRIMER_GC_CLAMP > PRIMER_MIN_SIZE", "Illegal value for primer
+            # salt or dna concentration" -- or, for a negative --max-regions, silently slice a region off
+            # the list and then explain the empty result with the wrong reason.
+            for option, value, least in (("--assays-per-region", args.assays_per_region, 1),
+                                         ("--max-regions", args.max_regions, 1),
+                                         ("--gc-clamp", args.gc_clamp, 0),
+                                         ("--mismatches", args.mismatches, 0),
+                                         ("--min-primer-differences", args.min_primer_differences, 0)):
+                if value < least:
+                    parser.error(f"{option} must be {least} or more")
+            for option, value in (("--monovalent", args.monovalent), ("--divalent", args.divalent),
+                                  ("--dntp", args.dntp), ("--primer-conc", args.primer_conc),
+                                  ("--probe-conc", args.probe_conc)):
+                if value <= 0:
+                    parser.error(f"{option} must be above 0")
             return design.run(design.DesignSettings(
                 results=args.results,
                 output=args.output,

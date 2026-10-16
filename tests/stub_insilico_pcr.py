@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """A stand-in for insilicoPCR: writes the consolidated report its real counterpart writes.
 
-The `design` command only reads `consolidated_report/report.tsv`, so that is all this produces. What it
-reports is read from PRIMER_FINDER_STUBS, as for the other stub programs:
+`design` reads `consolidated_report/report.tsv` and, for an amplicon with a trimmed primer end,
+`detailed_report/<sample>/<sample>.tsv` -- the only place the real program says WHICH end it trimmed. Both
+are produced here. What they report is read from PRIMER_FINDER_STUBS, as for the other stub programs:
 
     insilico_misses    {assay: [sample, ...]}  samples of the inclusion group that do not amplify
     insilico_extra     {assay: [sample, ...]}  samples of the exclusion group that do amplify
@@ -11,9 +12,13 @@ reports is read from PRIMER_FINDER_STUBS, as for the other stub programs:
                                                last two bases: a mismatch it does not count. The reverse
                                                primer is trimmed on every second sample, by two bases, so
                                                that both end columns are exercised
+    insilico_five_prime  {assay: [sample, ...]}  the same trim at the primer's 5' end instead, which the
+                                               consolidated report cannot be told apart from the above --
+                                               only the detailed report can
     insilico_counted   {assay: [sample, ...]}  of those, the ones that bound through a mismatch this check
                                                does count, i.e. one the tolerance let through
     insilico_fail      true to exit non-zero, as a failing run would
+    insilico_no_report true to exit 0 having written no consolidated report at all
 
 By default every assay amplifies every sample of the folder whose name holds "inclusion", and none of the
 others, which is the answer a selective assay would get.
@@ -32,6 +37,10 @@ COLUMNS = ("Sample", "Gene", "GenomeLocation", "AmpliconSize", "Contig", "Contig
            "ForwardPrimers", "ReversePrimers", "ForwardMismatches", "ReverseMismatches",
            "ForwardEndMismatch", "ReverseEndMismatch")
 PROBE_COLUMNS = ("Probe", "ProbeLocation", "ProbeSize", "ProbeMismatches")
+# The detailed report aligns each primer to the genome, so the genome is the query and the primer the
+# subject: `slen` is the primer's length and `sstart`/`send` are positions along it.
+DETAILED_COLUMNS = ("qseqid", "sseqid", "slen", "length", "qstart", "qend", "sstart", "send")
+PRIMER = 20
 
 
 def main(argv: list[str]) -> int:
@@ -55,20 +64,25 @@ def main(argv: list[str]) -> int:
     qpcr = any(line.startswith(">") and line.rstrip().endswith("-P") for line in primers.splitlines())
     columns = COLUMNS + PROBE_COLUMNS if qpcr else COLUMNS
 
+    if scenario.get("insilico_no_report"):
+        return 0
     report = output / "consolidated_report" / "report.tsv"
     report.parent.mkdir(parents=True, exist_ok=True)
     rows = []
+    detailed: dict[str, list[list[str]]] = {}
     for assay in assays:
         misses = set(scenario.get("insilico_misses", {}).get(assay, []))
         extra = set(scenario.get("insilico_extra", {}).get(assay, []))
         terminal = set(scenario.get("insilico_terminal", {}).get(assay, []))
+        five_prime = set(scenario.get("insilico_five_prime", {}).get(assay, []))
         counted = set(scenario.get("insilico_counted", {}).get(assay, []))
         for number, sample in enumerate(samples):
             amplifies = (sample not in misses) if inclusion else (sample in extra)
             if not amplifies:
                 continue
             forward_end, reverse_end = "0", "0"
-            if sample in terminal:  # both columns carry a trim in the real reports, and -1 or -2
+            if sample in terminal or sample in five_prime:
+                # Both columns carry a trim in the real reports, and -1 or -2
                 forward_end, reverse_end = ("0", "-2") if number % 2 else ("-1", "0")
             mismatch = "1" if sample in counted else "0"
             row = [sample, assay, "1-100", "100", "chr", "", f"{assay}-F", f"{assay}-R",
@@ -76,10 +90,25 @@ def main(argv: list[str]) -> int:
             if qpcr:
                 row += [f"{assay}-P", "20-40", "20", "0"]
             rows.append(row)
+            # One alignment per primer, inside the amplicon, saying which end was left out of it
+            at_five = sample in five_prime
+            for primer, trimmed, where in ((f"{assay}-F", -int(forward_end), 1),
+                                           (f"{assay}-R", -int(reverse_end), 100 - PRIMER + 1)):
+                low, high = (1 + trimmed, PRIMER) if at_five else (1, PRIMER - trimmed)
+                detailed.setdefault(sample, []).append(
+                    ["chr", primer, str(PRIMER), str(high - low + 1),
+                     str(where), str(where + high - low), str(low), str(high)])
     with report.open("w") as fh:
         fh.write("\t".join(columns) + "\n")
         for row in rows:
             fh.write("\t".join(row) + "\n")
+    for sample, hits in detailed.items():
+        path = output / "detailed_report" / sample / f"{sample}.tsv"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w") as fh:
+            fh.write("\t".join(DETAILED_COLUMNS) + "\n")
+            for hit in hits:
+                fh.write("\t".join(hit) + "\n")
     return 0
 
 

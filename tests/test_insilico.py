@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import gzip
 import os
+import shutil
 import stat
 from pathlib import Path
 
@@ -141,6 +143,10 @@ def test_run_insists_on_a_report(stubs, tmp_path, insilico_pcr):
     primers.write_text(">a-F\nAAAA\n>a-R\nTTTT\n")
     assert run(launcher, genomes, primers, tmp_path / "out", threads=1) == tmp_path / "out"
     assert (tmp_path / "out" / REPORT).is_file()
+    # And the part that matters: a run that exits 0 having written nothing is still a failed run
+    stubs(insilico_no_report=True)
+    with pytest.raises(PrimerFinderError, match="wrote no consolidated report"):
+        run(launcher, genomes, primers, tmp_path / "quiet", threads=1)
 
 
 def test_a_failing_run_is_reported(stubs, tmp_path, insilico_pcr):
@@ -154,18 +160,48 @@ def test_a_failing_run_is_reported(stubs, tmp_path, insilico_pcr):
         run(resolve(insilico_pcr), genomes, primers, tmp_path / "out", threads=1)
 
 
-def write_hits(folder: Path, rows: list[tuple[str, str, int, int, int]], probe: bool = False) -> Path:
+PRIMER_LENGTH = 20
+
+
+def write_hits(folder: Path, rows: list[tuple[str, str, int, int, int]], probe: bool = False,
+               end: str = "3") -> Path:
     """A report with the mismatch columns, one row per amplicon:
-    (sample, gene, counted mismatches, bases trimmed off the forward 3' end, off the reverse)."""
+    (sample, gene, counted mismatches, bases trimmed off the forward primer, off the reverse).
+
+    Also writes the detailed report, which is the only place insilicoPCR says WHICH end of a primer it
+    trimmed -- `end` chooses, and the consolidated report reads the same either way. Each amplicon is
+    given its own place in the genome so that the two reports can be matched up, as they are for a sample
+    holding several amplicons of one assay.
+    """
     report = folder / REPORT
     report.parent.mkdir(parents=True, exist_ok=True)
-    columns = ["Sample", "Gene", "ForwardMismatches", "ReverseMismatches",
-               "ForwardEndMismatch", "ReverseEndMismatch"]
+    columns = ["Sample", "Gene", "Contig", "GenomeLocation", "ForwardPrimers", "ReversePrimers",
+               "ForwardMismatches", "ReverseMismatches", "ForwardEndMismatch", "ReverseEndMismatch"]
+    detailed: dict[str, list[list[str]]] = {}
     with report.open("w") as fh:
         fh.write("\t".join(columns + (["ProbeMismatches"] if probe else [])) + "\n")
-        for sample, gene, mismatches, forward, reverse in rows:
-            fields = [sample, gene, str(mismatches), "0", str(-forward), str(-reverse)]
+        for number, (sample, gene, mismatches, forward, reverse) in enumerate(rows):
+            start = 1000 * number + 1          # Somewhere of its own in the genome
+            finish = start + 199
+            fields = [sample, gene, "chr", f"{start}-{finish}", f"{gene}-F", f"{gene}-R",
+                      str(mismatches), "0", str(-forward), str(-reverse)]
             fh.write("\t".join(fields + (["0"] if probe else [])) + "\n")
+            for primer, trimmed, where in ((f"{gene}-F", forward, start),
+                                           (f"{gene}-R", reverse, finish - PRIMER_LENGTH + 1)):
+                # Trimmed off the 5' end the alignment starts at the primer's base 1 + n; off the 3' end
+                # it stops at its base length - n. Real insilicoPCR 0.6.1 reports exactly that.
+                low, high = (1 + trimmed, PRIMER_LENGTH) if end == "5" else (1, PRIMER_LENGTH - trimmed)
+                detailed.setdefault(sample, []).append(
+                    ["chr", primer, str(PRIMER_LENGTH), str(high - low + 1),
+                     str(where), str(where + high - low), str(low), str(high)])
+    for sample, hits in detailed.items():
+        path = folder / "detailed_report" / sample / f"{sample}.tsv"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w") as fh:
+            fh.write("\t".join(["qseqid", "sseqid", "slen", "length",
+                                "qstart", "qend", "sstart", "send"]) + "\n")
+            for hit in hits:
+                fh.write("\t".join(hit) + "\n")
     return report
 
 
@@ -176,6 +212,70 @@ def test_an_amplicon_that_needed_a_trimmed_primer_end_is_recognised(tmp_path):
                           ("g1", "a_assay0", 0, 0, 2),   # the reverse primer's last two
                           ("g2", "a_assay0", 0, 0, 0)])  # a clean match: a real amplification
     assert read_terminal_only(tmp_path) == {"a_assay0": {"g0", "g1"}}
+
+
+def test_a_quote_in_a_genomes_header_does_not_swallow_the_rows_after_it(tmp_path):
+    """insilicoPCR writes the fasta description straight through, unquoted. Read with the default quote
+    handling, a description beginning with a quote character swallows the rest of its row and every row up
+    to the next one -- so amplifications vanish and a verdict moves."""
+    write_hits(tmp_path, [("g0", "a_assay0", 0, 0, 0), ("g1", "a_assay0", 0, 0, 0)])
+    report = tmp_path / REPORT
+    lines = report.read_text().splitlines()
+    columns = lines[0].split("\t")
+    rows = [line.split("\t") for line in lines[1:]]
+    rows[0][columns.index("Contig Description") if "Contig Description" in columns else 2] = '"strain x'
+    report.write_text("\n".join(["\t".join(columns)] + ["\t".join(row) for row in rows]) + "\n")
+    assert read_report(tmp_path) == {"a_assay0": {"g0", "g1"}}
+
+
+def test_a_report_without_the_columns_the_counts_come_from_is_an_error(tmp_path):
+    """Read as an empty report, every assay would amplify nothing: a clean-looking answer out of a report
+    nothing could be read from."""
+    report = tmp_path / REPORT
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text("sample\tgene\tForwardMismatches\n")  # lower case, as a later version might
+    with pytest.raises(PrimerFinderError, match="no Sample or Gene column"):
+        read_report(tmp_path)
+
+
+def test_a_genome_that_cannot_be_read_is_reported_before_the_design_is_lost(tmp_path):
+    """Staging happens after Primer3 and every blast. A gzip that stops early passes the fasta check,
+    which reads only the first line, and used to raise a bare EOFError from there."""
+    folder, into = tmp_path / "genomes", tmp_path / "staged"
+    folder.mkdir()
+    whole = gzip.compress(b">chr\nACGTACGTACGT\n")
+    (folder / "g1.fasta.gz").write_bytes(whole[: len(whole) // 2])
+    with pytest.raises(PrimerFinderError, match="Cannot read .*g1.fasta.gz"):
+        stage_genomes(folder, into)
+
+
+def test_a_difference_at_a_primers_five_prime_end_is_a_real_amplification(tmp_path):
+    """`ForwardEndMismatch` says how many bases blast trimmed off a primer, not from which end, and the
+    two ends mean opposite things. A difference at the 3' end is the base polymerase extends from, which
+    is the blind spot this check exists for. One at the 5' end is a primer that binds and extends anyway,
+    so the amplification is real and must not be excused.
+
+    Measured on insilicoPCR 0.6.1, one mismatch under a 20-base forward primer: at its 5' base the
+    consolidated report reads `ForwardEndMismatch -1` with the amplicon one base shorter, at its 3' base
+    it reads `-1` with the amplicon unchanged. Only the detailed report tells them apart -- positions
+    2-20 of the primer against 1-19."""
+    write_hits(tmp_path, [("g0", "a_assay0", 0, 1, 0)], end="5")
+    assert read_terminal_only(tmp_path) == {}
+    # The same report, with the trim at the other end of the same primer
+    other = tmp_path / "three_prime"
+    write_hits(other, [("g0", "a_assay0", 0, 1, 0)], end="3")
+    assert read_terminal_only(other) == {"a_assay0": {"g0"}}
+
+
+def test_a_trimmed_end_that_cannot_be_placed_counts_as_a_real_amplification(tmp_path, caplog):
+    """Without the detailed report there is no telling which end was trimmed. Excusing the amplification
+    is the costly way to be wrong -- it ranks the assay above an honest cross-reaction -- so the benefit
+    of the doubt goes the other way, and the run says so."""
+    write_hits(tmp_path, [("g0", "a_assay0", 0, 1, 0)])
+    shutil.rmtree(tmp_path / "detailed_report")
+    with caplog.at_level("WARNING"):
+        assert read_terminal_only(tmp_path) == {}
+    assert "could not place on the primer" in caplog.text
 
 
 def test_an_amplicon_that_needed_a_counted_mismatch_is_not_the_blind_spot(tmp_path):
@@ -225,7 +325,13 @@ def test_a_mismatch_count_that_is_not_a_number_is_left_out_and_reported(tmp_path
     time this is read."""
     write_hits(tmp_path, [("g0", "a_assay0", 0, 1, 0), ("g1", "a_assay0", 0, 1, 0)])
     report = tmp_path / REPORT
-    report.write_text(report.read_text().replace("g1\ta_assay0\t0", "g1\ta_assay0\tNA"))
+    lines = report.read_text().splitlines()
+    columns = lines[0].split("\t")
+    rows = [line.split("\t") for line in lines[1:]]
+    for row in rows:  # g1's forward mismatch count, whatever column that is
+        if row[0] == "g1":
+            row[columns.index("ForwardMismatches")] = "NA"
+    report.write_text("\n".join(["\t".join(columns)] + ["\t".join(row) for row in rows]) + "\n")
     with caplog.at_level("WARNING"):
         assert read_terminal_only(tmp_path) == {"a_assay0": {"g0"}}
     assert "not a whole number" in caplog.text

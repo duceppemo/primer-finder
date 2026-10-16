@@ -101,6 +101,9 @@ MAX_FORCED_RUNS = 4  # Per region, the targets holding the most differences firs
 MIN_PRIMER_SIZE = 18   # As the settings ask for: a forced end needs this much room behind it
 MAX_PRIMER_SIZE = 25   # And the widest a primer may be, so the widest stretch one can cover
 MIN_PROBE_SIZE = 18
+# The shortest product the three oligos can sit in without overlapping, and so the shortest worth asking
+# Primer3 for
+SMALLEST_PRODUCT = 2 * MIN_PRIMER_SIZE + MIN_PROBE_SIZE
 # A forced request only cares about the neighbourhood of the run it aims at. Letting Primer3 consider the
 # whole of a several-kilobase region makes it slower by two orders of magnitude, since it weighs every
 # pair of positions; this is how far either side of the forced position it is allowed to look.
@@ -581,6 +584,13 @@ def check_product_size(product_size: str) -> str:
             return f"--product-size {part!r} starts below 1"
         if low > high:
             return f"--product-size {part!r} runs backwards: {low} is larger than {high}"
+        if low < SMALLEST_PRODUCT:
+            # Primer3 refuses a range under its own PRIMER_INTERNAL_MAX_SIZE and dies with a message in
+            # its own words ("PRIMER_MAX_SIZE > min PRIMER_PRODUCT_SIZE_RANGE", exit 252); above that but
+            # under the three oligos' own lengths it returns nothing at all, region after region, and the
+            # run ends with advice to widen a range that cannot be the problem.
+            return (f"--product-size {part!r} starts below {SMALLEST_PRODUCT}, which is the least two "
+                    f"{MIN_PRIMER_SIZE}-base primers and a {MIN_PROBE_SIZE}-base probe can span")
     return product_size
 
 

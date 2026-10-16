@@ -278,6 +278,33 @@ def test_the_design_groups_can_be_named_on_the_command_line(stubs, genomes, tmp_
     assert Path(info["exclusion"]).name == inclusion.name
 
 
+BAD_DESIGN_OPTIONS = [
+    (["--product-size", "20-40"], "least two"),
+    (["--product-size", "30-53"], "least two"),
+    (["--assays-per-region", "0"], "--assays-per-region must be 1 or more"),
+    (["--max-regions", "-1"], "--max-regions must be 1 or more"),
+    (["--gc-clamp", "-1"], "--gc-clamp must be 0 or more"),
+    (["--mismatches", "-1"], "--mismatches must be 0 or more"),
+    (["--min-primer-differences", "-1"], "--min-primer-differences must be 0 or more"),
+    (["--monovalent", "0"], "--monovalent must be above 0"),
+    (["--dntp", "-1"], "--dntp must be above 0"),
+]
+
+
+@pytest.mark.parametrize(("options", "says"), BAD_DESIGN_OPTIONS,
+                         ids=[" ".join(option) for option, _ in BAD_DESIGN_OPTIONS])
+def test_a_design_setting_primer3_would_refuse_is_refused_here(stubs, genomes, tmp_path, capsys,
+                                                               options, says):
+    """Each of these used to reach Primer3, which refuses them in its own words and its own exit code --
+    "PRIMER_NUM_RETURN < 1", "Illegal value for primer salt or dna concentration" -- or, for a product
+    range under what three oligos can span, returns nothing region after region and leaves the run
+    advising a wider range."""
+    results = a_finished_run(tmp_path, genomes)
+    with pytest.raises(SystemExit):
+        main(["design", str(results), "-o", str(tmp_path / "assays"), "-t", "1", *options])
+    assert says in capsys.readouterr().err
+
+
 def test_the_design_command(stubs, genomes, tmp_path):
     """`primer-finder design` reads a finished run and writes the assays."""
     import json

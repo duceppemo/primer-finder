@@ -4,6 +4,44 @@
 
 ### Fixed
 
+- **An exclusion amplification through a difference at a primer's *5'* end was excused as the model's
+  blind spot.** insilicoPCR's `ForwardEndMismatch` says how many bases blast trimmed off a primer, not
+  from which end, and the two ends mean opposite things: a difference at the 3' end sits on the base the
+  polymerase extends from, which is the blind spot the `undecided (3' end)` label exists for, while one at
+  the 5' end is a primer that binds and extends anyway. Measured on insilicoPCR 0.6.1 with one mismatch
+  under a 20-base forward primer, the consolidated report reads `-1` either way. Such an assay was
+  labelled `undecided (3' end)` and ranked above an honest `no`, excusing a real cross-reaction.
+
+  The detailed report does tell them apart -- the alignment covers positions 2-20 of the primer for a 5'
+  trim and 1-19 for a 3' one -- so that is where the answer now comes from, matched to its amplicon by
+  position so that several amplicons of one assay in one genome do not cross. A trim that cannot be
+  placed counts as a real amplification and says so in the log: excusing one is the costly way to be
+  wrong.
+- **A genome whose extension is not an accepted one was left out of its group in silence.** A missing
+  exclusion genome is the dangerous direction -- its kmers then read as specific to the inclusion group --
+  so a file that looks like fasta but ends in something else is now named in a warning. Two paths to one
+  genome also counted twice, and a symbolic link to the input folder itself, which the search follows,
+  counted every genome once per level it descended.
+- **KMC refuses more than 128 threads, and `-t` defaults to every CPU.** On a node with more than that the
+  run died at the first call with KMC's own "number of threads for 2nd stage must be in range <1,128>".
+  Capped where the command is built.
+- **A truncated gzip took the whole design with it.** Staging the genomes for in silico PCR happens after
+  Primer3 and every blast, and a `.gz` that stops early passes the fasta check, which reads only the first
+  line. It then raised a bare `EOFError` from there, so nothing was written at all.
+- **A quote character in a genome's fasta description silently lost rows** of insilicoPCR's report, and
+  with them the amplifications they recorded: the description is written through unquoted, so read with
+  the usual quote handling one swallowed the rest of its row and every row up to the next quote. A report
+  missing the two columns the counts come from now says so instead of reading as "nothing amplified".
+- **A program that is present but cannot be run** -- no execute permission, or a folder -- escaped as a
+  raw `OSError` rather than the tool's own message.
+- **Settings Primer3 refuses now stop the run before it starts**, in this tool's words rather than in
+  Primer3's internals: `--assays-per-region 0` gave "PRIMER_NUM_RETURN < 1" and exit 252, a
+  `--monovalent 0` "Illegal value for primer salt or dna concentration", a `--gc-clamp` above the minimum
+  primer size its own complaint, and a negative `--max-regions` quietly dropped a region and then blamed
+  the empty result on the product range. A `--product-size` under 54 -- two 18-base primers and an 18-base
+  probe -- is also refused: under 28 Primer3 errors, and between the two it returns nothing region after
+  region while the run advises widening a range that was never the problem.
+
 - **A copy blast reported in two pieces counted as no copy at all.** Once the cost of gapping through an
   indel exceeds what the rest of an alignment is worth, blastn stops and reports the stretches either side
   separately. Each piece reaches only part of the amplicon, so neither met the coverage rule and the
@@ -115,6 +153,12 @@
 
 ### Internal
 
+- **`-ci` and `-cx` filter on KMC's true count, not on the saturated one.** The comment here said the
+  opposite, from a measurement that read the count KMC *reports* and took it for the one it filters on.
+  Measured again on one kmer repeated 300 and 301 times with no `-cs`: `-ci300` keeps it, `-cx300` keeps
+  the 300 and drops the 301, `-cx255` drops both, and the dump says 255 throughout. So `-cs` is not what
+  makes the kept-or-dropped decision right; it is raised only so the counts in the intermediate files mean
+  what they say. No behaviour changed -- the filtering was correct at every boundary either way.
 - **An sdist could not run the tests it shipped.** `MANIFEST.in` left out `CITATION.cff`,
   `recipe/meta.yaml`, the two compatibility wrappers and the `example/` scripts, all of which the suite
   reads — the version-agrees-everywhere test raised `FileNotFoundError`. Inside the sdist the suite went

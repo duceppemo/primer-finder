@@ -1333,6 +1333,23 @@ def test_an_exclusion_amplification_that_rests_on_a_trimmed_primer_end_is_report
     assert rows[0]["pcr_selective"] == "yes"
 
 
+def test_an_exclusion_amplification_through_a_primers_five_prime_end_is_a_cross_reaction(
+        stubs, finished_run, tmp_path, genomes, insilico_pcr):
+    """The same consolidated report, with the trim at the other end of the primer. A 5'-end difference
+    does not stop the polymerase extending, so that amplification is real and gets the plain `no` -- not
+    the benefit of the doubt that the 3'-end blind spot earns."""
+    inclusion, exclusion = genomes
+    sample = sorted(path.name.split(".")[0] for path in exclusion.glob("*.fasta"))[0]
+    stubs(insilico_extra={"ctg1_assay0": [sample]}, insilico_five_prime={"ctg1_assay0": [sample]})
+    output = tmp_path / "assays"
+    assert run(design_settings(finished_run, output, insilico_pcr=insilico_pcr)) == 0
+    row = next(r for r in iter_rows(output / "assays.tsv") if r["assay"] == "ctg1_assay0")
+    for kind in ("pcr", "qpcr"):
+        assert row[f"{kind}_selective"] == "no", kind
+        assert row[f"{kind}_exclusion_amplified"] == "1", kind
+        assert row[f"{kind}_exclusion_terminal_only"] == "0", kind
+
+
 def test_a_real_exclusion_amplification_is_not_counted_as_terminal(stubs, finished_run, tmp_path, genomes,
                                                                    insilico_pcr):
     inclusion, exclusion = genomes

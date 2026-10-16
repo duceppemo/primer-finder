@@ -14,12 +14,23 @@ MIN_KMER_SIZE, MAX_KMER_SIZE = 1, 256  # What KMC accepts
 # What KMC accepts for -m. Its own help says "from 1 to 1024", but 1 is refused at run time with
 # "min memory must be at least 2GB", so the floor here is 2 -- measured, not read off the help.
 MIN_MEMORY_GB, MAX_MEMORY_GB = 2, 1024
-# KMC stores a count in one byte unless -cs says otherwise, so a kmer seen more than 255 times counts as
-# 255, and -ci/-cx are applied to that saturated value rather than to the true one. Measured with kmc
-# 3.2.4 on one kmer repeated 300 times: with no -cs, -ci250 reports it with a count of 255 while -ci256
-# and -ci300 match nothing at all; -cs300 reports the true 300. So -cs has to be raised whenever the
-# inclusion threshold could pass 255.
+# KMC stores a count in one byte unless -cs says otherwise, so a kmer seen more than 255 times is *reported*
+# with a count of 255. The filtering is not done on that stored value: -ci and -cx are both applied to the
+# true count. Measured with kmc 3.2.4 on one kmer repeated 300 and 301 times, with no -cs:
+#
+#   -ci250, -ci255, -ci256, -ci300  all keep the 300 -- so a threshold above the counter maximum is met
+#   -cx300                          keeps the 300 and drops the 301 -- so is a ceiling above it
+#   -cx255, -cx254                  drop the 300, as the true count exceeds them
+#   the dump reports 255 throughout, and -cs300 makes it report the true 300
+#
+# So -cs is not what makes the kept-or-dropped decision right; it is raised below only so that the counts
+# in the intermediate files mean what they say. (An earlier version of this comment had it the other way
+# round, from a measurement that read the *reported* count and took it for the filtered one.)
 DEFAULT_COUNTER_MAX = 255
+# KMC's second stage refuses more than this: "number of threads for 2nd stage must be in range <1,128>".
+# The command line's -t defaults to every CPU, which on a large node is more than this, so it is capped
+# here rather than left to fail at the first call. kmc_tools has no such limit.
+MAX_KMC_THREADS = 128
 # KMC's largest accepted kmer count: enough to mean "no upper limit" for the exclusion group.
 NO_MAX_COUNT = 1_000_000_000
 
@@ -51,14 +62,15 @@ def count(
     command = [
         "kmc",
         f"-k{kmer_size}",
-        f"-t{threads}",
+        f"-t{min(threads, MAX_KMC_THREADS)}",
         f"-m{kmc_memory(memory_gb)}",
         "-fm",  # multi-fasta input
     ]
     if DEFAULT_COUNTER_MAX < max_count < NO_MAX_COUNT:
-        # Count beyond 255, or no kmer would reach min_count and repeated kmers would slip past max_count.
-        # When nothing is filtered out by max_count (the exclusion group) the default ceiling is harmless,
-        # and leaving it alone keeps KMC's counters one byte wide.
+        # Widen the counters so the counts in the dump are the true ones rather than a saturated 255. The
+        # filtering is right either way (see DEFAULT_COUNTER_MAX); this is for anything that reads them.
+        # Where nothing is filtered out by max_count at all -- the exclusion group -- there is nothing to
+        # widen them for, and leaving them alone keeps KMC's counters one byte wide.
         command.append(f"-cs{max_count}")
     command += [f"-ci{min_count}", f"-cx{max_count}", f"@{list_file}", str(db_prefix), str(work_dir)]
     tools.run(command)

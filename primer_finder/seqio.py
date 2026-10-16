@@ -5,7 +5,7 @@ from __future__ import annotations
 import gzip
 import logging
 import os
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -182,5 +182,41 @@ def require_genomes(folder: Path, group: str) -> list[Path]:
             f"{len(bad)} file(s) in the {group} folder are not fasta (no header on the first line): "
             f"{listed}{extra}"
         )
-    return genomes
+    # A fasta whose extension is not one of the accepted ones used to be left out in silence, and a
+    # genome missing from the exclusion group is the dangerous direction: its kmers are then reported as
+    # specific to the inclusion group. Say so rather than quietly working from a smaller panel.
+    skipped = sorted(str(path) for path in _other_fasta_files(folder, genomes))
+    if skipped:
+        listed = ", ".join(skipped[:MOST_LISTED])
+        extra = f", and {len(skipped) - MOST_LISTED} more" if len(skipped) > MOST_LISTED else ""
+        log.warning("%d file(s) in the %s folder look like fasta but do not end in %s, so they are NOT "
+                    "part of the %s group: %s%s", len(skipped), group, " or ".join(EXTENSIONS), group,
+                    listed, extra)
+    # Two paths to one genome -- a symbolic link beside the file, or a link to the folder itself, which
+    # `os.walk(followlinks=True)` descends -- would count that genome twice, and once per level of a
+    # loop. One genome, once.
+    seen: dict[Path, Path] = {}
+    for genome in genomes:
+        seen.setdefault(genome.resolve(), genome)
+    if len(seen) < len(genomes):
+        log.warning("%d of the %d file(s) in the %s folder are further paths to a genome already counted "
+                    "and were left out", len(genomes) - len(seen), len(genomes), group)
+    return sorted(seen.values())
+
+
+def _other_fasta_files(folder: Path | str, found: Sequence[Path]) -> list[Path]:
+    """Files in the folder that read as fasta but whose extension is not an accepted one."""
+    accepted = {path.resolve() for path in found}
+    others: list[Path] = []
+    for root, _, filenames in os.walk(folder, followlinks=True):
+        for filename in filenames:
+            path = Path(root) / filename
+            if path.resolve() in accepted or filename.startswith("."):
+                continue
+            try:
+                if is_fasta(path):
+                    others.append(path)
+            except OSError:  # Unreadable, or a dangling link: not this function's business
+                continue
+    return others
 

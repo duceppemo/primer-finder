@@ -88,6 +88,10 @@ def run(cmd: Sequence[str | Path], *, stdout_path: Path | None = None, cwd: Path
         process = subprocess.run(argv, stdout=stdout, stderr=subprocess.PIPE, cwd=cwd, timeout=timeout)
     except FileNotFoundError as exc:
         raise ToolError(f"Program not found: {argv[0]}") from exc
+    except OSError as exc:
+        # There but not runnable: no execute permission, a directory, a broken interpreter line. Without
+        # this the raw OSError escapes the command line, which reports PrimerFinderError and OSError only.
+        raise ToolError(f"Cannot run {argv[0]}: {exc}") from exc
     except subprocess.TimeoutExpired as exc:
         raise ToolTimeout(
             f"{argv[0]} was still running after {timeout:g} s and was stopped:\n  {shlex.join(argv)}"

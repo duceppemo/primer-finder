@@ -33,6 +33,13 @@ log = logging.getLogger(__name__)
 # Where insilicoPCR puts the table that says which assay amplified which sample.
 REPORT = Path("consolidated_report") / "report.tsv"
 SAMPLE_COLUMN, ASSAY_COLUMN = "Sample", "Gene"
+CONTIG_COLUMN, LOCATION_COLUMN = "Contig", "GenomeLocation"
+# Where insilicoPCR writes one row per primer alignment, which is the only place it says WHICH end of a
+# primer blast trimmed. `<output>/detailed_report/<sample>/<sample>.tsv`.
+DETAILED_FOLDER = "detailed_report"
+# In it the genome is the query and the primer the subject, so `slen` is the primer's length and
+# `sstart`/`send` are positions along the primer -- descending where the primer aligned reversed.
+PRIMER_NAME_COLUMNS = {"ForwardEndMismatch": "ForwardPrimers", "ReverseEndMismatch": "ReversePrimers"}
 # insilicoPCR reports, per oligo, how many mismatches it bound through and -- for the primers -- how many
 # bases blast had to trim off the 3' end to place it. The trim is the interesting one: those bases are not
 # counted as mismatches at any tolerance, so an amplicon that needed only the trim is one insilicoPCR could
@@ -195,8 +202,14 @@ def stage_genomes(folder: Path, into: Path) -> int:
         if target.is_symlink() or target.exists():
             target.unlink()
         if path.suffix == ".gz":
-            with seqio.open_text(path) as source, target.open("w") as plain:
-                shutil.copyfileobj(source, plain)
+            # A truncated or trailing-byte gzip passes the fasta check, which reads only the first line,
+            # and then raises here. Left alone that is an EOFError out of a command that has already run
+            # Primer3 and every blast, and the assays would never be written.
+            try:
+                with seqio.open_text(path) as source, target.open("w") as plain:
+                    shutil.copyfileobj(source, plain)
+            except (OSError, EOFError) as error:
+                raise PrimerFinderError(f"Cannot read {path}: {error}") from error
         else:
             target.symlink_to(path.resolve())
     return len(used)
@@ -257,11 +270,27 @@ def read_report(output: Path) -> dict[str, set[str]]:
     report = output / REPORT
     amplified: dict[str, set[str]] = {}
     with report.open(newline="") as fh:
-        for row in csv.DictReader(fh, delimiter="\t"):
+        # QUOTE_NONE: insilicoPCR writes the fasta description straight through, so a genome whose header
+        # holds a quote character would otherwise swallow the rest of its row and every row up to the next
+        # one -- losing amplifications silently, which moves a verdict.
+        rows = csv.DictReader(fh, delimiter="\t", quoting=csv.QUOTE_NONE)
+        _insist_on_columns(rows.fieldnames, report)
+        for row in rows:
             assay, sample = (row.get(ASSAY_COLUMN) or "").strip(), (row.get(SAMPLE_COLUMN) or "").strip()
             if assay and sample:
                 amplified.setdefault(assay, set()).add(sample)
     return amplified
+
+
+def _insist_on_columns(fieldnames: Sequence[str] | None, report: Path) -> None:
+    """The two columns every verdict is counted from. Without them every assay would read as amplifying
+    nothing at all, which looks like a clean answer rather than an unreadable report."""
+    missing = [name for name in (SAMPLE_COLUMN, ASSAY_COLUMN) if name not in (fieldnames or ())]
+    if missing:
+        raise PrimerFinderError(
+            f"insilicoPCR's report has no {' or '.join(missing)} column, so there is no telling what "
+            f"amplified: {report}"
+        )
 
 
 def _count(row: dict[str, str], column: str) -> int | None:
@@ -297,8 +326,10 @@ def read_terminal_only(output: Path) -> dict[str, set[str]]:
     terminal: set[tuple[str, str]] = set()
     exact: set[tuple[str, str]] = set()
     unreadable = 0
+    untellable = 0
+    trimmed: dict[str, dict[tuple[str, str], list[tuple[int, int, int, str]]]] = {}
     with (output / REPORT).open(newline="") as fh:
-        rows = csv.DictReader(fh, delimiter="\t")
+        rows = csv.DictReader(fh, delimiter="\t", quoting=csv.QUOTE_NONE)
         if rows.fieldnames is not None and not any(name in rows.fieldnames for name in END_COLUMNS):
             log.warning("insilicoPCR's report has no %s column, so which exclusion amplifications rest on "
                         "an ignored 3'-end difference cannot be told: %s",
@@ -315,14 +346,102 @@ def read_terminal_only(output: Path) -> dict[str, set[str]]:
                 continue
             if any(counted):  # it bound through a mismatch this check does count
                 continue
-            (terminal if any(end < 0 for end in ends) else exact).add((assay, sample))
+            if not any(end < 0 for end in ends):
+                exact.add((assay, sample))
+                continue
+            # Something was trimmed, but the report does not say which end of the primer: a difference at
+            # the 5' end reads exactly the same here, and that one does not hinder extension, so the
+            # amplification is real. Which end it was has to come from the detailed report.
+            if sample not in trimmed:
+                trimmed[sample] = _trimmed_primer_ends(output, sample)
+            ends_here = trimmed[sample]
+            contig = (row.get(CONTIG_COLUMN) or "").strip()
+            span = _span((row.get(LOCATION_COLUMN) or "").strip())
+            sides = set()
+            for name, end in zip(END_COLUMNS, ends, strict=True):
+                if end >= 0:
+                    continue
+                primer = (row.get(PRIMER_NAME_COLUMNS[name]) or "").strip()
+                sides.add(_side_in(ends_here.get((contig, primer), []), span))
+            if sides == {"3"}:  # Only the blind spot, so this amplicon is one insilicoPCR could not refuse
+                terminal.add((assay, sample))
+            else:
+                # A 5' trim, or an end we could not place: either way not something to excuse. Counting it
+                # as a real amplification is the cautious way to be wrong.
+                untellable += "unknown" in sides
+                exact.add((assay, sample))
     if unreadable:
         log.warning("%d row(s) of %s give a mismatch count that is not a whole number and were left out of "
                     "the 3'-end difference tally", unreadable, output / REPORT)
+    if untellable:
+        log.warning("%d amplicon(s) had a primer end trimmed that %s could not place on the primer, and "
+                    "are counted as real amplifications rather than as the 3'-end blind spot",
+                    untellable, output / DETAILED_FOLDER)
     found: dict[str, set[str]] = {}
     for assay, sample in terminal - exact:
         found.setdefault(assay, set()).add(sample)
     return found
+
+
+def _trimmed_primer_ends(output: Path, sample: str) -> dict[tuple[str, str], list[tuple[int, int, int, str]]]:
+    """Which end of each primer blast left out of its alignment, per contig and primer, for one sample.
+
+    "3" where the primer's last base did not align, "5" where its first did not, "both", or "none". The
+    consolidated report's `ForwardEndMismatch` only says how many bases were trimmed, not from which end,
+    and the difference decides whether an amplification is the model's blind spot or a real one: a primer
+    whose 3' base does not match is the base polymerase extends from, while one whose 5' base does not is
+    a primer that binds and extends anyway.
+
+    Measured on insilicoPCR 0.6.1 with one mismatch under a 20-base primer: at its 5' base the alignment
+    covers positions 2-20 of the primer, at its 3' base positions 1-19, and the consolidated report reads
+    `-1` for both.
+    """
+    detailed = output / DETAILED_FOLDER / sample / f"{sample}.tsv"
+    if not detailed.is_file():
+        return {}
+    found: dict[tuple[str, str], list[tuple[int, int, int, str]]] = {}
+    with detailed.open(newline="") as fh:
+        for row in csv.DictReader(fh, delimiter="\t", quoting=csv.QUOTE_NONE):
+            try:
+                length, primer_length = int(row["length"]), int(row["slen"])
+                on_primer = (int(row["sstart"]), int(row["send"]))
+                in_genome = (int(row["qstart"]), int(row["qend"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+            low, high = min(on_primer), max(on_primer)
+            side = {(True, True): "none", (False, True): "5", (True, False): "3",
+                    (False, False): "both"}[(low <= 1, high >= primer_length)]
+            key = ((row.get("qseqid") or "").strip(), (row.get("sseqid") or "").strip())
+            found.setdefault(key, []).append((min(in_genome), max(in_genome), length, side))
+    return found
+
+
+def _side_in(hits: list[tuple[int, int, int, str]], span: tuple[int, int] | None) -> str:
+    """Which end was trimmed off the alignment that produced the amplicon covering `span`.
+
+    One assay can place several amplicons in one genome, so the primer's alignments are matched to the
+    amplicon by where they sit in the genome; the longest alignment inside the amplicon is the one that
+    bound. Without a span to go on, or with no alignment inside it, the answer is not known.
+    """
+    if not hits:
+        return "unknown"
+    if span is None:
+        return "unknown" if len({side for *_, side in hits}) > 1 else hits[0][3]
+    low, high = span
+    inside = [hit for hit in hits if low <= hit[0] and hit[1] <= high]
+    if not inside:
+        return "unknown"
+    return max(inside, key=lambda hit: hit[2])[3]
+
+
+def _span(text: str) -> tuple[int, int] | None:
+    """insilicoPCR writes an amplicon's place in the genome as "501-700"."""
+    first, _, second = text.partition("-")
+    try:
+        low, high = int(first), int(second)
+    except ValueError:
+        return None
+    return (low, high) if low <= high else (high, low)
 
 
 def count_genomes(folder: Path) -> int:
