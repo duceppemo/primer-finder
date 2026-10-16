@@ -475,7 +475,12 @@ def keep_absent_from_exclusion(
             records.append(seqio.Record(record.name, f"{record.desc} {mark}".strip(), record.seq)
                            if mark else record)
             continue
-        positions = blast.shared_variants(result)
+        # A stretch no exclusion genome aligns counts as differing, which is what it does: the whole of
+        # it is missing from the group. Without this a region whose specificity is a novel block in shared
+        # backbone -- a repeat-targeted marker, most often -- was dropped for having no differences, while
+        # the mapping step two steps earlier had called the same contig a candidate on that very block.
+        positions = sorted(set(blast.shared_variants(result))
+                           | set(blast.unaligned_positions(result, len(record.seq))))
         if blast.enough_variants(positions, min_differences):
             tag = next((part for part in record.desc.split() if part.startswith(INCLUSION_TAG)), "")
             desc = " ".join(part for part in (f"{positions}", tag, mark) if part)

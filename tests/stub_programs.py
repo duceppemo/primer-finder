@@ -52,8 +52,12 @@ DEFAULT_KMERS = ["ACGT" * 5, "TTGA" * 5, "GGCA" * 5]
 DEFAULT_CONTIGS = {"ctg1": "ACGT" * 25}
 # A contig that differs from the exclusion genome by two mismatches 7 bases apart: a candidate.
 DEFAULT_SAM = [["ctg1", 0, "40=1X7=1X50="]]
-DEFAULT_QSEQ = "ACGTACGTACGTACGTACGT"
-DEFAULT_SSEQ = "ACGTAAGTACGTTCGTACGT"  # Mismatches at offsets 5 and 12
+# The default exclusion alignment covers the whole of DEFAULT_CONTIGS["ctg1"], as a real blast would: a
+# contig differing at two positions aligns end to end. An alignment covering only part of it would leave
+# the rest *unaligned*, which the pipeline now reads as the exclusion group not holding that stretch --
+# true of a real partial alignment, and not what a test about two close mismatches means to say.
+DEFAULT_QSEQ = "ACGT" * 25
+DEFAULT_SSEQ = ("ACGTA" + "A" + "GTACGT" + "T" + "CGTACGT" + "ACGT" * 20)  # Mismatches at 5 and 12
 
 
 # Every key the stubs understand. A scenario asking for anything else is a mistyped fixture, and silently

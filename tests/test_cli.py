@@ -224,7 +224,10 @@ def test_the_no_last_resort_option_reaches_the_run(stubs, genomes, tmp_path):
     last-resort pass accepts, and checks the option decides the outcome.
     """
     inclusion, exclusion = genomes
-    one_difference = [["ctg1", 1, 20, 1e-30, "ACGTACGTACGTACGTACGTA", "ACGTAAGTACGTACGTACGTA"]]
+    # The whole contig, differing at one position only: too few for the strict rule, enough for the
+    # last-resort one. A partial alignment would not do, since the unaligned rest counts as differing.
+    whole = "ACGT" * 25
+    one_difference = [["ctg1", 1, 100, 1e-30, whole, "ACGTA" + "A" + whole[6:]]]
     stubs(exclusion_hits={"exclusion_1": one_difference, "exclusion_2": one_difference})
     rescued, refused = tmp_path / "rescued", tmp_path / "refused"
     assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(rescued),

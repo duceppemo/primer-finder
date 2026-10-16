@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **A region whose specificity is a block the exclusion group simply lacks was dropped.** The shape a
+  repeat-targeted marker has, and the answer to a report that such assays had given false negatives.
+
+  A multi-copy element is a novel block in shared backbone, and the junctions either side of it are
+  inclusion-specific too, so the assembly comes back as flank + block + flank. Every exclusion genome then
+  matches the two flanks — enough for `genomes_hit` to be non-zero — and nothing in between. Measured on a
+  444-base contig carrying a 300-base marker: hits at `q1-72` and `q373-444` in every exclusion genome,
+  nothing between them, and the region was dropped for having no differences, while the mapping step two
+  steps earlier had called the same contig a candidate on the very block that was missing.
+  `blast.shared_variants` says in its own docstring that a position no genome aligns "only makes the assay
+  more selective", and then cannot credit it: only positions that differ *somewhere* become candidates
+  there.
+
+  A stretch no exclusion genome aligns now counts as differing, because that is what it does. It has to be
+  at least 25 bases — the widest a primer may be, so that a primer could sit wholly inside it — since
+  blast's local alignments of one contig do not quite abut and the gaps between them are a base or a few:
+  measured across two *Listeria* complexes, every such gap was 1 to 6 bases. With the threshold the change
+  is confined to what it is for: the repeat dataset goes from no region to one holding its marker, while
+  *Listeria* CC1 and CC3 stay at 8 and 43 regions and the bundled example is untouched.
+
+  `-d/--duplication` still governs whether a repeat's kmers survive counting at all, which is working as
+  documented: it must be at least the highest copy number in any inclusion genome, and left at its default
+  of 1 a run reports fragments of a repeated marker or nothing. Both barriers are measured in
+  `validation/results/2026-10-16_v1.8.1_repeats/`.
+
+### Added
+
+- `validation/repeats/make_repeat_example.py`, a dataset whose inclusion group carries one marker two to
+  four times over. Nothing in the suite or the bundled example had that shape: the example's contig is
+  aligned end to end by every exclusion genome, so it never exercised the path above.
+
 ## 1.8.1
 
 ### Fixed

@@ -24,6 +24,7 @@ from primer_finder.blast import (
     parse_hits,
     presence_in_genomes,
     shared_variants,
+    unaligned_positions,
     variant_bases,
 )
 
@@ -268,3 +269,59 @@ def test_the_search_is_sensitive_enough_to_find_a_copy_that_differs(stubs, tmp_p
     asked = [line for line in calls.read_text().splitlines() if line.startswith("blastn ")]
     assert asked and all(f"-task {SEARCH_TASK}" in line for line in asked), asked
     assert SEARCH_TASK == "blastn", "megablast cannot see a copy with differences under 28 bases apart"
+
+
+def test_a_stretch_no_exclusion_genome_aligns_counts_as_differing():
+    """The shape a repeat-targeted marker has. A multi-copy element is a novel block in shared backbone,
+    and the junctions either side of it are inclusion-specific too, so the assembly is flank + block +
+    flank. Every exclusion genome then matches the flanks -- enough for `genomes_hit` to be non-zero --
+    and nothing in between. Measured on a 444-base contig carrying a 300-base marker: hits at `q1-72` and
+    `q373-444` in every exclusion genome, nothing between, and the region used to be dropped for having
+    no differences."""
+    flanks = ExclusionResult(genomes=[])
+    for _ in range(4):
+        alignments = Alignments()
+        alignments.spans.append((0, 72, {}))      # q1-72, matching exactly
+        alignments.spans.append((372, 444, {}))   # q373-444, the same
+        flanks.genomes.append(alignments)
+    assert shared_variants(flanks) == []          # Nothing differs where they do align
+    missing = unaligned_positions(flanks, 444)
+    assert missing == list(range(72, 372))        # The 300 bases of the marker
+    assert enough_variants(missing, 2)
+
+
+def test_a_gap_between_two_alignments_is_not_an_absence():
+    """Blast's local alignments of one contig do not quite abut, and the gaps between them are a base or
+    a few. Measured on two *Listeria* complexes: every such gap was 1 to 6 bases, and counting them as
+    absences added a region that was not one. A run has to be long enough for a primer to sit wholly
+    inside it before it means anything."""
+    result = ExclusionResult(genomes=[])
+    alignments = Alignments()
+    alignments.spans.append((0, 50, {}))     # q1-50
+    alignments.spans.append((56, 200, {}))   # q57-200: six bases unaligned between them
+    result.genomes.append(alignments)
+    assert unaligned_positions(result, 200) == []
+    # And the same gap, long enough to hold a primer, does count
+    wider = ExclusionResult(genomes=[])
+    spans = Alignments()
+    spans.spans.append((0, 50, {}))
+    spans.spans.append((75, 200, {}))        # 25 bases unaligned
+    wider.genomes.append(spans)
+    assert unaligned_positions(wider, 200) == list(range(50, 75))
+
+
+def test_a_contig_no_exclusion_genome_holds_at_all_has_no_unaligned_positions():
+    """`genomes_hit == 0` already keeps such a contig, so this reports nothing rather than every base:
+    the two paths must not both claim it."""
+    assert unaligned_positions(ExclusionResult(genomes=[]), 200) == []
+
+
+def test_a_position_one_exclusion_genome_aligns_is_not_unaligned():
+    """Absent from the group means absent from all of it: one genome holding that stretch is enough to
+    make it shared."""
+    result = ExclusionResult(genomes=[])
+    first, second = Alignments(), Alignments()
+    first.spans.append((0, 50, {}))     # This one holds the first half
+    second.spans.append((50, 100, {}))  # and this one the second
+    result.genomes.extend([first, second])
+    assert unaligned_positions(result, 100) == []

@@ -11,6 +11,11 @@ keeps an erratum pointing at it.
  re-designs the Brucella regions under 1.8.0 to measure what the
 corrected amplicon rule changes, and reports a defect it found in that rule.
 
+`2026-10-16_v1.8.1_repeats/` is about markers in repeated regions: where a repeat-targeted assay was being
+lost, and the dataset in `repeats/` that reproduces it. `repeats/make_repeat_example.py` writes eight
+genomes whose inclusion group carries one marker two to four times over, which is the shape most likely to
+be dropped by a rule built around where a region *differs*.
+
 Not every record is about an assay. `2026-10-14_v1.7.0_unitig/` measures what a change to the code does to
 a panel whose answer is already known — the question any change to the find or assembly rules has to
 answer before it can become a default.

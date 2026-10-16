@@ -21,6 +21,9 @@ log = logging.getLogger(__name__)
 MAX_EVALUE = 1e-10
 # A variant position is kept when it differs in at least this fraction of the exclusion genomes that hold
 # the region: a few exclusion genomes may carry the inclusion allele without making the assay useless.
+# The shortest stretch of a contig that no exclusion genome aligns which is worth calling absent: the
+# widest a primer may be, so that a primer could sit wholly inside it. See `unaligned_positions`.
+SHORTEST_ABSENT_STRETCH = 25
 MIN_EXCLUSION_FRACTION = 0.90
 
 PRESENCE_FIELDS = ("qseqid", "evalue")
@@ -278,6 +281,44 @@ def exclusion_variants(
         for contig, alignments in per_contig.items():
             results.setdefault(contig, ExclusionResult()).genomes.append(alignments)
     return results
+
+
+def unaligned_positions(result: ExclusionResult, length: int,
+                        shortest: int = SHORTEST_ABSENT_STRETCH) -> list[int]:
+    """The contig positions no exclusion genome aligns at all, in runs of at least `shortest`.
+
+    `shared_variants` says of a position no genome aligns that it "only makes the assay more selective",
+    and then cannot credit it: only positions that *differ* somewhere become candidates there, so a
+    stretch of the contig that is simply not in the exclusion group counts for nothing. That is the
+    strongest evidence of specificity there is, and it was the one kind being discarded.
+
+    It is the shape a repeat-targeted marker has. A multi-copy element is a novel block sitting in shared
+    backbone, and the junction kmers either side of it are inclusion-specific too, so the assembly comes
+    back as flank + block + flank. Blast then matches the flanks in every exclusion genome -- which is
+    enough for `genomes_hit` to be non-zero -- and the block itself matches nothing. Measured on a
+    444-base contig carrying a 300-base marker: every exclusion genome hit it twice, `q1-72` and
+    `q373-444`, with no hit between, and the region was dropped for having no differences.
+    """
+    if not result.genomes:
+        return []   # Nothing holds any part of it: `genomes_hit == 0` already covers that
+    covered: set[int] = set()
+    for alignments in result.genomes:
+        for start, end, _ in alignments.spans:
+            covered.update(range(start, end))
+    # Only runs long enough to mean something. Blast's local alignments of one contig do not quite abut,
+    # and the gaps between them are a base or a few: measured on two *Listeria* complexes, every such gap
+    # was 1 to 6 bases, and counting them turned 1 region into 8 and 16 into 44, none of them a real
+    # absence. A run at least as long as the widest primer is one a primer could sit wholly inside, which
+    # is the property that makes a stretch worth reporting -- and it is far longer than any gap seen.
+    runs: list[list[int]] = []
+    for position in range(length):
+        if position in covered:
+            continue
+        if runs and position == runs[-1][-1] + 1:
+            runs[-1].append(position)
+        else:
+            runs.append([position])
+    return [position for run in runs if len(run) >= shortest for position in run]
 
 
 def shared_variants(result: ExclusionResult, fraction: float = MIN_EXCLUSION_FRACTION) -> list[int]:

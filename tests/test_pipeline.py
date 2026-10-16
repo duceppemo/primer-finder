@@ -19,6 +19,10 @@ from primer_finder.pipeline import (
 )
 from primer_finder.seqio import iter_records
 
+# The whole of the default contig, differing from it at offsets 5 and 12: two differences
+# close enough to share one primer, which is what the strict rule asks for.
+DIFFERS_AT_5_AND_12 = "ACGTA" + "A" + "GTACGT" + "T" + "CGTACGT" + "ACGT" * 20
+
 
 def final_records(output: Path) -> dict[str, str]:
     from primer_finder.seqio import read_fasta
@@ -280,7 +284,7 @@ def test_contig_absent_from_every_exclusion_genome_is_kept_as_it_is(stubs, setti
 def test_variants_too_far_apart_are_dropped(stubs, settings):
     """One mismatch at offset 0 and one at offset 30: no primer or probe can cover both, so the strict
     rule turns the region down. `--no-last-resort` is what asks for the strict answer and nothing else."""
-    stubs(exclusion_hits={genome: [["ctg1", 1, 40, 1e-30, "A" * 40, "C" + "A" * 28 + "C" + "A" * 10]]
+    stubs(exclusion_hits={genome: [["ctg1", 1, 100, 1e-30, "A" * 100, "C" + "A" * 29 + "C" + "A" * 69]]
                           for genome in ("exclusion_1", "exclusion_2")})
     scenario = settings(last_resort=False)
     assert run(scenario) == 0
@@ -292,7 +296,7 @@ def test_variants_too_far_apart_come_back_as_a_last_resort(stubs, settings, capl
     output says it only got through on the weaker rule."""
     import json
 
-    stubs(exclusion_hits={genome: [["ctg1", 1, 40, 1e-30, "A" * 40, "C" + "A" * 28 + "C" + "A" * 10]]
+    stubs(exclusion_hits={genome: [["ctg1", 1, 100, 1e-30, "A" * 100, "C" + "A" * 29 + "C" + "A" * 69]]
                           for genome in ("exclusion_1", "exclusion_2")})
     scenario = settings()
     assert run(scenario) == 0
@@ -363,7 +367,7 @@ def test_the_pass_also_rescues_a_run_that_step_four_emptied(stubs, settings, cap
     stubs(contigs={"ctg1": "ACGT" * 25, "ctg2": "TTGG" * 25},
           sam=[["ctg1", 0, "40=1X7=1X50="], ["ctg2", 0, "50=1X69="]],
           presence={"inclusion_1": ["ctg1", "ctg2"], "inclusion_2": ["ctg2"]},
-          exclusion_hits={genome: [["ctg2", 1, 20, 1e-30, "ACGTACGTACGTACGTACGT",
+          exclusion_hits={genome: [["ctg2", 1, 100, 1e-30, "ACGT" * 25,
                                     "ACGTAAGTACGTACGTACGT"]]
                           for genome in ("exclusion_1", "exclusion_2")})
     scenario = settings()
@@ -397,8 +401,8 @@ def test_a_last_resort_pass_that_finds_nothing_says_so_and_claims_nothing(stubs,
     import json
 
     stubs(sam=[["ctg1", 0, "50=1X69="]],
-          exclusion_hits={genome: [["ctg1", 1, 20, 1e-30, "ACGTACGTACGTACGTACGT",
-                                    "ACGTACGTACGTACGTACGT"]]
+          exclusion_hits={genome: [["ctg1", 1, 100, 1e-30, "ACGT" * 25,
+                                    "ACGT" * 25]]
                           for genome in ("exclusion_1", "exclusion_2")})
     scenario = settings()
     assert run(scenario) == 0
@@ -421,8 +425,8 @@ def test_a_second_pass_that_fails_says_a_weaker_rule_was_already_tried(stubs, se
 def test_variant_in_only_one_exclusion_genome_is_dropped(stubs, settings):
     """A position has to differ in at least 90% of the exclusion genomes the contig hits."""
     stubs(exclusion_hits={
-        "exclusion_1": [["ctg1", 1, 20, 1e-30, "ACGTACGTACGTACGTACGT", "ACGTAAGTACGTTCGTACGT"]],
-        "exclusion_2": [["ctg1", 1, 20, 1e-30, "ACGTACGTACGTACGTACGT", "ACGTACGTACGTACGTACGT"]],
+        "exclusion_1": [["ctg1", 1, 100, 1e-30, "ACGT" * 25, DIFFERS_AT_5_AND_12]],
+        "exclusion_2": [["ctg1", 1, 100, 1e-30, "ACGT" * 25, "ACGT" * 25]],
     })
     scenario = settings(last_resort=False)  # The rule under test is the strict one
     assert run(scenario) == 0
@@ -434,12 +438,28 @@ def test_a_contig_one_exclusion_genome_holds_identically_is_dropped(stubs, setti
     genome. Here one holds it with no difference at all and another does not hold it; relaxing the rule to
     "all but one" would report it."""
     stubs(exclusion_hits={
-        "exclusion_1": [["ctg1", 1, 20, 1e-30, "ACGTACGTACGTACGTACGT", "ACGTACGTACGTACGTACGT"]],
+        "exclusion_1": [["ctg1", 1, 100, 1e-30, "ACGT" * 25, "ACGT" * 25]],
         "exclusion_2": [],
     })
     scenario = settings(last_resort=False)
     assert run(scenario) == 0
     assert final_records(scenario.output) == {}
+
+
+def test_a_region_whose_specificity_is_a_block_no_exclusion_genome_holds_is_reported(stubs, settings):
+    """End to end: the exclusion genomes align the contig's two ends exactly and nothing in between, which
+    is what a repeat-targeted marker looks like once its junctions are assembled with it. The aligned ends
+    hold no differences, so the run used to drop the region -- while the mapping step two steps earlier
+    had called the same contig a candidate on the very block that is missing."""
+    ends = [["ctg1", 1, 20, 1e-30, "ACGT" * 5, "ACGT" * 5],
+            ["ctg1", 81, 100, 1e-30, "ACGT" * 5, "ACGT" * 5]]  # 60 bases unaligned between them
+    stubs(exclusion_hits={"exclusion_1": ends, "exclusion_2": ends})
+    scenario = settings(last_resort=False)
+    assert run(scenario) == 0
+    records = final_records(scenario.output)
+    assert list(records) == ["ctg1"]
+    marked = sum(1 for base in records["ctg1"] if base.islower())
+    assert marked == 60, marked  # The 60 bases between the two aligned ends
 
 
 def test_a_contig_no_exclusion_genome_holds_needs_no_difference(stubs, settings):
@@ -871,7 +891,7 @@ def test_the_exclusion_step_still_matches_contigs_when_a_tag_is_in_the_header(st
     specific, which is the opposite of the truth. Here the two variants are 30 bases apart, so the contig
     must be dropped.
     """
-    far_apart = ["ctg1", 1, 40, 1e-30, "A" * 40, "C" + "A" * 28 + "C" + "A" * 10]
+    far_apart = ["ctg1", 1, 100, 1e-30, "A" * 100, "C" + "A" * 29 + "C" + "A" * 69]
     stubs(contigs={"ctg1": "ACGT" * 25}, sam=[["ctg1", 0, "40=1X7=1X50="]],
           presence={"g1": ["ctg1"], "g2": ["ctg1"], "g3": ["ctg1"], "g4": []},
           exclusion_hits={"exclusion_1": [far_apart], "exclusion_2": [far_apart]})
