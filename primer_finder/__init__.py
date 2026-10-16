@@ -1,6 +1,6 @@
 """primer-finder: find group-specific kmers to design selective qPCR assays."""
 
-__version__ = "1.9.0"
+__version__ = "1.9.1"
 __author__ = "Marc-Olivier Duceppe"
 
 
