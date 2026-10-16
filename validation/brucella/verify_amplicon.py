@@ -4,10 +4,10 @@
     python verify_amplicon.py /path/to/work
 
 For each assay, the two primers are located in a genome of the assay's own group and the span between
-their outer 5' ends is measured. If that span equals the length the paper reports, the paper counts the
-amplicon the same way `check_assay.py` does and the +/-1 tolerance there is unused. If it is off by one,
-the tolerance is accounted for. Anything else means the oligos or the lengths in assays.tsv are wrong, and
-the run that follows would be checking the wrong thing.
+the outer ends of the closest inward-facing pair of them is measured. If that span equals the length the
+paper reports, the paper counts the amplicon the same way `check_assay.py` does and the +/-1 tolerance
+there is unused. If it is off by one, the tolerance is accounted for. Anything else means the oligos or
+the lengths in assays.tsv are wrong, and the run that follows would be checking the wrong thing.
 
 It also reports which contig each primer is on, which is what the paper's two over-fragmented B. suis
 assemblies are about.
@@ -47,6 +47,35 @@ def locate(oligo: str, records: list[tuple[str, str]]) -> list[tuple[str, int, s
     return found
 
 
+def facing_pair(
+    forward: list[tuple[str, int, str]],
+    reverse: list[tuple[str, int, str]],
+    contigs: set[str],
+) -> tuple[str, tuple[str, int, str], tuple[str, int, str]] | None:
+    """The closest placement of the two primers that would amplify: one on each strand, with the
+    plus-strand one to the left of the minus-strand one.
+
+    Both primers being on one contig is not enough. A back-to-back pair -- the minus-strand primer to the
+    left -- points outwards and amplifies nothing, so measuring the span between it would invent an
+    amplicon and report it as the published length. Each primer can also occur more than once, and taking
+    the first of each gives the span between two unrelated copies. This is the defect `check_assay.py` had
+    and now checks for.
+    """
+    best = None
+    for contig in sorted(contigs):
+        for one in (hit for hit in forward if hit[0] == contig):
+            for two in (hit for hit in reverse if hit[0] == contig):
+                if one[2] == two[2]:  # both on the same strand: not a pair
+                    continue
+                plus, minus = (one, two) if one[2] == "+" else (two, one)
+                if plus[1] >= minus[1]:  # back to back
+                    continue
+                span = minus[1] - plus[1]
+                if best is None or span < best[0]:
+                    best = (span, contig, one, two)
+    return None if best is None else (best[1], best[2], best[3])
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("work", type=Path, help="Folder holding panel.tsv")
@@ -74,9 +103,12 @@ def main(argv: list[str] | None = None) -> int:
             if not same:
                 print(f"{assay['assay']}: primers on different contigs in {row['accession']}")
                 continue
-            contig = sorted(same)[0]
-            one = next(hit for hit in forward if hit[0] == contig)
-            two = next(hit for hit in reverse if hit[0] == contig)
+            pair = facing_pair(forward, reverse, same)
+            if pair is None:
+                print(f"{assay['assay']}: the primers share {sorted(same)[0]} in {row['accession']} but "
+                      f"no placement of them faces inwards")
+                continue
+            contig, one, two = pair
             left = min(one[1], two[1])
             right = max(one[1] + len(assay["forward"]), two[1] + len(assay["reverse"])) - 1
             measured = right - left + 1

@@ -569,6 +569,12 @@ def forced_requests(record: seqio.Record, product_size: str, how_many: int,
                 "SEQUENCE_ID": f"{record.name}{FORCE_SEP}probe{middle}",
                 "SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST": middle,
                 "SEQUENCE_INCLUDED_REGION": window(record, middle, product_size),
+                # How far the probe must reach past the position on each side. Belt and braces at 3:
+                # measured against primer3_core on a centred junction, asking for 3 gives the same probe
+                # as not asking at all, because its own choice already overlaps by about ten either way.
+                # They are honoured, though -- 0 returns no probe and 11 lengthens it by a base -- and
+                # Primer3 ignores a tag it does not recognise without a word, so the spelling is pinned
+                # by a test rather than by anything in a run's output.
                 "PRIMER_INTERNAL_MIN_3_PRIME_OVERLAP_OF_JUNCTION": 3,
                 "PRIMER_INTERNAL_MIN_5_PRIME_OVERLAP_OF_JUNCTION": 3,
             }, gc_clamp=gc_clamp, conditions=conditions))

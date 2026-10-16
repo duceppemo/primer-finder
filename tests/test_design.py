@@ -457,6 +457,20 @@ def test_a_right_primer_keeps_the_strand_primer3_reports_it_on():
     assert region.seq[designed.reverse.start:designed.reverse.end] == template
 
 
+def test_the_probe_pinned_request_spells_its_junction_tags_as_primer3_reads_them():
+    """Primer3 ignores a tag it does not recognise and says nothing, so a typo in one of these would never
+    show in a run: the request exits 0 and returns a probe either way. They are honoured when spelled
+    right -- measured, asking for an overlap of 0 returns no probe at all and 11 lengthens it -- so the
+    spelling is worth pinning even though 3 happens to match what Primer3 would choose unprompted."""
+    region = Record("ctg1", "", "A" * 100 + "cgt" + "A" * 100)
+    pinned = [request for request, _ in requests_for(region, DEFAULT_PRODUCT_SIZE, 3, True)
+              if "SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST" in request]
+    assert pinned, "no request pins the probe over a difference"
+    for request in pinned:
+        assert "PRIMER_INTERNAL_MIN_3_PRIME_OVERLAP_OF_JUNCTION=3" in request
+        assert "PRIMER_INTERNAL_MIN_5_PRIME_OVERLAP_OF_JUNCTION=3" in request
+
+
 def test_a_base_that_is_absent_is_not_counted_as_a_mismatch():
     """A region's marked bases are of two kinds and the sequence cannot tell them apart: most differ from
     the exclusion genomes, but a stretch may instead be missing from all of them. `find` records which.
