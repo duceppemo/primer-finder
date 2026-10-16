@@ -1,0 +1,1795 @@
+accession	species	group	level	contigs	element_copies	amplicon_copies	longest_piece	piece_at_contig_end
+GCF_000007125.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_000007505.1	suis	suis	Complete Genome	2	7	7	843	no
+GCF_000008145.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_000016845.1	ovis	ovis	Complete Genome	2	38	38	845	no
+GCF_000017405.1	ochrobactrum_anthropi	non_classical	Complete Genome	6	0	0	0	no
+GCF_000018525.1	canis	canis	Complete Genome	2	6	6	844	no
+GCF_000018725.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_000018905.1	suis	suis	Complete Genome	2	13	13	842	no
+GCF_000022625.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_000022745.1	microti	microti	Complete Genome	2	13	13	845	no
+GCF_000054005.1	abortus	abortus	Complete Genome	2	7	7	842	no
+GCF_000157675.1	abortus	abortus	Scaffold	55	0	1	612	yes
+GCF_000157695.1	abortus	abortus	Scaffold	47	1	1	803	yes
+GCF_000157715.1	abortus	abortus	Scaffold	60	1	1	787	yes
+GCF_000157735.1	abortus	abortus	Scaffold	130	0	1	585	yes
+GCF_000157755.1	suis	suis	Scaffold	113	0	1	562	yes
+GCF_000157775.1	suis	suis	Scaffold	129	0	1	560	yes
+GCF_000157795.1	pinnipedialis	classical_extra	Scaffold	418	0	0	0	no
+GCF_000157815.1	pinnipedialis	classical_extra	Scaffold	94	0	0	0	no
+GCF_000157835.1	ceti	ceti	Scaffold	104	0	1	543	yes
+GCF_000157855.1	ceti	ceti	Scaffold	118	0	1	572	yes
+GCF_000157875.1	sp.	held_out	Scaffold	77	0	1	600	yes
+GCF_000158675.1	pinnipedialis	classical_extra	Scaffold	80	0	1	664	yes
+GCF_000158695.1	melitensis	melitensis	Scaffold	93	1	1	671	yes
+GCF_000158715.1	neotomae	neotomae	Scaffold	68	0	0	294	no
+GCF_000158735.1	melitensis	melitensis	Scaffold	105	0	0	0	no
+GCF_000158755.1	ceti	ceti	Scaffold	142	0	0	0	no
+GCF_000158775.1	ceti	ceti	Scaffold	102	0	0	196	no
+GCF_000158795.1	abortus	abortus	Scaffold	50	0	0	100	no
+GCF_000158995.1	sp.	held_out	Scaffold	85	0	0	21	no
+GCF_000160255.1	abortus	abortus	Scaffold	45	1	1	707	yes
+GCF_000160275.1	suis	suis	Scaffold	44	0	1	585	yes
+GCF_000160295.1	melitensis	melitensis	Scaffold	56	1	1	808	yes
+GCF_000163115.1	abortus	abortus	Scaffold	130	1	1	843	yes
+GCF_000163135.1	sp.	held_out	Scaffold	87	1	1	842	yes
+GCF_000177135.1	sp.	held_out	Contig	174	1	1	841	no
+GCF_000177155.1	sp.	held_out	Contig	113	0	0	334	yes
+GCF_000182235.1	melitensis	melitensis	Contig	60	0	0	0	no
+GCF_000182625.1	abortus	abortus	Contig	9	7	7	842	no
+GCF_000182645.1	ochrobactrum_intermedia	non_classical	Scaffold	4	0	0	0	no
+GCF_000182725.1	inopinata	classical_extra	Contig	55	1	1	864	yes
+GCF_000192725.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_000192885.1	melitensis	melitensis	Complete Genome	2	9	9	848	no
+GCF_000209575.2	melitensis	melitensis	Contig	30	0	0	60	yes
+GCF_000209595.2	melitensis	melitensis	Contig	29	0	0	60	yes
+GCF_000209615.2	melitensis	melitensis	Contig	32	0	0	72	yes
+GCF_000209635.2	suis	suis	Contig	28	0	0	62	yes
+GCF_000221005.1	pinnipedialis	classical_extra	Complete Genome	2	31	31	844	no
+GCF_000223195.1	suis	suis	Complete Genome	2	7	7	843	no
+GCF_000227645.1	melitensis	melitensis	Complete Genome	2	8	9	843	no
+GCF_000236255.1	suis	suis	Complete Genome	2	8	8	843	no
+GCF_000238175.1	abortus	abortus	Complete Genome	2	6	6	844	no
+GCF_000238195.1	canis	canis	Complete Genome	2	6	6	844	yes
+GCF_000245835.1	abortus	abortus	Scaffold	15	4	4	842	no
+GCF_000245855.1	abortus	abortus	Scaffold	21	4	4	842	no
+GCF_000245875.1	abortus	abortus	Scaffold	15	4	4	842	no
+GCF_000245895.1	abortus	abortus	Scaffold	31	3	4	842	no
+GCF_000245915.1	abortus	abortus	Scaffold	14	4	4	842	no
+GCF_000245935.1	abortus	abortus	Scaffold	12	5	5	842	no
+GCF_000245955.1	abortus	abortus	Scaffold	17	4	4	842	no
+GCF_000245975.1	abortus	abortus	Scaffold	13	5	5	842	no
+GCF_000250775.1	suis	suis	Contig	73	1	1	787	yes
+GCF_000250795.1	melitensis	melitensis	Contig	75	0	1	604	yes
+GCF_000250815.1	melitensis	melitensis	Contig	83	1	1	688	yes
+GCF_000250835.1	abortus	abortus	Contig	77	0	1	533	yes
+GCF_000251205.1	ochrobactrum_anthropi	non_classical	Scaffold	47	0	0	0	no
+GCF_000292005.1	suis	suis	Contig	290	1	1	748	yes
+GCF_000292025.1	abortus	abortus	Contig	149	1	1	712	yes
+GCF_000292045.1	abortus	abortus	Contig	97	1	1	802	yes
+GCF_000292065.1	melitensis	melitensis	Contig	81	0	1	655	yes
+GCF_000292085.1	melitensis	melitensis	Contig	164	0	1	661	yes
+GCF_000292105.1	suis	suis	Contig	271	1	1	717	yes
+GCF_000292125.1	melitensis	melitensis	Contig	86	0	1	620	yes
+GCF_000292145.1	melitensis	melitensis	Contig	292	0	1	660	yes
+GCF_000292165.1	melitensis	melitensis	Contig	127	0	1	661	yes
+GCF_000292185.1	canis	canis	Contig	170	1	1	675	yes
+GCF_000292205.1	abortus	abortus	Contig	297	1	1	750	yes
+GCF_000298575.1	canis	canis	Contig	154	1	1	675	yes
+GCF_000298595.1	melitensis	melitensis	Contig	173	0	0	24	yes
+GCF_000298615.1	melitensis	melitensis	Contig	123	1	1	757	yes
+GCF_000298635.1	abortus	abortus	Contig	141	1	1	808	yes
+GCF_000331635.1	suis	suis	Scaffold	722	0	0	60	yes
+GCF_000331655.1	melitensis	melitensis	Scaffold	480	0	0	70	yes
+GCF_000332835.1	ochrobactrum_intermedia	non_classical	Contig	148	0	0	0	no
+GCF_000348645.1	melitensis	melitensis	Contig	91	5	6	843	yes
+GCF_000365565.1	suis	suis	Contig	17	1	13	842	yes
+GCF_000365585.1	suis	suis	Contig	9	7	7	842	yes
+GCF_000365605.1	abortus	abortus	Contig	4	6	6	842	yes
+GCF_000365625.1	abortus	abortus	Contig	4	4	6	842	yes
+GCF_000365645.1	abortus	abortus	Contig	6	5	5	842	yes
+GCF_000365665.1	abortus	abortus	Contig	7	6	6	842	no
+GCF_000365685.1	abortus	abortus	Contig	3	6	6	842	no
+GCF_000365705.1	suis	suis	Contig	11	8	8	843	yes
+GCF_000365725.1	abortus	abortus	Contig	6	4	4	842	yes
+GCF_000365745.1	abortus	abortus	Contig	3	6	6	842	no
+GCF_000365765.1	abortus	abortus	Contig	12	2	3	841	yes
+GCF_000365785.1	abortus	abortus	Contig	6	6	6	842	yes
+GCF_000365805.1	abortus	abortus	Contig	7	6	6	842	no
+GCF_000365825.1	abortus	abortus	Contig	4	6	6	842	no
+GCF_000365845.1	melitensis	melitensis	Contig	12	0	3	630	yes
+GCF_000365865.1	melitensis	melitensis	Contig	5	4	4	843	yes
+GCF_000365885.1	ovis	ovis	Contig	30	24	31	845	yes
+GCF_000365905.1	ovis	ovis	Contig	22	31	31	845	yes
+GCF_000365925.1	ovis	ovis	Contig	23	33	33	845	yes
+GCF_000365945.1	ovis	ovis	Contig	36	32	32	808	yes
+GCF_000365965.1	ovis	ovis	Contig	21	32	34	845	yes
+GCF_000365985.1	ovis	ovis	Contig	22	32	32	845	yes
+GCF_000366005.1	ovis	ovis	Contig	24	29	30	845	yes
+GCF_000366025.1	abortus	abortus	Contig	2	6	6	842	no
+GCF_000366045.1	ovis	ovis	Contig	21	33	34	845	yes
+GCF_000366065.1	ovis	ovis	Contig	38	32	32	842	yes
+GCF_000366085.1	suis	suis	Contig	8	3	3	844	yes
+GCF_000366105.1	abortus	abortus	Contig	11	1	2	841	yes
+GCF_000366125.1	abortus	abortus	Contig	3	6	6	842	no
+GCF_000366145.1	abortus	abortus	Contig	3	6	6	842	no
+GCF_000366165.1	abortus	abortus	Contig	2	6	6	842	no
+GCF_000366185.1	abortus	abortus	Contig	2	6	6	842	no
+GCF_000366205.1	suis	suis	Contig	10	3	3	842	yes
+GCF_000366225.1	suis	suis	Contig	2	13	13	842	no
+GCF_000366245.1	suis	suis	Contig	11	10	11	842	yes
+GCF_000366265.1	suis	suis	Contig	8	5	5	843	yes
+GCF_000366285.1	abortus	abortus	Contig	4	4	5	842	yes
+GCF_000366305.1	abortus	abortus	Contig	4	6	6	842	no
+GCF_000366325.1	abortus	abortus	Contig	6	2	3	842	yes
+GCF_000366345.1	abortus	abortus	Contig	5	4	5	842	yes
+GCF_000366365.1	abortus	abortus	Contig	3	6	6	842	no
+GCF_000366385.1	abortus	abortus	Contig	7	4	5	842	yes
+GCF_000366405.1	abortus	abortus	Contig	6	4	5	842	yes
+GCF_000366425.1	abortus	abortus	Contig	4	6	6	842	no
+GCF_000366445.1	abortus	abortus	Contig	3	6	6	842	no
+GCF_000366465.1	abortus	abortus	Contig	4	5	6	842	yes
+GCF_000366485.1	abortus	abortus	Contig	4	6	6	842	no
+GCF_000366505.1	abortus	abortus	Contig	2	6	6	842	no
+GCF_000366525.1	abortus	abortus	Contig	4	5	6	842	yes
+GCF_000366545.1	abortus	abortus	Contig	4	5	5	842	yes
+GCF_000366565.1	abortus	abortus	Contig	3	5	6	842	yes
+GCF_000366585.1	melitensis	melitensis	Contig	12	5	6	843	yes
+GCF_000366605.1	abortus	abortus	Contig	5	5	6	842	yes
+GCF_000366625.1	melitensis	melitensis	Contig	6	5	5	843	yes
+GCF_000366645.1	abortus	abortus	Contig	2	6	6	842	no
+GCF_000366665.1	abortus	abortus	Contig	6	6	6	842	no
+GCF_000366685.1	abortus	abortus	Contig	3	6	6	842	no
+GCF_000366705.1	abortus	abortus	Contig	4	6	6	842	no
+GCF_000366725.1	abortus	abortus	Contig	2	6	6	842	no
+GCF_000366745.1	abortus	abortus	Contig	6	6	6	842	no
+GCF_000366765.1	abortus	abortus	Contig	4	6	6	842	no
+GCF_000366785.1	abortus	abortus	Contig	4	5	5	842	yes
+GCF_000366805.1	abortus	abortus	Contig	6	6	6	842	no
+GCF_000366825.1	canis	canis	Contig	2	5	5	843	no
+GCF_000366845.1	melitensis	melitensis	Contig	16	3	4	842	yes
+GCF_000366865.1	melitensis	melitensis	Contig	12	4	4	843	yes
+GCF_000366885.1	melitensis	melitensis	Contig	4	5	6	843	yes
+GCF_000366905.1	melitensis	melitensis	Contig	9	4	4	843	yes
+GCF_000366925.1	melitensis	melitensis	Contig	28	5	10	759	yes
+GCF_000366945.1	melitensis	melitensis	Contig	15	4	6	843	yes
+GCF_000366965.1	melitensis	melitensis	Contig	12	2	2	843	yes
+GCF_000366985.1	melitensis	melitensis	Contig	9	4	4	843	yes
+GCF_000367005.1	melitensis	melitensis	Contig	10	6	6	843	yes
+GCF_000367025.1	melitensis	melitensis	Contig	10	2	2	843	yes
+GCF_000367045.1	melitensis	melitensis	Contig	7	4	5	843	yes
+GCF_000367065.1	ovis	ovis	Contig	23	35	36	845	yes
+GCF_000367085.1	ovis	ovis	Contig	35	2	2	821	yes
+GCF_000367105.1	sp.	held_out	Contig	34	4	4	842	yes
+GCF_000367125.1	sp.	held_out	Contig	49	0	4	586	yes
+GCF_000367265.1	canis	canis	Contig	2	6	6	844	no
+GCF_000367285.1	canis	canis	Contig	2	5	6	844	yes
+GCF_000367305.1	canis	canis	Contig	3	6	6	844	no
+GCF_000369905.1	abortus	abortus	Scaffold	6	5	5	842	no
+GCF_000369925.1	abortus	abortus	Scaffold	8	4	4	842	no
+GCF_000369945.1	abortus	abortus	Scaffold	10	5	5	842	no
+GCF_000369965.1	abortus	abortus	Scaffold	12	5	5	842	no
+GCF_000369985.1	abortus	abortus	Scaffold	13	2	2	842	no
+GCF_000370005.1	abortus	abortus	Scaffold	9	4	4	842	no
+GCF_000370025.1	abortus	abortus	Scaffold	7	4	4	842	no
+GCF_000370045.1	abortus	abortus	Scaffold	11	4	5	842	yes
+GCF_000370065.1	abortus	abortus	Scaffold	33	0	0	358	yes
+GCF_000370085.1	abortus	abortus	Scaffold	3	6	6	842	no
+GCF_000370105.1	abortus	abortus	Scaffold	11	4	4	842	no
+GCF_000370125.1	abortus	abortus	Scaffold	7	5	5	843	yes
+GCF_000370145.1	abortus	abortus	Scaffold	12	4	4	842	yes
+GCF_000370165.1	abortus	abortus	Scaffold	10	3	4	843	no
+GCF_000370185.1	abortus	abortus	Scaffold	8	4	4	842	no
+GCF_000370205.1	abortus	abortus	Scaffold	10	2	2	842	yes
+GCF_000370225.1	abortus	abortus	Scaffold	10	1	4	837	yes
+GCF_000370245.1	abortus	abortus	Scaffold	9	4	4	842	no
+GCF_000370265.1	abortus	abortus	Scaffold	10	5	5	842	no
+GCF_000370285.1	abortus	abortus	Scaffold	7	3	5	842	yes
+GCF_000370305.1	abortus	abortus	Scaffold	7	5	5	842	no
+GCF_000370325.1	abortus	abortus	Scaffold	10	2	5	842	yes
+GCF_000370345.1	abortus	abortus	Scaffold	11	4	4	842	yes
+GCF_000370365.1	abortus	abortus	Scaffold	11	4	5	842	no
+GCF_000370385.1	abortus	abortus	Scaffold	10	5	5	842	no
+GCF_000370405.1	abortus	abortus	Scaffold	11	3	3	842	no
+GCF_000370425.1	abortus	abortus	Scaffold	10	4	5	842	yes
+GCF_000370445.1	abortus	abortus	Scaffold	14	1	2	837	yes
+GCF_000370465.1	abortus	abortus	Scaffold	14	2	2	841	yes
+GCF_000370485.1	abortus	abortus	Scaffold	14	2	3	842	yes
+GCF_000370505.1	abortus	abortus	Scaffold	5	6	6	842	no
+GCF_000370525.1	abortus	abortus	Scaffold	5	6	6	842	no
+GCF_000370545.1	abortus	abortus	Scaffold	6	6	6	842	no
+GCF_000370565.1	abortus	abortus	Scaffold	10	3	3	843	no
+GCF_000370585.1	canis	canis	Scaffold	5	4	7	843	yes
+GCF_000370605.1	canis	canis	Scaffold	7	5	6	844	yes
+GCF_000370625.1	melitensis	melitensis	Scaffold	11	3	5	843	yes
+GCF_000370645.1	melitensis	melitensis	Scaffold	10	6	6	843	yes
+GCF_000370665.1	melitensis	melitensis	Scaffold	5	7	7	843	no
+GCF_000370685.1	melitensis	melitensis	Scaffold	12	5	6	843	yes
+GCF_000370705.1	melitensis	melitensis	Scaffold	13	5	5	843	yes
+GCF_000370725.1	melitensis	melitensis	Scaffold	8	4	5	843	yes
+GCF_000370745.1	melitensis	melitensis	Scaffold	37	0	6	548	yes
+GCF_000370765.1	melitensis	melitensis	Scaffold	7	6	6	843	yes
+GCF_000370785.1	melitensis	melitensis	Scaffold	8	6	6	842	yes
+GCF_000370805.1	melitensis	melitensis	Scaffold	6	9	9	844	no
+GCF_000370825.1	melitensis	melitensis	Scaffold	7	8	8	844	no
+GCF_000370845.1	melitensis	melitensis	Scaffold	10	7	7	843	no
+GCF_000370865.1	melitensis	melitensis	Scaffold	11	5	6	843	yes
+GCF_000370885.1	ovis	ovis	Scaffold	13	28	31	845	no
+GCF_000370905.1	ovis	ovis	Scaffold	25	32	34	845	yes
+GCF_000370925.1	sp.	held_out	Scaffold	23	15	18	843	no
+GCF_000370945.1	sp.	held_out	Scaffold	21	3	3	842	yes
+GCF_000370965.1	sp.	held_out	Scaffold	59	0	6	591	yes
+GCF_000370985.1	sp.	held_out	Scaffold	20	23	23	842	yes
+GCF_000371005.1	sp.	held_out	Scaffold	34	3	3	843	yes
+GCF_000371025.1	sp.	held_out	Scaffold	36	18	19	843	yes
+GCF_000371045.1	sp.	held_out	Scaffold	55	2	3	842	yes
+GCF_000371065.1	sp.	held_out	Scaffold	43	3	3	842	yes
+GCF_000371085.1	suis	suis	Scaffold	13	3	4	843	no
+GCF_000371105.1	suis	suis	Scaffold	16	1	1	842	yes
+GCF_000371125.1	suis	suis	Scaffold	10	9	10	842	yes
+GCF_000371145.1	suis	suis	Scaffold	10	2	2	842	yes
+GCF_000371165.1	suis	suis	Scaffold	4	13	13	842	no
+GCF_000371185.1	suis	suis	Scaffold	23	8	8	842	no
+GCF_000371205.1	suis	suis	Scaffold	13	10	10	842	no
+GCF_000371225.1	suis	suis	Scaffold	12	11	11	843	no
+GCF_000371245.1	suis	suis	Scaffold	19	8	8	843	no
+GCF_000371265.1	suis	suis	Scaffold	25	3	3	842	no
+GCF_000371285.1	suis	suis	Scaffold	20	5	15	788	yes
+GCF_000371305.1	suis	suis	Scaffold	9	11	11	842	no
+GCF_000371325.1	suis	suis	Scaffold	21	10	19	842	yes
+GCF_000371345.1	ovis	ovis	Scaffold	24	31	32	845	yes
+GCF_000398805.1	abortus	abortus	Scaffold	18	1	1	842	no
+GCF_000399725.1	abortus	abortus	Contig	6	6	6	842	yes
+GCF_000409565.1	pseudochrobactrum_sp.	non_classical	Contig	506	0	0	0	no
+GCF_000409625.1	ochrobactrum_anthropi	non_classical	Contig	1004	0	0	26	no
+GCF_000413495.1	abortus	abortus	Contig	4	5	6	842	yes
+GCF_000413515.1	ovis	ovis	Contig	107	0	0	201	yes
+GCF_000413535.1	abortus	abortus	Contig	4	6	6	842	no
+GCF_000413555.1	abortus	abortus	Contig	4	6	6	842	no
+GCF_000413575.1	abortus	abortus	Contig	4	6	6	842	no
+GCF_000413595.1	abortus	abortus	Contig	4	6	6	842	no
+GCF_000413615.1	abortus	abortus	Contig	4	6	6	842	no
+GCF_000413635.1	abortus	abortus	Contig	4	6	6	842	yes
+GCF_000413655.1	abortus	abortus	Contig	5	6	6	842	yes
+GCF_000413675.1	abortus	abortus	Contig	4	6	6	842	no
+GCF_000413695.1	abortus	abortus	Contig	4	6	6	843	no
+GCF_000413715.1	abortus	abortus	Contig	4	6	6	842	no
+GCF_000413735.1	abortus	abortus	Contig	5	6	6	842	no
+GCF_000413755.1	abortus	abortus	Contig	5	4	6	842	yes
+GCF_000413775.1	abortus	abortus	Contig	5	4	6	842	yes
+GCF_000413795.1	abortus	abortus	Contig	4	6	6	843	no
+GCF_000413815.1	abortus	abortus	Contig	4	6	6	842	no
+GCF_000413835.1	abortus	abortus	Contig	4	6	6	842	no
+GCF_000413955.1	abortus	abortus	Scaffold	5	6	6	843	no
+GCF_000413975.1	abortus	abortus	Scaffold	5	6	6	842	yes
+GCF_000413995.1	abortus	abortus	Scaffold	5	6	6	842	no
+GCF_000414015.1	abortus	abortus	Scaffold	5	6	6	842	no
+GCF_000472245.1	abortus	abortus	Contig	25	2	6	837	yes
+GCF_000477635.1	abortus	abortus	Scaffold	77	3	3	842	yes
+GCF_000478665.1	abortus	abortus	Contig	7	3	3	842	yes
+GCF_000479955.1	abortus	abortus	Contig	12	6	6	842	no
+GCF_000479975.1	melitensis	melitensis	Contig	14	5	6	844	yes
+GCF_000479995.1	abortus	abortus	Contig	5	6	6	842	no
+GCF_000480015.1	abortus	abortus	Contig	6	5	5	843	no
+GCF_000480035.1	suis	suis	Contig	11	7	8	842	yes
+GCF_000480055.1	suis	suis	Scaffold	7	13	13	842	yes
+GCF_000480075.1	abortus	abortus	Scaffold	24	3	4	843	yes
+GCF_000480095.1	melitensis	melitensis	Scaffold	12	6	6	843	yes
+GCF_000480115.1	abortus	abortus	Contig	21	4	5	842	yes
+GCF_000480135.1	suis	suis	Contig	20	0	9	662	yes
+GCF_000480155.1	suis	suis	Contig	25	11	13	842	yes
+GCF_000480175.1	abortus	abortus	Contig	4	5	6	842	yes
+GCF_000480195.1	sp.	held_out	Scaffold	65	1	1	838	yes
+GCF_000480215.1	melitensis	melitensis	Contig	13	4	4	843	yes
+GCF_000480235.1	abortus	abortus	Contig	30	2	3	844	yes
+GCF_000480255.1	abortus	abortus	Contig	39	3	4	843	yes
+GCF_000480275.1	canis	canis	Contig	4	6	6	844	no
+GCF_000480295.1	canis	canis	Contig	4	5	5	844	yes
+GCF_000480315.1	suis	suis	Scaffold	10	11	12	843	yes
+GCF_000530495.1	canis	canis	Chromosome	22	4	6	847	no
+GCF_000559065.1	ochrobactrum_rhizosphaerae	non_classical	Contig	198	0	0	0	no
+GCF_000585655.1	ochrobactrum_anthropi	non_classical	Scaffold	48	0	0	26	no
+GCF_000590795.1	ceti	ceti	Complete Genome	2	12	12	843	no
+GCF_000600055.1	suis	suis	Complete Genome	2	7	7	843	no
+GCF_000612245.1	ochrobactrum_intermedia	non_classical	Contig	95	0	0	0	no
+GCF_000662015.2	canis	canis	Contig	212	1	2	773	yes
+GCF_000685375.1	melitensis	melitensis	Contig	102	0	0	137	yes
+GCF_000691585.1	canis	canis	Complete Genome	2	4	5	844	no
+GCF_000698245.1	suis	suis	Complete Genome	2	12	12	842	no
+GCF_000698285.1	suis	suis	Complete Genome	2	12	12	842	no
+GCF_000698325.1	suis	suis	Complete Genome	2	13	13	842	no
+GCF_000698345.1	suis	suis	Complete Genome	2	13	13	842	no
+GCF_000699025.1	suis	suis	Complete Genome	2	12	12	842	no
+GCF_000712255.1	neotomae	neotomae	Contig	177	0	0	338	yes
+GCF_000740135.1	abortus	abortus	Complete Genome	2	7	7	843	no
+GCF_000740155.1	abortus	abortus	Complete Genome	2	5	5	842	no
+GCF_000740175.1	abortus	abortus	Complete Genome	2	5	5	842	no
+GCF_000740195.1	abortus	abortus	Complete Genome	2	5	5	842	no
+GCF_000740215.1	abortus	abortus	Complete Genome	2	5	5	843	no
+GCF_000740235.1	suis	suis	Complete Genome	2	13	13	843	no
+GCF_000740255.1	suis	suis	Complete Genome	2	6	6	844	no
+GCF_000740275.1	pinnipedialis	classical_extra	Complete Genome	2	29	29	844	no
+GCF_000740295.1	abortus	abortus	Complete Genome	2	5	5	843	no
+GCF_000740315.1	abortus	abortus	Complete Genome	2	5	5	843	no
+GCF_000740335.1	canis	canis	Complete Genome	2	6	6	844	no
+GCF_000740355.1	melitensis	melitensis	Complete Genome	2	8	8	843	no
+GCF_000740375.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_000740395.1	melitensis	melitensis	Chromosome	3	10	10	844	no
+GCF_000740415.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_000740435.1	suis	suis	Complete Genome	2	6	6	844	no
+GCF_000740945.1	abortus	abortus	Chromosome	2	5	5	842	no
+GCF_000741995.1	suis	suis	Scaffold	5	4	6	844	yes
+GCF_000742005.1	suis	suis	Scaffold	16	2	3	843	yes
+GCF_000742055.1	suis	suis	Scaffold	10	6	6	842	no
+GCF_000742195.1	abortus	abortus	Scaffold	12	4	6	842	yes
+GCF_000742215.1	abortus	abortus	Scaffold	5	17	17	843	yes
+GCF_000742255.1	neotomae	neotomae	Scaffold	7	8	8	843	no
+GCF_000742275.1	abortus	abortus	Contig	43	0	2	420	yes
+GCF_000742955.1	ochrobactrum_anthropi	non_classical	Complete Genome	4	0	0	0	no
+GCF_000755085.1	suis	suis	Complete Genome	2	0	2	509	no
+GCF_000755105.1	suis	suis	Complete Genome	2	0	2	627	no
+GCF_000755125.1	abortus	abortus	Chromosome	27	0	0	412	no
+GCF_000875695.1	suis	suis	Complete Genome	2	7	7	843	no
+GCF_000878465.1	ochrobactrum_anthropi	non_classical	Scaffold	116	0	0	0	no
+GCF_000988815.1	melitensis	melitensis	Contig	21	8	8	843	no
+GCF_001043295.1	abortus	abortus	Complete Genome	2	5	5	843	no
+GCF_001078335.1	canis	canis	Scaffold	60	1	1	675	yes
+GCF_001267725.1	abortus	abortus	Contig	52	3	3	842	yes
+GCF_001296965.1	abortus	abortus	Complete Genome	2	6	6	844	no
+GCF_001307425.1	melitensis	melitensis	Contig	42	0	1	613	yes
+GCF_001307475.2	melitensis	melitensis	Complete Genome	2	8	8	848	no
+GCF_001401915.1	abortus	abortus	Contig	19	0	3	658	yes
+GCF_001401925.1	abortus	abortus	Contig	16	0	1	642	yes
+GCF_001401935.1	abortus	abortus	Contig	13	2	5	838	yes
+GCF_001401945.1	abortus	abortus	Contig	14	1	1	838	yes
+GCF_001401995.1	abortus	abortus	Contig	19	0	3	661	yes
+GCF_001402005.1	abortus	abortus	Contig	18	0	2	658	yes
+GCF_001402025.1	abortus	abortus	Contig	19	0	3	661	yes
+GCF_001402055.1	abortus	abortus	Contig	16	1	1	746	yes
+GCF_001402075.1	abortus	abortus	Contig	19	1	5	809	yes
+GCF_001402095.1	abortus	abortus	Contig	9	1	1	778	yes
+GCF_001402105.1	abortus	abortus	Scaffold	19	1	1	808	yes
+GCF_001431745.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_001511795.1	vulpis	classical_extra	Chromosome	7	27	27	847	no
+GCF_001575075.1	ochrobactrum_anthropi	non_classical	Contig	17	0	0	0	no
+GCF_001594165.1	suis	suis	Chromosome	4	5	5	843	yes
+GCF_001608355.1	melitensis	melitensis	Contig	26	0	1	661	yes
+GCF_001608425.1	melitensis	melitensis	Contig	22	3	3	843	yes
+GCF_001641495.1	ochrobactrum_intermedia	non_classical	Contig	47	0	0	0	no
+GCF_001652485.1	ochrobactrum_pseudogrignonensis	non_classical	Complete Genome	2	0	0	0	no
+GCF_001702255.1	melitensis	melitensis	Contig	41	0	3	372	yes
+GCF_001702305.1	melitensis	melitensis	Contig	34	0	2	477	yes
+GCF_001702315.1	melitensis	melitensis	Contig	49	0	5	475	yes
+GCF_001702335.1	melitensis	melitensis	Contig	40	0	3	477	yes
+GCF_001702375.1	melitensis	melitensis	Contig	43	0	4	462	yes
+GCF_001715365.1	canis	canis	Complete Genome	2	5	5	843	no
+GCF_001715385.1	sp.	held_out	Complete Genome	2	7	7	842	no
+GCF_001715405.1	canis	canis	Complete Genome	2	6	6	844	no
+GCF_001715425.1	suis	suis	Complete Genome	2	7	7	843	no
+GCF_001715445.1	canis	canis	Chromosome	3	6	6	844	no
+GCF_001715465.1	melitensis	melitensis	Chromosome	3	8	8	845	no
+GCF_001715485.1	melitensis	melitensis	Complete Genome	2	7	7	846	no
+GCF_001742815.1	sp.	held_out	Scaffold	50	1	3	837	yes
+GCF_001758265.1	canis	canis	Contig	12	6	6	844	no
+GCF_001766405.1	sp.	held_out	Contig	55	3	13	843	yes
+GCF_001766425.1	sp.	held_out	Contig	53	0	10	462	yes
+GCF_001766475.1	sp.	held_out	Contig	67	0	9	462	yes
+GCF_001856185.1	abortus	abortus	Contig	30	0	2	395	yes
+GCF_001856195.1	abortus	abortus	Contig	30	1	2	806	yes
+GCF_001856205.1	abortus	abortus	Contig	26	3	3	842	yes
+GCF_001856215.1	abortus	abortus	Contig	26	0	2	413	yes
+GCF_001856265.1	abortus	abortus	Contig	30	1	3	842	yes
+GCF_001856285.1	melitensis	melitensis	Contig	32	0	1	398	yes
+GCF_001856295.1	melitensis	melitensis	Contig	29	1	1	747	yes
+GCF_001856305.1	abortus	abortus	Contig	28	1	1	712	yes
+GCF_001856345.1	abortus	abortus	Contig	29	1	1	728	yes
+GCF_001856365.1	melitensis	melitensis	Contig	32	1	2	837	yes
+GCF_001866335.1	abortus	abortus	Scaffold	664	0	0	36	yes
+GCF_001876955.1	ochrobactrum_cytisi	non_classical	Scaffold	194	0	0	0	no
+GCF_001917355.1	ochrobactrum_intermedia	non_classical	Contig	38	0	0	0	no
+GCF_001937795.1	sp.	held_out	Contig	34	0	0	229	yes
+GCF_001937805.1	sp.	held_out	Contig	37	0	4	423	yes
+GCF_001937825.1	sp.	held_out	Contig	80	0	4	423	yes
+GCF_001937875.1	sp.	held_out	Contig	36	0	2	423	yes
+GCF_001937885.1	sp.	held_out	Contig	43	0	1	375	yes
+GCF_001937895.1	sp.	held_out	Contig	55	0	8	462	yes
+GCF_001937915.1	sp.	held_out	Contig	34	1	2	694	yes
+GCF_001938045.1	sp.	held_out	Contig	56	0	10	462	yes
+GCF_001938135.1	sp.	held_out	Contig	32	0	0	229	yes
+GCF_001938165.1	sp.	held_out	Contig	51	0	10	462	yes
+GCF_001938175.1	sp.	held_out	Contig	38	0	10	492	yes
+GCF_001939785.1	pseudochrobactrum_sp.	non_classical	Contig	19	0	0	0	no
+GCF_001940595.1	abortus	abortus	Contig	243	0	0	112	yes
+GCF_001971625.1	sp.	held_out	Complete Genome	2	2	2	841	no
+GCF_001971805.1	sp.	held_out	Complete Genome	2	16	16	837	no
+GCF_001996385.1	ochrobactrum_intermedia	non_classical	Contig	121	0	0	0	no
+GCF_002016635.1	ochrobactrum_sp.	non_classical	Contig	65	0	0	26	no
+GCF_002025625.1	ochrobactrum_pituitosa	non_classical	Complete Genome	4	0	0	0	no
+GCF_002150345.1	sp.	held_out	Contig	44	1	2	823	yes
+GCF_002150355.1	sp.	held_out	Contig	35	1	2	694	yes
+GCF_002150395.1	sp.	held_out	Contig	55	2	4	842	yes
+GCF_002150445.1	sp.	held_out	Contig	41	0	2	544	yes
+GCF_002191235.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_002191255.1	melitensis	melitensis	Chromosome	3	9	9	843	no
+GCF_002191275.1	melitensis	melitensis	Chromosome	3	9	9	844	no
+GCF_002191295.1	melitensis	melitensis	Complete Genome	2	10	10	844	no
+GCF_002191315.1	melitensis	melitensis	Chromosome	3	9	9	843	no
+GCF_002191335.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_002191355.1	melitensis	melitensis	Complete Genome	2	8	8	843	no
+GCF_002191375.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_002191395.1	melitensis	melitensis	Chromosome	6	9	9	844	no
+GCF_002191415.1	melitensis	melitensis	Chromosome	3	8	8	843	no
+GCF_002191435.1	melitensis	melitensis	Chromosome	4	7	7	843	no
+GCF_002191455.1	melitensis	melitensis	Complete Genome	2	9	9	845	no
+GCF_002191475.1	melitensis	melitensis	Chromosome	4	8	9	844	no
+GCF_002191495.1	melitensis	melitensis	Chromosome	3	9	9	844	no
+GCF_002191515.1	melitensis	melitensis	Chromosome	6	9	9	844	no
+GCF_002191535.1	melitensis	melitensis	Chromosome	3	9	9	844	no
+GCF_002191555.1	melitensis	melitensis	Chromosome	7	9	9	844	no
+GCF_002191575.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_002191595.1	melitensis	melitensis	Chromosome	4	10	10	844	no
+GCF_002191615.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_002191635.1	melitensis	melitensis	Chromosome	3	9	9	844	no
+GCF_002191655.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_002191675.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_002191695.1	melitensis	melitensis	Chromosome	6	10	10	843	no
+GCF_002191715.1	melitensis	melitensis	Chromosome	4	7	9	843	no
+GCF_002191735.1	melitensis	melitensis	Chromosome	4	9	9	844	no
+GCF_002191755.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_002191775.1	melitensis	melitensis	Chromosome	3	9	9	844	no
+GCF_002191795.1	melitensis	melitensis	Chromosome	3	9	9	843	no
+GCF_002191815.1	melitensis	melitensis	Chromosome	3	10	10	844	no
+GCF_002191835.1	melitensis	melitensis	Chromosome	3	9	9	845	no
+GCF_002191855.1	melitensis	melitensis	Chromosome	4	9	9	844	no
+GCF_002191875.1	melitensis	melitensis	Chromosome	5	9	9	844	no
+GCF_002191895.1	melitensis	melitensis	Chromosome	4	9	9	844	no
+GCF_002191915.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_002191935.1	melitensis	melitensis	Chromosome	3	6	7	843	no
+GCF_002191995.1	melitensis	melitensis	Chromosome	4	8	9	844	no
+GCF_002192015.1	melitensis	melitensis	Chromosome	3	10	10	844	no
+GCF_002192035.1	melitensis	melitensis	Chromosome	4	9	9	844	no
+GCF_002192055.1	melitensis	melitensis	Chromosome	3	9	9	844	no
+GCF_002192075.1	melitensis	melitensis	Chromosome	4	9	9	844	no
+GCF_002192095.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_002192115.1	melitensis	melitensis	Chromosome	3	9	9	844	no
+GCF_002192135.1	melitensis	melitensis	Chromosome	3	9	9	844	no
+GCF_002192155.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_002192175.1	melitensis	melitensis	Chromosome	3	9	9	844	no
+GCF_002192195.1	melitensis	melitensis	Chromosome	5	9	9	843	no
+GCF_002204265.1	melitensis	melitensis	Contig	39	0	1	661	yes
+GCF_002204295.1	melitensis	melitensis	Contig	44	0	1	661	yes
+GCF_002204335.1	melitensis	melitensis	Contig	35	0	1	661	yes
+GCF_002204345.1	melitensis	melitensis	Contig	46	0	1	661	yes
+GCF_002245205.1	melitensis	melitensis	Contig	41	0	1	661	yes
+GCF_002245225.1	melitensis	melitensis	Contig	32	0	1	661	yes
+GCF_002245235.1	melitensis	melitensis	Contig	37	0	1	661	yes
+GCF_002245555.1	ceti	ceti	Contig	76	0	8	451	yes
+GCF_002252445.1	ochrobactrum_thiophenivorans	non_classical	Contig	77	0	0	0	no
+GCF_002252475.1	ochrobactrum_rhizosphaerae	non_classical	Contig	36	0	0	0	no
+GCF_002252505.1	ochrobactrum_grignonensis	non_classical	Contig	169	0	0	0	no
+GCF_002252525.1	ochrobactrum_pseudogrignonensis	non_classical	Contig	53	0	0	0	no
+GCF_002252535.1	ochrobactrum_lupini	non_classical	Contig	65	0	0	26	no
+GCF_002262955.1	melitensis	melitensis	Complete Genome	2	8	8	844	yes
+GCF_002262975.1	abortus	abortus	Complete Genome	2	5	6	842	no
+GCF_002262995.1	abortus	abortus	Complete Genome	2	5	5	843	no
+GCF_002263015.1	melitensis	melitensis	Complete Genome	2	8	9	872	no
+GCF_002278035.1	ochrobactrum_quorumnocens	non_classical	Complete Genome	4	0	0	26	no
+GCF_002290125.1	melitensis	melitensis	Chromosome	31	0	0	479	no
+GCF_002290725.1	abortus	abortus	Chromosome	34	0	2	537	no
+GCF_002290765.1	abortus	abortus	Chromosome	35	0	3	537	no
+GCF_002290785.1	abortus	abortus	Chromosome	29	1	3	838	no
+GCF_002291345.1	abortus	abortus	Chromosome	41	1	3	837	no
+GCF_002591255.1	canis	canis	Complete Genome	2	6	6	844	no
+GCF_002749475.1	suis	suis	Complete Genome	2	7	7	842	no
+GCF_002763615.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_002803535.1	ochrobactrum_pituitosa	non_classical	Scaffold	21	0	0	0	no
+GCF_002871075.1	melitensis	melitensis	Contig	2	9	9	844	no
+GCF_002895105.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_002895125.1	melitensis	melitensis	Complete Genome	2	8	8	844	no
+GCF_002895145.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_002943495.1	ochrobactrum_oryzae	non_classical	Contig	289	0	0	0	no
+GCF_002953595.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_002975205.1	ochrobactrum_vermis	non_classical	Contig	3	0	0	26	no
+GCF_002975235.1	ochrobactrum_pseudogrignonensis	non_classical	Contig	3	0	0	0	no
+GCF_002979215.1	ochrobactrum_pseudogrignonensis	non_classical	Scaffold	18	0	0	0	no
+GCF_002979295.1	ochrobactrum_pseudogrignonensis	non_classical	Scaffold	20	0	0	0	no
+GCF_002994775.1	sp.	held_out	Contig	63	1	3	826	yes
+GCF_003010715.1	canis	canis	Complete Genome	2	6	6	844	no
+GCF_003049685.1	ochrobactrum_pituitosa	non_classical	Contig	10	0	0	0	no
+GCF_003149535.1	falsochrobactrum_shanghaiense	non_classical	Contig	47	0	0	0	no
+GCF_003176975.1	ochrobactrum_sp.	non_classical	Contig	255	0	0	0	no
+GCF_003194755.1	abortus	abortus	Contig	25	0	0	173	yes
+GCF_003194765.1	abortus	abortus	Contig	23	0	0	173	yes
+GCF_003194795.1	abortus	abortus	Contig	23	0	0	173	yes
+GCF_003194805.1	abortus	abortus	Contig	26	0	0	173	yes
+GCF_003205535.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_003244395.3	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_003259955.1	falsochrobactrum_ovis	non_classical	Scaffold	42	0	0	0	no
+GCF_003290345.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_003314995.1	pseudochrobactrum_asaccharolyticum	non_classical	Scaffold	45	0	0	0	no
+GCF_003325675.1	ochrobactrum_anthropi	non_classical	Contig	26	0	0	26	no
+GCF_003332115.1	ochrobactrum_sp.	non_classical	Contig	36	0	0	0	no
+GCF_003432005.1	melitensis	melitensis	Contig	21	1	1	843	yes
+GCF_003516045.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_003516065.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_003516085.1	melitensis	melitensis	Complete Genome	1	9	9	844	no
+GCF_003664555.1	ochrobactrum_soli	non_classical	Contig	48	0	0	26	no
+GCF_003675365.1	abortus	abortus	Complete Genome	2	5	5	843	no
+GCF_003856415.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_003937425.1	ochrobactrum_anthropi	non_classical	Scaffold	43	0	0	0	no
+GCF_003937445.1	ochrobactrum_anthropi	non_classical	Scaffold	82	0	0	26	no
+GCF_003965935.1	abortus	abortus	Contig	50	1	1	787	yes
+GCF_003965945.1	abortus	abortus	Contig	38	1	1	708	yes
+GCF_003984745.1	abortus	abortus	Contig	45	1	1	793	yes
+GCF_003984755.1	abortus	abortus	Contig	58	1	1	795	yes
+GCF_003989635.1	melitensis	melitensis	Contig	31	0	0	173	yes
+GCF_003989725.1	abortus	abortus	Scaffold	45	1	1	723	yes
+GCF_003989875.1	melitensis	melitensis	Scaffold	36	0	1	507	yes
+GCF_003989885.1	melitensis	melitensis	Scaffold	35	0	0	173	yes
+GCF_003989895.1	melitensis	melitensis	Scaffold	31	0	0	173	yes
+GCF_003989955.1	abortus	abortus	Contig	36	7	7	842	no
+GCF_003991385.1	melitensis	melitensis	Scaffold	24	4	6	842	yes
+GCF_003993825.1	melitensis	melitensis	Contig	26	0	0	92	yes
+GCF_003993855.1	melitensis	melitensis	Contig	26	0	0	100	yes
+GCF_003993875.1	melitensis	melitensis	Contig	26	0	0	148	yes
+GCF_003993895.1	melitensis	melitensis	Contig	24	0	0	72	yes
+GCF_003993905.1	melitensis	melitensis	Contig	25	0	0	100	yes
+GCF_003993935.1	melitensis	melitensis	Contig	25	0	0	111	yes
+GCF_003993955.1	melitensis	melitensis	Contig	26	0	0	98	yes
+GCF_003993965.1	melitensis	melitensis	Contig	25	0	0	109	yes
+GCF_003993995.1	melitensis	melitensis	Contig	25	0	0	100	yes
+GCF_003994015.1	melitensis	melitensis	Contig	26	0	0	84	yes
+GCF_003994025.1	abortus	abortus	Contig	17	0	0	101	yes
+GCF_003994045.1	suis	suis	Contig	22	0	0	148	yes
+GCF_003994075.1	abortus	abortus	Contig	19	0	0	185	yes
+GCF_003994095.1	melitensis	melitensis	Contig	26	0	0	98	yes
+GCF_003994105.1	melitensis	melitensis	Contig	24	0	0	154	yes
+GCF_003994115.1	melitensis	melitensis	Contig	25	0	0	74	yes
+GCF_003994155.1	abortus	abortus	Contig	16	0	0	187	yes
+GCF_003994175.1	suis	suis	Contig	28	0	0	92	yes
+GCF_003994185.1	melitensis	melitensis	Contig	26	0	0	62	yes
+GCF_003994205.1	melitensis	melitensis	Contig	21	0	0	76	yes
+GCF_003994435.1	abortus	abortus	Chromosome	34	1	3	883	no
+GCF_004127195.1	canis	canis	Scaffold	137	0	0	271	yes
+GCF_004127225.1	canis	canis	Scaffold	225	0	0	360	yes
+GCF_004137225.1	abortus	abortus	Contig	43	2	2	842	yes
+GCF_004137275.1	abortus	abortus	Contig	19	7	7	842	no
+GCF_004208655.1	melitensis	melitensis	Complete Genome	2	9	9	843	no
+GCF_004208675.1	melitensis	melitensis	Complete Genome	2	9	9	843	no
+GCF_004208695.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_004684165.1	suis	suis	Contig	37	0	1	628	yes
+GCF_004704905.2	abortus	abortus	Contig	24	0	1	514	yes
+GCF_005938105.1	ochrobactrum_haematophila	non_classical	Contig	55	0	0	0	no
+GCF_006345815.1	ochrobactrum_sp.	non_classical	Scaffold	55	0	0	26	no
+GCF_006376675.1	ochrobactrum_pecoris	non_classical	Contig	61	0	0	0	no
+GCF_006376685.1	ochrobactrum_teleogrylli	non_classical	Contig	43	0	0	26	no
+GCF_006476605.1	ochrobactrum_gallinifaecis	non_classical	Scaffold	38	0	0	0	no
+GCF_006505895.1	melitensis	melitensis	Contig	27	0	1	489	yes
+GCF_006505925.1	melitensis	melitensis	Contig	50	0	0	456	yes
+GCF_006505935.1	melitensis	melitensis	Contig	35	0	1	411	yes
+GCF_006505995.1	melitensis	melitensis	Contig	35	0	1	372	yes
+GCF_006506005.1	melitensis	melitensis	Contig	35	0	1	372	yes
+GCF_006506015.1	melitensis	melitensis	Contig	31	0	2	462	yes
+GCF_006506025.1	melitensis	melitensis	Contig	28	1	1	842	yes
+GCF_006506035.1	melitensis	melitensis	Contig	32	0	1	411	yes
+GCF_006506095.1	melitensis	melitensis	Contig	28	1	1	842	yes
+GCF_006506105.1	melitensis	melitensis	Contig	34	0	2	462	yes
+GCF_006506115.1	melitensis	melitensis	Contig	33	0	1	411	yes
+GCF_006506125.1	melitensis	melitensis	Contig	36	0	1	411	yes
+GCF_006506135.1	melitensis	melitensis	Contig	33	0	2	462	yes
+GCF_006506195.1	melitensis	melitensis	Contig	30	0	2	462	yes
+GCF_006506205.1	melitensis	melitensis	Contig	33	0	2	462	yes
+GCF_006506215.1	melitensis	melitensis	Contig	37	0	2	462	yes
+GCF_006506225.1	melitensis	melitensis	Contig	35	0	1	570	yes
+GCF_006506235.1	melitensis	melitensis	Contig	33	0	2	462	yes
+GCF_006506295.1	melitensis	melitensis	Contig	37	0	1	431	yes
+GCF_006506385.1	melitensis	melitensis	Contig	32	0	1	509	yes
+GCF_006506395.1	melitensis	melitensis	Contig	37	0	1	431	yes
+GCF_006506425.1	melitensis	melitensis	Contig	171	0	1	431	yes
+GCF_006506435.1	melitensis	melitensis	Contig	36	0	1	488	yes
+GCF_006506465.1	melitensis	melitensis	Contig	33	0	1	431	yes
+GCF_006506485.1	melitensis	melitensis	Contig	64	0	1	526	yes
+GCF_006506505.1	melitensis	melitensis	Contig	32	0	1	431	yes
+GCF_006506515.1	melitensis	melitensis	Contig	195	0	1	431	yes
+GCF_006506545.1	melitensis	melitensis	Contig	46	0	1	431	yes
+GCF_006506565.1	melitensis	melitensis	Contig	77	0	1	526	yes
+GCF_006506575.1	melitensis	melitensis	Contig	23	1	1	843	yes
+GCF_006506605.1	melitensis	melitensis	Contig	34	0	1	411	yes
+GCF_006506625.1	melitensis	melitensis	Contig	38	1	1	842	yes
+GCF_006506635.1	melitensis	melitensis	Contig	42	0	2	491	yes
+GCF_006506665.1	melitensis	melitensis	Contig	35	0	2	462	yes
+GCF_006506675.1	melitensis	melitensis	Contig	114	0	1	526	yes
+GCF_006506685.1	melitensis	melitensis	Contig	38	0	1	411	yes
+GCF_006506725.1	melitensis	melitensis	Contig	43	0	1	462	yes
+GCF_006506735.1	melitensis	melitensis	Contig	138	0	2	462	yes
+GCF_006506745.1	melitensis	melitensis	Contig	33	0	1	411	yes
+GCF_006506785.1	melitensis	melitensis	Contig	34	0	1	431	yes
+GCF_006506815.1	melitensis	melitensis	Contig	84	0	1	372	yes
+GCF_006506835.1	melitensis	melitensis	Contig	35	0	2	462	yes
+GCF_006506855.1	melitensis	melitensis	Contig	35	0	2	462	yes
+GCF_006506875.1	melitensis	melitensis	Contig	33	0	1	431	yes
+GCF_006506895.1	melitensis	melitensis	Contig	31	0	2	462	yes
+GCF_006506925.1	melitensis	melitensis	Contig	37	0	2	462	yes
+GCF_006506935.1	melitensis	melitensis	Contig	30	0	2	462	yes
+GCF_006506965.1	melitensis	melitensis	Contig	60	0	1	660	yes
+GCF_006506975.1	melitensis	melitensis	Contig	36	0	1	357	yes
+GCF_006506985.1	melitensis	melitensis	Contig	37	0	2	462	yes
+GCF_006506995.1	melitensis	melitensis	Contig	30	1	1	842	yes
+GCF_006507015.1	melitensis	melitensis	Contig	47	0	1	431	yes
+GCF_006507065.1	melitensis	melitensis	Contig	45	0	1	527	yes
+GCF_006507075.1	melitensis	melitensis	Contig	32	0	1	431	yes
+GCF_006507105.1	melitensis	melitensis	Contig	45	0	2	462	yes
+GCF_006507125.1	melitensis	melitensis	Contig	44	0	1	431	yes
+GCF_006507135.1	melitensis	melitensis	Contig	39	0	2	462	yes
+GCF_006507165.1	melitensis	melitensis	Contig	92	0	0	173	yes
+GCF_006507175.1	melitensis	melitensis	Contig	38	0	1	378	yes
+GCF_006507185.1	melitensis	melitensis	Contig	38	0	1	431	yes
+GCF_006507225.1	melitensis	melitensis	Contig	59	0	2	462	yes
+GCF_006507235.1	melitensis	melitensis	Contig	32	0	1	431	yes
+GCF_006507245.1	melitensis	melitensis	Contig	36	0	1	411	yes
+GCF_006507285.1	melitensis	melitensis	Contig	39	0	1	494	yes
+GCF_006507295.1	melitensis	melitensis	Contig	31	0	1	431	yes
+GCF_006507325.1	melitensis	melitensis	Contig	43	0	1	431	yes
+GCF_006507335.1	melitensis	melitensis	Contig	64	0	2	462	yes
+GCF_006507345.1	melitensis	melitensis	Contig	31	0	1	411	yes
+GCF_006507365.1	melitensis	melitensis	Contig	29	0	1	411	yes
+GCF_006507375.1	melitensis	melitensis	Contig	34	1	1	842	yes
+GCF_006507425.1	melitensis	melitensis	Contig	28	0	1	489	yes
+GCF_006507445.1	melitensis	melitensis	Contig	31	0	1	431	yes
+GCF_006507455.1	melitensis	melitensis	Contig	32	0	2	462	yes
+GCF_006507465.1	melitensis	melitensis	Contig	36	0	1	372	yes
+GCF_006507475.1	melitensis	melitensis	Contig	32	0	2	491	yes
+GCF_006507495.1	melitensis	melitensis	Contig	33	0	2	462	yes
+GCF_006507545.1	melitensis	melitensis	Contig	31	0	2	462	yes
+GCF_006507555.1	melitensis	melitensis	Contig	36	0	1	532	yes
+GCF_006507565.1	melitensis	melitensis	Contig	36	0	1	393	yes
+GCF_006507585.1	melitensis	melitensis	Contig	28	0	1	489	yes
+GCF_006507595.1	melitensis	melitensis	Contig	32	0	2	462	yes
+GCF_006507645.1	melitensis	melitensis	Contig	50	0	1	571	yes
+GCF_006507665.1	melitensis	melitensis	Contig	37	0	1	431	yes
+GCF_006507675.1	melitensis	melitensis	Contig	40	0	2	462	yes
+GCF_006507685.1	melitensis	melitensis	Contig	28	0	1	494	yes
+GCF_006507695.1	melitensis	melitensis	Contig	39	0	1	527	yes
+GCF_006507745.1	melitensis	melitensis	Contig	25	2	2	843	yes
+GCF_006507765.1	melitensis	melitensis	Contig	45	0	1	431	yes
+GCF_006507775.1	melitensis	melitensis	Contig	37	0	2	462	yes
+GCF_006507815.1	melitensis	melitensis	Contig	37	0	1	490	yes
+GCF_006507825.1	melitensis	melitensis	Contig	57	0	1	452	yes
+GCF_006507855.1	melitensis	melitensis	Contig	24	4	4	843	yes
+GCF_006507875.1	melitensis	melitensis	Contig	25	3	3	843	yes
+GCF_006507905.1	melitensis	melitensis	Contig	32	0	1	423	yes
+GCF_006507915.1	melitensis	melitensis	Contig	41	0	1	494	yes
+GCF_006507945.1	melitensis	melitensis	Contig	40	0	1	411	yes
+GCF_006507965.1	melitensis	melitensis	Contig	37	0	1	374	yes
+GCF_006507975.1	melitensis	melitensis	Contig	35	0	1	431	yes
+GCF_006508005.1	melitensis	melitensis	Contig	43	0	1	431	yes
+GCF_006508015.1	melitensis	melitensis	Contig	38	0	0	173	yes
+GCF_006508025.1	melitensis	melitensis	Contig	31	0	1	431	yes
+GCF_006508035.1	melitensis	melitensis	Contig	38	0	1	431	yes
+GCF_006517295.1	melitensis	melitensis	Contig	34	1	1	843	yes
+GCF_006517305.1	melitensis	melitensis	Contig	57	3	3	843	yes
+GCF_006517315.1	melitensis	melitensis	Contig	34	0	1	411	yes
+GCF_006517325.1	melitensis	melitensis	Contig	45	0	1	431	yes
+GCF_006517335.1	melitensis	melitensis	Contig	44	0	1	372	yes
+GCF_007829595.1	ochrobactrum_sp.	non_classical	Scaffold	64	0	0	0	no
+GCF_008728025.1	ochrobactrum_quorumnocens	non_classical	Contig	77	0	0	0	no
+GCF_008761575.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_008761595.1	melitensis	melitensis	Complete Genome	2	9	9	844	yes
+GCF_008761615.1	melitensis	melitensis	Complete Genome	2	9	9	843	no
+GCF_008801705.1	ochrobactrum_pituitosa	non_classical	Contig	60	0	0	0	no
+GCF_008801715.1	pseudochrobactrum_saccharolyticum	non_classical	Contig	12	0	0	0	no
+GCF_008932275.1	ochrobactrum_tritici	non_classical	Contig	141	0	0	0	no
+GCF_008932285.1	ochrobactrum_tritici	non_classical	Contig	44	0	0	0	no
+GCF_008932295.1	ochrobactrum_tritici	non_classical	Contig	153	0	0	0	no
+GCF_008932305.1	ochrobactrum_tritici	non_classical	Contig	74	0	0	0	no
+GCF_008932375.2	ochrobactrum_haematophila	non_classical	Complete Genome	6	0	0	0	no
+GCF_008932385.1	ochrobactrum_lupini	non_classical	Contig	100	0	0	26	no
+GCF_008932425.1	ochrobactrum_pseudogrignonensis	non_classical	Contig	35	0	0	26	no
+GCF_008932435.1	ochrobactrum_pseudintermedia	non_classical	Contig	45	0	0	0	no
+GCF_008932475.1	ochrobactrum_intermedia	non_classical	Contig	67	0	0	0	no
+GCF_008932485.1	ochrobactrum_intermedia	non_classical	Contig	60	0	0	0	no
+GCF_008932495.1	ochrobactrum_intermedia	non_classical	Contig	36	0	0	0	no
+GCF_008932505.1	ochrobactrum_intermedia	non_classical	Contig	99	0	0	0	no
+GCF_008932555.1	ochrobactrum_intermedia	non_classical	Contig	26	0	0	0	no
+GCF_008932575.1	ochrobactrum_intermedia	non_classical	Contig	83	0	0	0	no
+GCF_008932585.1	ochrobactrum_anthropi	non_classical	Contig	12	0	0	26	no
+GCF_008932615.1	ochrobactrum_anthropi	non_classical	Contig	70	0	0	0	no
+GCF_008932625.1	ochrobactrum_anthropi	non_classical	Contig	10	0	0	26	no
+GCF_008932635.1	ochrobactrum_anthropi	non_classical	Contig	20	0	0	26	no
+GCF_008932675.1	ochrobactrum_anthropi	non_classical	Contig	23	0	0	26	no
+GCF_008932685.1	ochrobactrum_anthropi	non_classical	Contig	76	0	0	0	no
+GCF_008932705.1	ochrobactrum_anthropi	non_classical	Contig	161	0	0	26	no
+GCF_008932725.1	ochrobactrum_anthropi	non_classical	Contig	41	0	0	0	no
+GCF_008932745.1	ochrobactrum_anthropi	non_classical	Contig	33	0	0	0	no
+GCF_008932765.1	ochrobactrum_anthropi	non_classical	Contig	37	0	0	26	no
+GCF_008932785.1	ochrobactrum_anthropi	non_classical	Contig	31	0	0	26	no
+GCF_008932815.1	ochrobactrum_anthropi	non_classical	Contig	51	0	0	26	no
+GCF_008932825.1	ochrobactrum_anthropi	non_classical	Contig	27	0	0	26	no
+GCF_008932835.1	ochrobactrum_anthropi	non_classical	Contig	65	0	0	26	no
+GCF_008932875.1	ochrobactrum_anthropi	non_classical	Contig	72	0	0	0	no
+GCF_008932885.1	ochrobactrum_anthropi	non_classical	Contig	21	0	0	26	no
+GCF_008932905.1	ochrobactrum_anthropi	non_classical	Contig	17	0	0	26	no
+GCF_009017375.1	ochrobactrum_anthropi	non_classical	Complete Genome	2	0	0	26	no
+GCF_009361155.1	ochrobactrum_intermedia	non_classical	Contig	33	0	0	0	no
+GCF_009601725.1	sp.	held_out	Complete Genome	2	1	1	841	no
+GCF_009664915.1	sp.	held_out	Contig	61	0	1	544	yes
+GCF_009664925.1	sp.	held_out	Contig	109	0	0	388	no
+GCF_009664935.1	sp.	held_out	Contig	100	0	0	300	yes
+GCF_009664965.1	sp.	held_out	Contig	146	1	1	841	yes
+GCF_009665015.1	sp.	held_out	Contig	106	1	1	832	yes
+GCF_009665065.1	sp.	held_out	Contig	98	1	1	831	yes
+GCF_009728165.1	abortus	abortus	Contig	126	0	0	101	yes
+GCF_009728185.1	abortus	abortus	Contig	42	1	1	787	yes
+GCF_009733175.1	abortus	abortus	Contig	48	1	1	787	yes
+GCF_009733195.1	abortus	abortus	Contig	47	1	1	712	yes
+GCF_009733205.1	abortus	abortus	Contig	49	1	1	787	yes
+GCF_009733215.1	abortus	abortus	Contig	47	1	1	802	yes
+GCF_009733255.1	abortus	abortus	Contig	44	1	1	787	yes
+GCF_009733275.1	abortus	abortus	Contig	87	1	1	787	yes
+GCF_009733285.1	abortus	abortus	Contig	42	1	1	787	yes
+GCF_009733335.1	abortus	abortus	Contig	60	1	1	712	yes
+GCF_009733365.1	abortus	abortus	Contig	38	1	1	749	yes
+GCF_009733375.1	abortus	abortus	Contig	48	1	1	787	yes
+GCF_009733435.1	abortus	abortus	Contig	42	1	1	712	yes
+GCF_009733455.1	abortus	abortus	Contig	46	0	1	628	yes
+GCF_009733465.1	abortus	abortus	Contig	40	0	1	413	yes
+GCF_009733495.1	abortus	abortus	Contig	47	0	1	532	yes
+GCF_009789215.1	abortus	abortus	Contig	68	1	1	729	yes
+GCF_009789295.1	melitensis	melitensis	Contig	27	0	0	142	yes
+GCF_009789305.1	melitensis	melitensis	Contig	27	0	0	185	yes
+GCF_009789335.1	melitensis	melitensis	Contig	28	0	0	185	yes
+GCF_009789345.1	melitensis	melitensis	Contig	27	0	0	185	yes
+GCF_009789365.1	abortus	abortus	Contig	28	0	0	215	yes
+GCF_009789395.1	melitensis	melitensis	Contig	27	0	1	513	yes
+GCF_009789415.1	melitensis	melitensis	Contig	27	0	1	384	yes
+GCF_009789435.1	melitensis	melitensis	Contig	28	0	2	413	yes
+GCF_009789445.1	melitensis	melitensis	Contig	27	0	0	176	yes
+GCF_009789465.1	melitensis	melitensis	Contig	27	0	1	384	yes
+GCF_009797905.1	melitensis	melitensis	Contig	24	0	1	501	yes
+GCF_009823695.1	suis	suis	Contig	22	0	0	352	yes
+GCF_009823705.1	melitensis	melitensis	Contig	19	0	0	308	yes
+GCF_011801185.1	abortus	abortus	Complete Genome	2	8	8	842	no
+GCF_012241515.1	ochrobactrum_sp.	non_classical	Contig	5	0	0	0	no
+GCF_013087535.1	ochrobactrum_soli	non_classical	Contig	104	0	0	26	no
+GCF_013109225.1	ochrobactrum_pseudogrignonensis	non_classical	Scaffold	9	0	0	0	no
+GCF_013375275.1	ochrobactrum_intermedia	non_classical	Contig	82	0	0	0	no
+GCF_013409355.1	ochrobactrum_intermedia	non_classical	Scaffold	19	0	0	0	no
+GCF_013425785.1	abortus	abortus	Contig	38	0	1	585	yes
+GCF_014084005.1	sp.	held_out	Complete Genome	2	2	2	837	no
+GCF_014138065.1	ochrobactrum_sp.	non_classical	Scaffold	50	0	0	26	no
+GCF_014138095.1	ochrobactrum_sp.	non_classical	Scaffold	41	0	0	0	no
+GCF_014138145.1	ochrobactrum_anthropi	non_classical	Scaffold	29	0	0	26	no
+GCF_014138165.1	ochrobactrum_intermedia	non_classical	Scaffold	29	0	0	0	no
+GCF_014193785.1	ceti	ceti	Contig	83	0	2	308	yes
+GCF_014197065.1	ochrobactrum_pecoris	non_classical	Scaffold	58	0	0	0	no
+GCF_014199265.1	ochrobactrum_daejeonensis	non_classical	Contig	55	0	0	0	no
+GCF_014203195.1	pseudochrobactrum_saccharolyticum	non_classical	Scaffold	19	0	0	0	no
+GCF_014205685.1	paenochrobactrum_gallinarii	non_classical	Scaffold	86	0	0	0	no
+GCF_014270005.1	melitensis	melitensis	Contig	30	0	0	66	yes
+GCF_014397025.1	ochrobactrum_sp.	non_classical	Contig	3	0	0	30	no
+GCF_014495725.1	ochrobactrum_intermedia	non_classical	Complete Genome	2	0	0	0	no
+GCF_014495905.1	sp.	held_out	Complete Genome	3	17	17	842	no
+GCF_014884405.1	suis	suis	Complete Genome	2	13	13	842	no
+GCF_014884485.1	suis	suis	Complete Genome	2	13	13	843	no
+GCF_014884505.1	suis	suis	Complete Genome	2	6	6	844	no
+GCF_014884525.1	suis	suis	Complete Genome	2	6	6	844	no
+GCF_014884545.1	suis	suis	Complete Genome	2	8	8	843	no
+GCF_014884565.1	suis	suis	Complete Genome	2	8	8	843	no
+GCF_015326295.1	ochrobactrum_anthropi	non_classical	Complete Genome	3	0	0	26	no
+GCF_015624465.1	pinnipedialis	classical_extra	Complete Genome	2	32	32	843	no
+GCF_015832115.1	sp.	held_out	Complete Genome	2	1	1	841	no
+GCF_016091955.1	abortus	abortus	Contig	31	0	1	603	yes
+GCF_016091965.1	abortus	abortus	Contig	37	0	1	506	yes
+GCF_016107505.1	abortus	abortus	Complete Genome	2	5	5	843	no
+GCF_016126075.1	abortus	abortus	Contig	25	0	0	101	yes
+GCF_016126095.1	abortus	abortus	Contig	35	0	1	541	yes
+GCF_016126105.1	abortus	abortus	Contig	27	0	1	413	yes
+GCF_016126115.1	abortus	abortus	Contig	31	1	1	748	yes
+GCF_016126135.1	abortus	abortus	Contig	28	1	1	712	yes
+GCF_016126175.1	abortus	abortus	Contig	27	0	1	508	yes
+GCF_016126195.1	abortus	abortus	Contig	46	0	0	100	yes
+GCF_016126205.1	abortus	abortus	Contig	37	1	1	787	yes
+GCF_016126215.1	abortus	abortus	Contig	28	1	1	787	yes
+GCF_016126245.1	abortus	abortus	Contig	31	0	2	619	yes
+GCF_016128015.1	ochrobactrum_anthropi	non_classical	Complete Genome	5	0	0	0	no
+GCF_016411965.1	melitensis	melitensis	Scaffold	24	0	6	422	yes
+GCF_016427605.1	ochrobactrum_sp.	non_classical	Scaffold	54	0	0	0	no
+GCF_016483915.1	abortus	abortus	Contig	28	1	1	712	yes
+GCF_016483965.1	abortus	abortus	Contig	31	0	1	413	yes
+GCF_016483975.1	abortus	abortus	Contig	30	1	1	787	yes
+GCF_016484065.1	abortus	abortus	Contig	40	1	1	712	yes
+GCF_016484075.1	abortus	abortus	Contig	32	0	0	101	yes
+GCF_016484145.1	abortus	abortus	Contig	37	1	1	787	yes
+GCF_016806105.1	melitensis	melitensis	Scaffold	24	0	0	360	yes
+GCF_016887525.1	melitensis	melitensis	Chromosome	2	9	9	844	no
+GCF_016887905.1	ochrobactrum_anthropi	non_classical	Contig	6	0	0	26	no
+GCF_017139975.1	melitensis	melitensis	Chromosome	123	5	6	844	no
+GCF_017140095.1	melitensis	melitensis	Chromosome	95	3	6	843	no
+GCF_017177315.1	melitensis	melitensis	Contig	28	0	3	462	yes
+GCF_017177325.1	melitensis	melitensis	Contig	76	1	1	843	yes
+GCF_017177355.1	melitensis	melitensis	Contig	35	0	2	352	yes
+GCF_017177365.1	melitensis	melitensis	Contig	169	0	2	576	yes
+GCF_017177395.1	melitensis	melitensis	Contig	29	0	3	462	yes
+GCF_017177415.2	melitensis	melitensis	Contig	263	1	3	843	yes
+GCF_017177425.1	melitensis	melitensis	Contig	43	0	2	388	yes
+GCF_017177445.1	melitensis	melitensis	Contig	37	0	5	462	yes
+GCF_017177475.2	melitensis	melitensis	Contig	47	0	3	462	yes
+GCF_017177485.2	melitensis	melitensis	Contig	72	0	3	462	yes
+GCF_017177515.1	melitensis	melitensis	Contig	36	0	3	462	yes
+GCF_017177535.2	melitensis	melitensis	Contig	48	0	3	462	yes
+GCF_017177615.2	melitensis	melitensis	Contig	55	0	2	559	yes
+GCF_017177675.1	melitensis	melitensis	Contig	35	0	3	462	yes
+GCF_017177695.1	melitensis	melitensis	Contig	35	0	3	462	yes
+GCF_017177715.1	melitensis	melitensis	Contig	40	0	5	462	yes
+GCF_017177735.1	melitensis	melitensis	Contig	41	0	4	402	yes
+GCF_017177745.2	melitensis	melitensis	Contig	72	1	2	843	yes
+GCF_017177815.2	melitensis	melitensis	Contig	85	0	2	577	yes
+GCF_017177825.2	melitensis	melitensis	Contig	82	0	2	352	yes
+GCF_017177855.2	melitensis	melitensis	Contig	51	0	2	462	yes
+GCF_017177875.1	melitensis	melitensis	Contig	47	0	3	477	yes
+GCF_017177895.1	melitensis	melitensis	Contig	39	0	3	421	yes
+GCF_017311425.1	melitensis	melitensis	Scaffold	27	0	2	422	yes
+GCF_017355465.1	ochrobactrum_pituitosa	non_classical	Contig	24	0	0	0	no
+GCF_017797885.1	sp.	held_out	Complete Genome	2	0	4	451	no
+GCF_018066705.1	ochrobactrum_sp.	non_classical	Contig	15	0	0	26	no
+GCF_018138325.1	ochrobactrum_oryzae	non_classical	Contig	81	0	0	26	no
+GCF_018436065.1	pseudochrobactrum_algeriensis	non_classical	Complete Genome	5	0	0	0	no
+GCF_018436125.1	pseudochrobactrum_algeriensis	non_classical	Complete Genome	5	0	0	0	no
+GCF_018436245.1	pseudochrobactrum_algeriensis	non_classical	Complete Genome	5	0	0	0	no
+GCF_018437805.1	ochrobactrum_sp.	non_classical	Complete Genome	3	0	0	26	no
+GCF_018604785.1	abortus	abortus	Contig	30	0	2	462	yes
+GCF_018798825.1	ochrobactrum_sp.	non_classical	Complete Genome	4	0	0	0	no
+GCF_019100495.1	falsochrobactrum_tianjinense	non_classical	Contig	21	0	0	0	no
+GCF_019464455.1	pseudochrobactrum_sp.	non_classical	Complete Genome	1	0	0	0	no
+GCF_019730395.1	ochrobactrum_sp.	non_classical	Contig	1519	0	0	0	no
+GCF_019998625.1	suis	suis	Chromosome	7	6	6	844	no
+GCF_020341615.1	pseudochrobactrum_sp.	non_classical	Complete Genome	2	0	0	0	no
+GCF_020524305.1	ochrobactrum_anthropi	non_classical	Contig	28	0	0	0	no
+GCF_020526685.1	ochrobactrum_intermedia	non_classical	Scaffold	29	0	0	0	no
+GCF_021083425.1	ochrobactrum_pseudogrignonensis	non_classical	Contig	26	0	0	0	no
+GCF_021165815.1	ochrobactrum_anthropi	non_classical	Complete Genome	4	0	0	0	no
+GCF_021733655.1	pseudochrobactrum_asaccharolyticum	non_classical	Contig	39	0	0	0	no
+GCF_022024335.1	ochrobactrum_pseudogrignonensis	non_classical	Complete Genome	3	0	0	0	no
+GCF_022426845.1	abortus	abortus	Contig	54	0	2	389	yes
+GCF_022426885.1	abortus	abortus	Contig	32	0	6	510	yes
+GCF_022426895.1	abortus	abortus	Contig	33	0	5	510	yes
+GCF_022488005.1	ochrobactrum_sp.	non_classical	Contig	10	0	0	0	no
+GCF_022538045.1	ochrobactrum_ciceri	non_classical	Contig	32	0	0	0	no
+GCF_022627935.1	ochrobactrum_sp.	non_classical	Contig	157	0	0	26	no
+GCF_023093775.1	melitensis	melitensis	Contig	26	0	1	521	yes
+GCF_023108915.1	ochrobactrum_tritici	non_classical	Contig	6	0	0	0	no
+GCF_023130505.1	ochrobactrum_pituitosa	non_classical	Contig	82	0	0	0	no
+GCF_023650975.1	abortus	abortus	Chromosome	35	2	2	712	no
+GCF_023650995.1	abortus	abortus	Chromosome	34	4	4	808	no
+GCF_023651015.1	abortus	abortus	Chromosome	34	4	4	808	no
+GCF_023651035.1	abortus	abortus	Chromosome	33	2	2	712	no
+GCF_023651055.1	abortus	abortus	Chromosome	33	4	4	808	no
+GCF_023651075.1	abortus	abortus	Chromosome	35	4	4	808	no
+GCF_023651095.1	abortus	abortus	Chromosome	39	2	2	712	no
+GCF_023651115.1	abortus	abortus	Chromosome	35	4	4	808	no
+GCF_023651135.1	abortus	abortus	Chromosome	34	4	4	808	no
+GCF_023651155.1	abortus	abortus	Chromosome	35	4	4	808	no
+GCF_023651175.1	abortus	abortus	Chromosome	40	2	2	712	no
+GCF_023651195.1	abortus	abortus	Chromosome	37	0	2	612	no
+GCF_023651215.1	abortus	abortus	Chromosome	37	0	2	612	no
+GCF_023651235.1	abortus	abortus	Chromosome	31	0	2	486	no
+GCF_023651255.1	abortus	abortus	Chromosome	36	0	2	612	no
+GCF_023651275.1	abortus	abortus	Chromosome	43	2	2	712	no
+GCF_023651295.1	abortus	abortus	Chromosome	40	0	2	486	no
+GCF_023651315.1	abortus	abortus	Chromosome	34	0	2	486	no
+GCF_023651355.1	abortus	abortus	Chromosome	36	2	2	689	no
+GCF_023651375.1	abortus	abortus	Chromosome	36	2	2	712	no
+GCF_023651415.1	abortus	abortus	Chromosome	39	2	2	712	no
+GCF_023651435.1	abortus	abortus	Chromosome	35	0	2	483	no
+GCF_023651455.1	abortus	abortus	Chromosome	32	2	2	689	no
+GCF_023651475.1	abortus	abortus	Chromosome	36	0	2	612	no
+GCF_023651495.1	abortus	abortus	Chromosome	33	4	4	808	no
+GCF_023651515.1	abortus	abortus	Chromosome	36	4	4	808	no
+GCF_023651535.1	abortus	abortus	Chromosome	32	4	4	808	no
+GCF_023651555.1	abortus	abortus	Chromosome	37	2	2	712	no
+GCF_023651575.1	abortus	abortus	Chromosome	39	2	2	712	no
+GCF_023651595.1	abortus	abortus	Chromosome	33	4	4	808	no
+GCF_023651615.1	abortus	abortus	Chromosome	37	4	4	808	no
+GCF_023651635.1	abortus	abortus	Chromosome	32	4	4	808	no
+GCF_023651655.1	abortus	abortus	Chromosome	40	2	2	741	no
+GCF_023651675.1	abortus	abortus	Chromosome	37	2	2	712	no
+GCF_023651695.1	abortus	abortus	Chromosome	29	2	2	842	no
+GCF_023651805.1	abortus	abortus	Chromosome	34	4	5	808	no
+GCF_023651845.1	abortus	abortus	Chromosome	39	2	2	712	no
+GCF_023704275.1	abortus	abortus	Chromosome	37	4	4	808	no
+GCF_023796775.1	melitensis	melitensis	Complete Genome	2	9	9	845	no
+GCF_024126535.1	ochrobactrum_intermedia	non_classical	Contig	37	0	0	0	no
+GCF_024127925.1	ochrobactrum_intermedia	non_classical	Contig	103	0	0	0	no
+GCF_024539785.1	ochrobactrum_sp.	non_classical	Contig	98	0	0	0	no
+GCF_024701725.1	ochrobactrum_sp.	non_classical	Scaffold	86	0	0	0	no
+GCF_024720755.1	ochrobactrum_anthropi	non_classical	Contig	68	0	0	26	no
+GCF_024799785.1	ochrobactrum_anthropi	non_classical	Complete Genome	5	0	0	26	no
+GCF_024802385.1	melitensis	melitensis	Complete Genome	2	9	9	843	no
+GCF_024970345.1	sp.	held_out	Complete Genome	2	3	4	837	no
+GCF_024970695.1	sp.	held_out	Complete Genome	2	10	10	847	no
+GCF_024970895.1	sp.	held_out	Complete Genome	2	10	10	847	no
+GCF_025118245.1	ochrobactrum_pseudintermedia	non_classical	Complete Genome	2	0	0	0	no
+GCF_025490555.1	ochrobactrum_intermedia	non_classical	Complete Genome	3	0	0	0	no
+GCF_025846885.2	sp.	held_out	Contig	82	0	0	0	no
+GCF_025908475.1	sp.	held_out	Complete Genome	4	0	0	0	no
+GCF_026014005.1	sp.	held_out	Complete Genome	2	0	0	0	no
+GCF_026241335.1	ochrobactrum_chromiisoli	non_classical	Contig	52	0	0	0	no
+GCF_026256505.1	ochrobactrum_intermedia	non_classical	Scaffold	80	0	0	0	no
+GCF_026256545.1	ochrobactrum_intermedia	non_classical	Scaffold	113	0	0	0	no
+GCF_026256565.1	ochrobactrum_intermedia	non_classical	Contig	296	0	0	0	no
+GCF_026256585.1	ochrobactrum_intermedia	non_classical	Scaffold	79	0	0	0	no
+GCF_026256595.1	ochrobactrum_intermedia	non_classical	Scaffold	75	0	0	0	no
+GCF_026256925.1	ochrobactrum_intermedia	non_classical	Contig	678	0	0	0	no
+GCF_026413105.1	melitensis	melitensis	Scaffold	196	0	0	350	yes
+GCF_026586705.1	melitensis	melitensis	Scaffold	39	0	2	477	yes
+GCF_027625455.1	melitensis	melitensis	Complete Genome	2	9	9	844	no
+GCF_028129055.1	melitensis	melitensis	Contig	36	0	1	661	yes
+GCF_028129065.1	melitensis	melitensis	Contig	47	0	1	661	yes
+GCF_028129075.1	melitensis	melitensis	Contig	38	0	1	661	yes
+GCF_028129085.1	melitensis	melitensis	Contig	45	0	1	661	yes
+GCF_028620645.1	ochrobactrum_intermedia	non_classical	Contig	101	0	0	0	no
+GCF_028620865.1	ochrobactrum_anthropi	non_classical	Contig	140	0	0	26	no
+GCF_028620895.1	ochrobactrum_intermedia	non_classical	Contig	141	0	0	0	no
+GCF_028620965.1	ochrobactrum_intermedia	non_classical	Contig	141	0	0	0	no
+GCF_028621035.1	ochrobactrum_gallinifaecis	non_classical	Contig	142	0	0	0	no
+GCF_028621395.1	ochrobactrum_intermedia	non_classical	Contig	220	0	0	0	no
+GCF_029324845.1	abortus	abortus	Scaffold	19	3	3	842	yes
+GCF_029324855.1	abortus	abortus	Scaffold	24	1	1	842	yes
+GCF_029324865.1	abortus	abortus	Contig	23	0	0	186	yes
+GCF_029324875.1	abortus	abortus	Contig	26	2	2	842	yes
+GCF_029324915.1	abortus	abortus	Scaffold	19	2	2	842	yes
+GCF_029324945.1	abortus	abortus	Scaffold	22	1	1	713	yes
+GCF_029452315.1	melitensis	melitensis	Contig	24	0	5	422	yes
+GCF_029452385.1	melitensis	melitensis	Contig	27	0	2	422	yes
+GCF_029452405.1	melitensis	melitensis	Contig	27	0	6	422	yes
+GCF_029452425.1	melitensis	melitensis	Contig	26	0	2	422	yes
+GCF_029452465.1	melitensis	melitensis	Contig	22	0	6	422	yes
+GCF_029452475.1	melitensis	melitensis	Contig	25	0	6	422	yes
+GCF_029452545.1	melitensis	melitensis	Contig	24	0	2	422	yes
+GCF_029452585.1	melitensis	melitensis	Contig	22	0	6	422	yes
+GCF_029452595.1	melitensis	melitensis	Contig	22	0	6	422	yes
+GCF_029452625.1	melitensis	melitensis	Contig	24	0	6	422	yes
+GCF_029452665.1	melitensis	melitensis	Contig	26	0	6	513	yes
+GCF_029452685.1	melitensis	melitensis	Contig	24	0	6	422	yes
+GCF_029452695.1	melitensis	melitensis	Contig	26	0	0	379	yes
+GCF_029452725.1	melitensis	melitensis	Contig	25	0	6	513	yes
+GCF_029452745.1	melitensis	melitensis	Contig	24	0	6	422	yes
+GCF_029452765.1	melitensis	melitensis	Contig	24	0	2	422	yes
+GCF_029452785.1	melitensis	melitensis	Contig	27	0	6	488	yes
+GCF_029452805.1	melitensis	melitensis	Contig	24	0	6	422	yes
+GCF_029452825.1	melitensis	melitensis	Contig	25	0	6	422	yes
+GCF_029452845.1	melitensis	melitensis	Contig	25	0	6	422	yes
+GCF_029452865.1	melitensis	melitensis	Contig	25	0	6	422	yes
+GCF_029452885.1	melitensis	melitensis	Contig	25	0	6	422	yes
+GCF_029452905.1	melitensis	melitensis	Contig	26	0	5	422	yes
+GCF_029452925.1	melitensis	melitensis	Contig	27	0	6	422	yes
+GCF_029452945.1	melitensis	melitensis	Contig	25	0	6	422	yes
+GCF_029452965.1	melitensis	melitensis	Contig	25	0	5	422	yes
+GCF_029452985.1	melitensis	melitensis	Contig	24	0	6	422	yes
+GCF_029452995.1	melitensis	melitensis	Contig	25	0	2	422	yes
+GCF_029453025.1	melitensis	melitensis	Contig	23	0	5	422	yes
+GCF_029453045.1	melitensis	melitensis	Contig	27	0	6	422	yes
+GCF_029453065.1	melitensis	melitensis	Contig	24	0	6	513	yes
+GCF_029453085.1	melitensis	melitensis	Contig	22	0	6	422	yes
+GCF_029453095.1	melitensis	melitensis	Contig	25	0	6	422	yes
+GCF_029453125.1	melitensis	melitensis	Contig	25	0	0	352	yes
+GCF_029453145.1	melitensis	melitensis	Contig	26	0	6	422	yes
+GCF_029453165.1	melitensis	melitensis	Contig	24	0	3	646	yes
+GCF_029453185.1	melitensis	melitensis	Contig	23	0	6	422	yes
+GCF_029453205.1	melitensis	melitensis	Contig	26	0	5	422	yes
+GCF_029453225.1	melitensis	melitensis	Contig	25	0	3	422	yes
+GCF_029453245.1	melitensis	melitensis	Contig	24	0	6	422	yes
+GCF_029453265.1	melitensis	melitensis	Contig	22	0	6	513	yes
+GCF_029453275.1	melitensis	melitensis	Contig	26	0	5	422	yes
+GCF_029453305.1	melitensis	melitensis	Contig	22	0	6	422	yes
+GCF_029453325.1	melitensis	melitensis	Contig	24	0	6	422	yes
+GCF_029453345.1	melitensis	melitensis	Contig	22	0	2	422	yes
+GCF_029453365.1	melitensis	melitensis	Contig	23	0	5	422	yes
+GCF_029453385.1	melitensis	melitensis	Contig	25	0	2	422	yes
+GCF_029453405.1	melitensis	melitensis	Contig	25	0	2	422	yes
+GCF_029453425.1	melitensis	melitensis	Contig	23	0	5	422	yes
+GCF_029532195.1	melitensis	melitensis	Contig	26	0	6	422	yes
+GCF_029532215.1	melitensis	melitensis	Contig	26	0	7	539	yes
+GCF_029532235.1	melitensis	melitensis	Contig	25	0	8	422	yes
+GCF_029532255.1	melitensis	melitensis	Contig	24	0	6	422	yes
+GCF_029532275.1	melitensis	melitensis	Contig	28	1	3	681	yes
+GCF_029532295.1	melitensis	melitensis	Contig	25	0	6	422	yes
+GCF_029532315.1	melitensis	melitensis	Contig	27	0	6	422	yes
+GCF_029532335.1	melitensis	melitensis	Contig	24	0	6	422	yes
+GCF_029532355.1	melitensis	melitensis	Contig	22	1	3	843	yes
+GCF_029532375.1	melitensis	melitensis	Contig	23	0	5	422	yes
+GCF_029834515.1	ochrobactrum_intermedia	non_classical	Complete Genome	2	0	0	26	no
+GCF_029835385.1	ochrobactrum_anthropi	non_classical	Contig	60	0	0	0	no
+GCF_029836675.1	ochrobactrum_anthropi	non_classical	Contig	93	0	0	0	no
+GCF_029837975.1	ochrobactrum_anthropi	non_classical	Contig	90	0	0	0	no
+GCF_029840335.1	ochrobactrum_anthropi	non_classical	Contig	87	0	0	0	no
+GCF_029844765.1	ochrobactrum_anthropi	non_classical	Contig	93	0	0	0	no
+GCF_029855085.1	ochrobactrum_intermedia	non_classical	Complete Genome	2	0	0	0	no
+GCF_029909865.1	ochrobactrum_sp.	non_classical	Contig	25	0	0	0	no
+GCF_029909885.1	ochrobactrum_sp.	non_classical	Contig	41	0	0	0	no
+GCF_030067775.1	ochrobactrum_sp.	non_classical	Chromosome	3	0	0	26	no
+GCF_030157885.1	sp.	held_out	Complete Genome	2	11	11	848	no
+GCF_030264775.1	ochrobactrum_intermedia	non_classical	Contig	21	0	0	0	no
+GCF_030268145.1	sp.	held_out	Scaffold	102	0	0	0	no
+GCF_030270765.1	inopinata	classical_extra	Scaffold	42	3	6	842	yes
+GCF_030362795.1	pseudochrobactrum_kiredjianiae	non_classical	Contig	45	0	0	0	no
+GCF_030370715.1	melitensis	melitensis	Contig	386	1	1	812	yes
+GCF_030376605.1	pseudochrobactrum_sp.	non_classical	Contig	56	0	0	0	no
+GCF_030518775.1	ochrobactrum_anthropi	non_classical	Complete Genome	2	0	0	26	no
+GCF_030685275.1	ochrobactrum_intermedia	non_classical	Chromosome	3	0	0	0	no
+GCF_030761275.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030761295.1	abortus	abortus	Complete Genome	2	4	4	843	no
+GCF_030761315.1	abortus	abortus	Complete Genome	2	5	5	842	no
+GCF_030761335.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030761355.1	abortus	abortus	Complete Genome	2	5	5	842	no
+GCF_030761375.1	abortus	abortus	Complete Genome	2	5	5	842	no
+GCF_030761395.1	abortus	abortus	Complete Genome	2	5	5	842	no
+GCF_030761415.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030761435.1	abortus	abortus	Complete Genome	2	5	5	843	no
+GCF_030761455.1	abortus	abortus	Complete Genome	2	5	5	842	no
+GCF_030761555.1	abortus	abortus	Complete Genome	2	5	5	842	no
+GCF_030761595.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030761615.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030761635.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030761655.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030761715.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030761735.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030761755.1	abortus	abortus	Complete Genome	2	5	6	842	no
+GCF_030761775.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030761795.1	abortus	abortus	Complete Genome	2	5	5	842	no
+GCF_030761815.1	abortus	abortus	Complete Genome	2	5	6	842	no
+GCF_030761835.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030761855.1	abortus	abortus	Complete Genome	2	5	6	842	no
+GCF_030761875.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030761895.1	abortus	abortus	Complete Genome	2	4	4	843	no
+GCF_030761915.1	abortus	abortus	Complete Genome	2	4	5	842	no
+GCF_030761935.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030761955.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030761975.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030761995.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762015.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762035.1	abortus	abortus	Complete Genome	2	5	5	842	no
+GCF_030762055.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762075.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762095.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762115.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762135.1	abortus	abortus	Complete Genome	2	6	6	843	no
+GCF_030762155.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762185.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762215.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762235.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762255.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762275.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762295.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762315.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762335.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762355.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762375.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762395.1	abortus	abortus	Complete Genome	2	5	5	842	no
+GCF_030762415.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762435.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030762555.1	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_030766685.1	pseudochrobactrum_saccharolyticum	non_classical	Contig	16	0	0	0	no
+GCF_031454375.1	ochrobactrum_pseudogrignonensis	non_classical	Contig	28	0	0	0	no
+GCF_032007605.1	sp.	held_out	Scaffold	219	0	0	0	no
+GCF_032066345.1	sp.	held_out	Scaffold	52	0	0	0	no
+GCF_032190615.1	ochrobactrum_pseudogrignonensis	non_classical	Contig	7	0	0	0	no
+GCF_032250335.1	melitensis	melitensis	Contig	49	0	3	422	yes
+GCF_032250355.1	melitensis	melitensis	Contig	48	0	2	413	yes
+GCF_032250375.1	melitensis	melitensis	Contig	47	0	3	422	yes
+GCF_032250395.1	melitensis	melitensis	Contig	50	0	3	422	yes
+GCF_032250415.1	melitensis	melitensis	Contig	46	0	2	407	yes
+GCF_032250435.1	melitensis	melitensis	Scaffold	34	5	6	843	yes
+GCF_032250455.1	melitensis	melitensis	Contig	84	0	3	417	yes
+GCF_032250475.1	melitensis	melitensis	Contig	61	0	0	339	yes
+GCF_032252515.1	melitensis	melitensis	Contig	52	0	2	401	yes
+GCF_032252535.1	melitensis	melitensis	Contig	49	0	2	401	yes
+GCF_032252555.1	melitensis	melitensis	Contig	64	0	1	273	yes
+GCF_032252575.1	melitensis	melitensis	Contig	61	0	2	415	yes
+GCF_032252595.1	melitensis	melitensis	Contig	48	0	2	411	yes
+GCF_032252615.1	melitensis	melitensis	Scaffold	31	4	7	844	yes
+GCF_032252635.1	melitensis	melitensis	Scaffold	37	3	5	843	yes
+GCF_032252655.1	melitensis	melitensis	Contig	63	0	0	347	yes
+GCF_032252675.1	melitensis	melitensis	Contig	65	0	0	343	yes
+GCF_032252695.1	melitensis	melitensis	Scaffold	32	5	6	843	yes
+GCF_032252715.1	melitensis	melitensis	Contig	49	0	2	407	yes
+GCF_032252735.1	melitensis	melitensis	Contig	75	0	0	282	yes
+GCF_032424095.1	abortus	abortus	Scaffold	62	0	4	548	yes
+GCF_033799005.1	sp.	held_out	Contig	266	0	0	26	no
+GCF_034296205.1	melitensis	melitensis	Contig	20	1	1	843	yes
+GCF_036287805.1	abortus	abortus	Complete Genome	2	5	5	843	no
+GCF_036320855.1	melitensis	melitensis	Complete Genome	2	9	9	845	no
+GCF_036454765.1	melitensis	melitensis	Contig	24	0	0	66	yes
+GCF_036454775.1	melitensis	melitensis	Contig	25	0	0	138	yes
+GCF_036454785.1	melitensis	melitensis	Contig	24	0	0	66	yes
+GCF_036454795.1	melitensis	melitensis	Contig	24	0	0	66	yes
+GCF_036454805.1	melitensis	melitensis	Contig	24	0	0	66	yes
+GCF_036454865.1	melitensis	melitensis	Contig	25	0	0	138	yes
+GCF_036454875.1	melitensis	melitensis	Contig	24	0	0	93	yes
+GCF_036454885.1	melitensis	melitensis	Contig	25	0	0	138	yes
+GCF_036454895.1	melitensis	melitensis	Contig	26	0	0	129	yes
+GCF_036454905.1	melitensis	melitensis	Contig	25	0	0	138	yes
+GCF_036454965.1	melitensis	melitensis	Contig	24	0	0	66	yes
+GCF_036454975.1	melitensis	melitensis	Contig	24	0	0	93	yes
+GCF_036454985.1	melitensis	melitensis	Contig	33	0	0	93	yes
+GCF_036454995.1	melitensis	melitensis	Contig	24	0	0	66	yes
+GCF_036455005.1	melitensis	melitensis	Contig	25	0	0	129	yes
+GCF_036455065.1	melitensis	melitensis	Contig	24	0	0	93	yes
+GCF_036455075.1	melitensis	melitensis	Contig	25	0	0	22	yes
+GCF_036455085.1	melitensis	melitensis	Contig	27	0	0	66	yes
+GCF_036455095.1	melitensis	melitensis	Contig	25	0	0	93	yes
+GCF_036455105.1	melitensis	melitensis	Contig	24	0	0	66	yes
+GCF_036455165.1	melitensis	melitensis	Contig	69	0	0	80	yes
+GCF_036455185.1	melitensis	melitensis	Contig	26	0	0	129	yes
+GCF_036455195.1	melitensis	melitensis	Contig	25	0	0	129	yes
+GCF_036967195.1	melitensis	melitensis	Complete Genome	2	8	8	843	no
+GCF_037450695.1	abortus	abortus	Contig	73	0	0	302	yes
+GCF_037479275.1	ochrobactrum_pseudogrignonensis	non_classical	Contig	3	0	0	0	no
+GCF_037479295.1	ochrobactrum_anthropi	non_classical	Contig	3	0	0	26	no
+GCF_037479355.1	ochrobactrum_vermis	non_classical	Contig	3	0	0	26	no
+GCF_037479515.1	ochrobactrum_sp.	non_classical	Contig	47	0	0	0	no
+GCF_037482325.1	ochrobactrum_teleogrylli	non_classical	Contig	3	0	0	26	no
+GCF_037990555.1	ochrobactrum_pseudintermedia	non_classical	Contig	3	0	0	0	no
+GCF_038420175.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_038420185.1	suis	suis	Complete Genome	2	7	7	843	no
+GCF_038420195.1	abortus	abortus	Complete Genome	5	6	6	842	no
+GCF_038433355.1	ochrobactrum_cytisi	non_classical	Contig	55	0	0	0	no
+GCF_039522165.1	paenochrobactrum_glaciei	non_classical	Contig	56	0	0	0	no
+GCF_039545455.1	sp.	held_out	Complete Genome	2	0	0	26	no
+GCF_039631535.1	ochrobactrum_sp.	non_classical	Contig	7	0	0	0	no
+GCF_039649295.1	melitensis	melitensis	Contig	36	0	1	532	yes
+GCF_039649315.1	melitensis	melitensis	Contig	287	0	1	532	yes
+GCF_039649495.1	melitensis	melitensis	Contig	42	0	3	462	yes
+GCF_039649515.1	melitensis	melitensis	Contig	30	0	1	556	yes
+GCF_039649525.1	melitensis	melitensis	Contig	39	0	2	367	yes
+GCF_039649545.1	melitensis	melitensis	Contig	38	0	1	361	yes
+GCF_039649575.1	abortus	abortus	Contig	159	0	2	490	yes
+GCF_039649615.1	abortus	abortus	Contig	83	0	3	381	yes
+GCF_039672885.1	ochrobactrum_intermedia	non_classical	Contig	43	0	0	0	no
+GCF_039673405.1	ochrobactrum_anthropi	non_classical	Contig	25	0	0	26	no
+GCF_039673925.1	ochrobactrum_pseudintermedia	non_classical	Contig	111	0	0	0	no
+GCF_039674265.1	sp.	held_out	Contig	103	0	0	0	no
+GCF_039674385.1	ochrobactrum_pseudintermedia	non_classical	Contig	112	0	0	0	no
+GCF_039674445.1	sp.	held_out	Contig	80	0	0	0	no
+GCF_039674665.1	ochrobactrum_pseudintermedia	non_classical	Contig	106	0	0	0	no
+GCF_039674685.1	ochrobactrum_pseudintermedia	non_classical	Contig	111	0	0	0	no
+GCF_039674745.1	ochrobactrum_intermedia	non_classical	Contig	38	0	0	0	no
+GCF_039748015.1	abortus	abortus	Scaffold	189	0	2	488	yes
+GCF_039756635.1	melitensis	melitensis	Contig	28	1	2	843	yes
+GCF_040105175.1	melitensis	melitensis	Scaffold	31	0	0	112	yes
+GCF_040105185.1	melitensis	melitensis	Scaffold	33	0	0	271	yes
+GCF_040105215.1	melitensis	melitensis	Scaffold	32	0	0	153	yes
+GCF_040105225.1	melitensis	melitensis	Scaffold	58	0	0	115	yes
+GCF_040105235.1	melitensis	melitensis	Scaffold	28	0	0	415	yes
+GCF_040250265.1	ochrobactrum_intermedia	non_classical	Complete Genome	2	0	0	0	no
+GCF_040366835.1	sp.	held_out	Contig	22	0	0	26	no
+GCF_040368495.1	sp.	held_out	Contig	29	0	0	0	no
+GCF_040369775.1	sp.	held_out	Contig	21	0	0	0	no
+GCF_040370055.1	sp.	held_out	Contig	44	0	0	0	no
+GCF_040371715.1	sp.	held_out	Contig	68	0	0	0	no
+GCF_040372265.1	sp.	held_out	Contig	24	0	0	26	no
+GCF_040406615.1	suis	suis	Contig	32	0	0	91	yes
+GCF_040956035.1	ochrobactrum_intermedia	non_classical	Contig	41	0	0	0	no
+GCF_041861985.1	abortus	abortus	Contig	24	2	2	842	no
+GCF_041929805.1	pseudochrobactrum_saccharolyticum	non_classical	Scaffold	34	0	0	0	no
+GCF_041929825.1	paenochrobactrum_glaciei	non_classical	Scaffold	48	0	0	0	no
+GCF_041929845.1	paenochrobactrum_pullorum	non_classical	Scaffold	67	0	0	0	no
+GCF_041929865.1	pseudochrobactrum_lubricantis	non_classical	Scaffold	68	0	0	0	no
+GCF_041929885.1	pseudochrobactrum_asaccharolyticum	non_classical	Scaffold	55	0	0	0	no
+GCF_041929905.1	paenochrobactrum_gallinarii	non_classical	Scaffold	119	0	0	0	no
+GCF_041929925.1	pseudochrobactrum_kiredjianiae	non_classical	Scaffold	67	0	0	0	no
+GCF_041929945.1	ochrobactrum_pseudogrignonensis	non_classical	Scaffold	88	0	0	0	no
+GCF_041929965.1	ochrobactrum_oryzae	non_classical	Scaffold	89	0	0	0	no
+GCF_041929985.1	ochrobactrum_pituitosa	non_classical	Scaffold	52	0	0	0	no
+GCF_041930005.1	ochrobactrum_rhizosphaerae	non_classical	Scaffold	50	0	0	0	no
+GCF_041930025.1	ochrobactrum_thiophenivorans	non_classical	Scaffold	100	0	0	0	no
+GCF_041930045.1	ochrobactrum_lupini	non_classical	Scaffold	79	0	0	26	no
+GCF_041930065.1	ochrobactrum_haematophila	non_classical	Scaffold	80	0	0	0	no
+GCF_041930085.1	ochrobactrum_grignonensis	non_classical	Scaffold	56	0	0	0	no
+GCF_041930105.1	ochrobactrum_daejeonensis	non_classical	Scaffold	91	0	0	0	no
+GCF_041930145.1	ochrobactrum_ciceri	non_classical	Scaffold	44	0	0	0	no
+GCF_041930165.1	ochrobactrum_cytisi	non_classical	Scaffold	88	0	0	0	no
+GCF_041930225.1	falsochrobactrum_ovis	non_classical	Scaffold	49	0	0	0	no
+GCF_042271025.1	ochrobactrum_cytisi	non_classical	Scaffold	63	0	0	0	no
+GCF_042432585.1	falsochrobactrum_ovis	non_classical	Scaffold	53	0	0	0	no
+GCF_042647805.1	falsochrobactrum_ovis	non_classical	Contig	15	0	0	0	no
+GCF_042662705.1	ochrobactrum_rhizosphaerae	non_classical	Contig	4	0	0	0	no
+GCF_042678965.1	pseudochrobactrum_kiredjianiae	non_classical	Contig	49	0	0	0	no
+GCF_042679345.1	ochrobactrum_gallinifaecis	non_classical	Contig	46	0	0	0	no
+GCF_042681285.1	ochrobactrum_teleogrylli	non_classical	Contig	51	0	0	26	no
+GCF_042685525.1	ochrobactrum_rhizosphaerae	non_classical	Contig	4	0	0	0	no
+GCF_042697365.1	ochrobactrum_pseudintermedia	non_classical	Complete Genome	4	0	0	0	no
+GCF_042741075.1	ochrobactrum_anthropi	non_classical	Scaffold	25	0	0	26	no
+GCF_042741145.1	ochrobactrum_anthropi	non_classical	Scaffold	30	0	0	26	no
+GCF_043420855.1	abortus	abortus	Contig	29	1	1	681	yes
+GCF_043420865.1	abortus	abortus	Contig	23	1	1	842	yes
+GCF_043420895.1	abortus	abortus	Contig	30	0	1	508	yes
+GCF_043420995.1	abortus	abortus	Contig	17	1	1	842	yes
+GCF_044435015.1	ochrobactrum_sp.	non_classical	Contig	110	0	0	0	no
+GCF_044900405.1	ochrobactrum_teleogrylli	non_classical	Contig	43	0	0	26	no
+GCF_044901305.1	ochrobactrum_anthropi	non_classical	Scaffold	40	0	0	0	no
+GCF_044923465.1	amazoniensis	classical_extra	Chromosome	29	0	0	66	yes
+GCF_044987085.1	amazoniensis	classical_extra	Chromosome	28	0	2	373	yes
+GCF_044987565.1	paenochrobactrum_sp.	non_classical	Contig	60	0	0	0	no
+GCF_044987585.2	paenochrobactrum_sp.	non_classical	Contig	53	0	0	0	no
+GCF_044987635.1	ochrobactrum_quorumnocens	non_classical	Contig	153	0	0	0	no
+GCF_045032515.1	sp.	held_out	Scaffold	23	0	0	0	no
+GCF_045798385.1	melitensis	melitensis	Contig	38	0	0	216	yes
+GCF_045798425.1	melitensis	melitensis	Contig	37	0	0	216	yes
+GCF_045798465.1	melitensis	melitensis	Contig	38	0	0	216	yes
+GCF_045798485.1	melitensis	melitensis	Contig	37	0	0	216	yes
+GCF_045798505.1	melitensis	melitensis	Contig	37	0	0	216	yes
+GCF_045798525.1	melitensis	melitensis	Contig	236	0	0	216	yes
+GCF_045945455.1	ochrobactrum_pseudogrignonensis	non_classical	Complete Genome	4	0	0	0	no
+GCF_046097035.1	ochrobactrum_pseudogrignonensis	non_classical	Complete Genome	5	0	0	0	no
+GCF_046531905.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_046531915.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_046630315.1	ochrobactrum_anthropi	non_classical	Contig	39	0	0	0	no
+GCF_046718895.1	melitensis	melitensis	Contig	35	0	1	372	yes
+GCF_046722485.1	melitensis	melitensis	Contig	29	0	0	302	yes
+GCF_046722495.1	melitensis	melitensis	Contig	27	1	1	842	yes
+GCF_046722505.1	melitensis	melitensis	Contig	27	0	0	302	yes
+GCF_046722555.1	melitensis	melitensis	Contig	29	0	0	302	yes
+GCF_046722565.1	melitensis	melitensis	Contig	32	0	0	173	yes
+GCF_046722575.1	melitensis	melitensis	Contig	26	0	0	302	yes
+GCF_046722595.1	melitensis	melitensis	Contig	31	0	0	302	yes
+GCF_046722655.1	melitensis	melitensis	Contig	33	0	0	302	yes
+GCF_046722675.1	melitensis	melitensis	Contig	33	0	0	302	yes
+GCF_046722685.1	melitensis	melitensis	Contig	32	1	1	842	yes
+GCF_046722715.1	melitensis	melitensis	Contig	23	0	0	173	yes
+GCF_046722725.1	melitensis	melitensis	Contig	29	0	0	173	yes
+GCF_046722745.1	melitensis	melitensis	Contig	28	0	0	173	yes
+GCF_046722775.1	melitensis	melitensis	Contig	30	0	0	173	yes
+GCF_046722795.1	melitensis	melitensis	Contig	26	0	0	173	yes
+GCF_046722805.1	melitensis	melitensis	Contig	34	0	0	173	yes
+GCF_046722815.1	melitensis	melitensis	Contig	26	0	0	173	yes
+GCF_046722825.1	melitensis	melitensis	Contig	29	0	0	173	yes
+GCF_046722875.1	melitensis	melitensis	Contig	25	0	0	173	yes
+GCF_046722895.1	melitensis	melitensis	Contig	28	0	0	173	yes
+GCF_046722915.1	melitensis	melitensis	Contig	26	0	0	173	yes
+GCF_046722925.1	melitensis	melitensis	Contig	31	0	0	173	yes
+GCF_046722935.1	melitensis	melitensis	Contig	32	0	0	173	yes
+GCF_046722955.1	melitensis	melitensis	Contig	29	0	0	173	yes
+GCF_046722995.1	melitensis	melitensis	Contig	27	0	0	173	yes
+GCF_046723015.1	melitensis	melitensis	Contig	27	0	0	173	yes
+GCF_046723025.1	melitensis	melitensis	Contig	29	0	0	173	yes
+GCF_046723035.1	melitensis	melitensis	Contig	33	0	0	173	yes
+GCF_046723055.1	melitensis	melitensis	Contig	29	0	0	173	yes
+GCF_046723065.1	melitensis	melitensis	Contig	31	0	0	173	yes
+GCF_046723115.1	melitensis	melitensis	Contig	24	0	0	163	yes
+GCF_046723135.1	melitensis	melitensis	Contig	25	0	0	163	yes
+GCF_046723145.1	melitensis	melitensis	Contig	27	0	0	173	yes
+GCF_046723165.1	melitensis	melitensis	Contig	26	0	0	173	yes
+GCF_046723185.1	melitensis	melitensis	Contig	26	0	0	173	yes
+GCF_047308065.1	sp.	held_out	Contig	6	0	0	0	no
+GCF_047324095.1	ceti	ceti	Complete Genome	2	40	40	842	no
+GCF_047324105.1	ceti	ceti	Complete Genome	2	40	40	842	no
+GCF_047324115.1	ceti	ceti	Complete Genome	2	40	40	842	no
+GCF_047612765.1	melitensis	melitensis	Contig	32	0	1	356	yes
+GCF_047612945.1	melitensis	melitensis	Contig	31	0	1	385	yes
+GCF_047612965.1	melitensis	melitensis	Contig	30	0	1	471	yes
+GCF_047612985.1	melitensis	melitensis	Contig	28	0	1	385	yes
+GCF_047612995.1	melitensis	melitensis	Scaffold	29	0	1	423	yes
+GCF_047613025.1	melitensis	melitensis	Contig	32	0	1	471	yes
+GCF_047613045.1	melitensis	melitensis	Contig	30	0	1	423	yes
+GCF_047613055.1	melitensis	melitensis	Contig	30	0	1	471	yes
+GCF_047613065.1	melitensis	melitensis	Scaffold	32	0	2	462	yes
+GCF_047613285.1	melitensis	melitensis	Contig	30	0	1	400	yes
+GCF_047708795.1	sp.	held_out	Contig	18	0	0	26	no
+GCF_047975965.1	ochrobactrum_anthropi	non_classical	Scaffold	22	0	0	0	no
+GCF_048398275.1	ochrobactrum_intermedia	non_classical	Complete Genome	2	0	0	0	no
+GCF_048884725.1	melitensis	melitensis	Contig	323	0	1	351	yes
+GCF_048884745.1	melitensis	melitensis	Contig	216	0	0	385	yes
+GCF_048914685.1	pseudochrobactrum_mosebachae	non_classical	Complete Genome	2	0	0	0	no
+GCF_049065255.1	ochrobactrum_ciceri	non_classical	Contig	53	0	0	0	no
+GCF_049065635.1	sp.	held_out	Contig	37	0	0	0	no
+GCF_049065735.1	sp.	held_out	Contig	34	0	0	0	no
+GCF_049065885.1	sp.	held_out	Contig	50	0	0	0	no
+GCF_049198885.1	ochrobactrum_pseudogrignonensis	non_classical	Scaffold	31	0	0	0	no
+GCF_049198905.1	ochrobactrum_quorumnocens	non_classical	Contig	76	0	0	0	no
+GCF_049198915.1	ochrobactrum_pseudogrignonensis	non_classical	Scaffold	33	0	0	0	no
+GCF_049198945.1	ochrobactrum_quorumnocens	non_classical	Scaffold	78	0	0	0	no
+GCF_049198965.1	ochrobactrum_pseudogrignonensis	non_classical	Scaffold	35	0	0	0	no
+GCF_049198975.1	ochrobactrum_quorumnocens	non_classical	Scaffold	74	0	0	0	no
+GCF_049199085.1	ochrobactrum_sp.	non_classical	Contig	50	0	0	34	no
+GCF_049726565.1	ochrobactrum_pituitosa	non_classical	Scaffold	5	0	0	0	no
+GCF_050039785.1	canis	canis	Contig	32	0	1	515	yes
+GCF_050353195.1	sp.	held_out	Contig	3	5	5	843	no
+GCF_050410755.1	sp.	held_out	Chromosome	2	5	5	843	no
+GCF_050410765.1	sp.	held_out	Chromosome	1	5	5	843	no
+GCF_050496115.1	abortus	abortus	Chromosome	137	0	1	434	no
+GCF_050496145.1	canis	canis	Chromosome	70	0	1	468	no
+GCF_050496155.1	suis	suis	Chromosome	41	0	0	290	no
+GCF_050496165.1	ovis	ovis	Chromosome	86	0	0	257	no
+GCF_050496175.1	melitensis	melitensis	Chromosome	71	0	0	225	no
+GCF_050496205.1	melitensis	melitensis	Chromosome	78	0	0	245	no
+GCF_050496215.1	abortus	abortus	Chromosome	60	0	1	408	no
+GCF_050496265.1	melitensis	melitensis	Chromosome	69	0	0	259	no
+GCF_050496275.1	melitensis	melitensis	Chromosome	141	0	0	201	no
+GCF_050496325.1	melitensis	melitensis	Chromosome	84	0	0	246	no
+GCF_050496335.1	melitensis	melitensis	Chromosome	193	0	0	244	no
+GCF_050496365.1	suis	suis	Chromosome	43	0	0	281	no
+GCF_050496375.1	abortus	abortus	Chromosome	56	0	1	427	no
+GCF_050496385.1	abortus	abortus	Chromosome	57	0	1	435	no
+GCF_050496395.1	melitensis	melitensis	Chromosome	66	0	0	247	no
+GCF_050496985.1	melitensis	melitensis	Chromosome	63	0	0	271	no
+GCF_050497015.1	abortus	abortus	Chromosome	74	0	0	358	no
+GCF_050497565.1	abortus	abortus	Chromosome	60	0	1	494	no
+GCF_050497595.1	abortus	abortus	Chromosome	107	0	2	454	no
+GCF_050498085.1	abortus	abortus	Chromosome	145	0	2	475	no
+GCF_050498095.1	abortus	abortus	Chromosome	43	0	2	494	no
+GCF_050726115.1	ochrobactrum_tritici	non_classical	Contig	61	0	0	0	no
+GCF_050815205.1	ceti	ceti	Chromosome	45	0	0	292	yes
+GCF_050870815.1	ochrobactrum_anthropi	non_classical	Complete Genome	3	0	0	26	no
+GCF_050971665.1	ochrobactrum_anthropi	non_classical	Contig	21	0	0	26	no
+GCF_050982715.1	ochrobactrum_anthropi	non_classical	Complete Genome	3	0	0	26	no
+GCF_050990685.1	ochrobactrum_anthropi	non_classical	Complete Genome	2	0	0	26	no
+GCF_050990715.1	ochrobactrum_pseudogrignonensis	non_classical	Complete Genome	3	0	0	26	no
+GCF_051016495.1	abortus	abortus	Contig	44	0	0	208	yes
+GCF_051133335.1	canis	canis	Contig	29	1	1	675	yes
+GCF_051451765.1	ochrobactrum_anthropi	non_classical	Contig	5	0	0	26	no
+GCF_051451985.1	ochrobactrum_anthropi	non_classical	Contig	6	0	0	26	no
+GCF_051486465.1	ochrobactrum_intermedia	non_classical	Contig	66	0	0	0	no
+GCF_051486905.1	ochrobactrum_intermedia	non_classical	Contig	51	0	0	0	no
+GCF_051486925.1	ochrobactrum_intermedia	non_classical	Contig	50	0	0	0	no
+GCF_051487065.1	ochrobactrum_intermedia	non_classical	Contig	52	0	0	0	no
+GCF_051487085.1	ochrobactrum_intermedia	non_classical	Contig	52	0	0	0	no
+GCF_051487105.1	ochrobactrum_intermedia	non_classical	Contig	53	0	0	0	no
+GCF_051487265.1	ochrobactrum_intermedia	non_classical	Contig	51	0	0	0	no
+GCF_051487325.1	ochrobactrum_intermedia	non_classical	Contig	53	0	0	0	no
+GCF_051487385.1	ochrobactrum_intermedia	non_classical	Contig	50	0	0	0	no
+GCF_051487405.1	ochrobactrum_intermedia	non_classical	Contig	54	0	0	0	no
+GCF_051487445.1	ochrobactrum_intermedia	non_classical	Contig	52	0	0	0	no
+GCF_051851455.1	pseudochrobactrum_albidum	non_classical	Contig	24	0	0	0	no
+GCF_051905025.1	melitensis	melitensis	Chromosome	22	0	1	371	no
+GCF_052045675.1	sp.	held_out	Scaffold	207	0	0	26	no
+GCF_052246815.1	sp.	held_out	Contig	74	0	0	0	no
+GCF_052512005.2	abortus	abortus	Complete Genome	2	8	8	842	no
+GCF_052584155.1	abortus	abortus	Contig	80	0	5	420	yes
+GCF_052584285.1	abortus	abortus	Contig	76	0	4	441	yes
+GCF_052585545.1	abortus	abortus	Contig	79	0	5	493	yes
+GCF_052585625.1	abortus	abortus	Contig	77	0	3	458	yes
+GCF_052585645.1	abortus	abortus	Contig	83	0	5	395	yes
+GCF_052585705.1	abortus	abortus	Contig	77	0	5	553	yes
+GCF_052585745.1	abortus	abortus	Contig	73	0	5	420	yes
+GCF_052585765.1	abortus	abortus	Contig	56	0	5	420	yes
+GCF_052585825.1	abortus	abortus	Contig	60	0	5	418	yes
+GCF_052585865.1	abortus	abortus	Contig	59	0	5	424	yes
+GCF_052585885.1	abortus	abortus	Contig	57	0	5	395	yes
+GCF_052585965.1	abortus	abortus	Scaffold	36	1	1	712	yes
+GCF_052618705.1	pseudochrobactrum_asaccharolyticum	non_classical	Complete Genome	3	0	0	0	no
+GCF_052929915.2	abortus	abortus	Complete Genome	2	5	5	843	no
+GCF_052930475.2	abortus	abortus	Complete Genome	2	6	6	842	no
+GCF_052954995.1	abortus	abortus	Contig	18	0	3	539	yes
+GCF_052955015.1	melitensis	melitensis	Contig	24	0	3	422	yes
+GCF_052976585.2	melitensis	melitensis	Complete Genome	2	5	5	843	no
+GCF_053470785.1	melitensis	melitensis	Scaffold	38	0	0	126	yes
+GCF_053470805.1	melitensis	melitensis	Contig	26	0	0	132	yes
+GCF_053470825.1	melitensis	melitensis	Scaffold	26	0	0	145	yes
+GCF_053470845.1	melitensis	melitensis	Scaffold	31	0	1	411	yes
+GCF_053570555.1	amazoniensis	classical_extra	Scaffold	48	1	1	694	yes
+GCF_053609045.1	ochrobactrum_pseudogrignonensis	non_classical	Scaffold	40	0	0	0	no
+GCF_053617095.1	ochrobactrum_cytisi	non_classical	Scaffold	58	0	0	0	no
+GCF_053619275.1	ochrobactrum_cytisi	non_classical	Scaffold	43	0	0	0	no
+GCF_053713455.1	ochrobactrum_lupini	non_classical	Contig	93	0	0	26	no
+GCF_054871705.1	sp.	held_out	Contig	22	0	0	26	no
+GCF_055189575.1	melitensis	melitensis	Scaffold	22	0	0	173	no
+GCF_055382265.1	ochrobactrum_quorumnocens	non_classical	Complete Genome	3	0	0	0	no
+GCF_055388155.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_055388685.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_055389085.1	melitensis	melitensis	Complete Genome	2	6	6	844	no
+GCF_055389475.1	melitensis	melitensis	Complete Genome	2	5	5	842	no
+GCF_055405445.1	ochrobactrum_anthropi	non_classical	Scaffold	84	0	0	26	no
+GCF_055632575.1	amazoniensis	classical_extra	Contig	32	0	0	66	yes
+GCF_055657665.1	suis	suis	Complete Genome	2	8	8	843	no
+GCF_055755155.1	ochrobactrum_anthropi	non_classical	Complete Genome	2	0	0	26	no
+GCF_055816855.1	ochrobactrum_sp.	non_classical	Contig	40	0	0	0	no
+GCF_055816895.1	ochrobactrum_sp.	non_classical	Contig	40	0	0	0	no
+GCF_055817565.1	ochrobactrum_intermedia	non_classical	Contig	28	0	0	0	no
+GCF_056033465.1	ochrobactrum_intermedia	non_classical	Contig	49	0	0	0	no
+GCF_056033505.1	ochrobactrum_intermedia	non_classical	Contig	34	0	0	0	no
+GCF_056033605.1	ochrobactrum_intermedia	non_classical	Contig	54	0	0	0	no
+GCF_056033665.1	ochrobactrum_intermedia	non_classical	Contig	60	0	0	0	no
+GCF_056476905.1	ochrobactrum_intermedia	non_classical	Contig	66	0	0	0	no
+GCF_056582615.1	canis	canis	Complete Genome	2	6	6	844	no
+GCF_056711705.1	ochrobactrum_lupini	non_classical	Contig	36	0	0	26	no
+GCF_056790215.1	ochrobactrum_intermedia	non_classical	Contig	67	0	0	0	no
+GCF_056872435.1	abortus	abortus	Contig	34	0	1	553	yes
+GCF_056872455.1	abortus	abortus	Contig	25	0	1	555	yes
+GCF_056880355.1	abortus	abortus	Contig	26	2	2	842	yes
+GCF_057334275.1	ochrobactrum_pituitosa	non_classical	Contig	77	0	0	0	no
+GCF_057384085.1	suis	suis	Contig	29	1	1	675	yes
+GCF_057384095.1	suis	suis	Contig	33	1	1	771	yes
+GCF_057384125.1	suis	suis	Contig	34	1	1	771	yes
+GCF_057384205.1	suis	suis	Contig	29	1	1	771	yes
+GCF_057384215.1	suis	suis	Contig	29	1	1	675	yes
+GCF_057384235.1	suis	suis	Contig	30	1	1	771	yes
+GCF_057384305.1	suis	suis	Contig	29	1	1	771	yes
+GCF_057384345.1	suis	suis	Contig	32	1	1	675	yes
+GCF_057384365.1	suis	suis	Contig	31	1	1	739	yes
+GCF_057384445.1	suis	suis	Contig	32	1	1	675	yes
+GCF_057384465.1	suis	suis	Contig	32	1	1	675	yes
+GCF_057384485.1	suis	suis	Contig	30	1	1	675	yes
+GCF_057384565.1	suis	suis	Contig	29	1	1	771	yes
+GCF_057387935.1	suis	suis	Contig	31	1	1	739	yes
+GCF_057388045.1	suis	suis	Contig	30	1	1	771	yes
+GCF_057388105.1	suis	suis	Contig	32	1	1	739	yes
+GCF_057388145.1	suis	suis	Contig	30	1	1	771	yes
+GCF_057388155.1	suis	suis	Contig	30	1	1	771	yes
+GCF_057388185.1	suis	suis	Contig	28	1	1	675	yes
+GCF_057388265.1	suis	suis	Contig	30	1	1	739	yes
+GCF_057388275.1	suis	suis	Contig	31	1	1	675	yes
+GCF_057388345.1	suis	suis	Contig	33	1	1	771	yes
+GCF_057388385.1	suis	suis	Contig	29	1	1	739	yes
+GCF_057388395.1	suis	suis	Contig	28	1	1	675	yes
+GCF_057388485.1	suis	suis	Contig	28	1	1	675	yes
+GCF_057388505.1	suis	suis	Contig	34	1	1	739	yes
+GCF_057388515.1	suis	suis	Contig	30	1	1	675	yes
+GCF_057388585.1	suis	suis	Contig	28	1	1	771	yes
+GCF_057388645.1	suis	suis	Contig	28	1	1	771	yes
+GCF_057388655.1	suis	suis	Contig	30	1	1	771	yes
+GCF_057388725.1	suis	suis	Contig	29	1	1	675	yes
+GCF_057655125.1	ochrobactrum_intermedia	non_classical	Contig	18	0	0	0	no
+GCF_057655255.1	ochrobactrum_intermedia	non_classical	Contig	21	0	0	0	no
+GCF_057655495.1	ochrobactrum_intermedia	non_classical	Contig	20	0	0	0	no
+GCF_057655555.1	ochrobactrum_intermedia	non_classical	Contig	18	0	0	0	no
+GCF_057655795.1	ochrobactrum_intermedia	non_classical	Scaffold	31	0	0	0	no
+GCF_057655895.1	ochrobactrum_intermedia	non_classical	Scaffold	45	0	0	0	no
+GCF_057656215.1	ochrobactrum_intermedia	non_classical	Scaffold	41	0	0	0	no
+GCF_057656235.1	ochrobactrum_intermedia	non_classical	Scaffold	35	0	0	0	no
+GCF_057656395.1	ochrobactrum_intermedia	non_classical	Scaffold	39	0	0	0	no
+GCF_057799335.1	ochrobactrum_quorumnocens	non_classical	Contig	60	0	0	0	no
+GCF_058245555.1	ochrobactrum_cytisi	non_classical	Contig	197	0	0	0	no
+GCF_058556215.1	melitensis	melitensis	Contig	328	0	1	556	yes
+GCF_058796175.1	sp.	held_out	Scaffold	15	0	0	26	no
+GCF_059399965.1	melitensis	melitensis	Contig	52	2	2	843	yes
+GCF_059399975.1	melitensis	melitensis	Contig	26	4	4	843	yes
+GCF_059399985.1	melitensis	melitensis	Contig	25	6	6	843	yes
+GCF_059400085.1	melitensis	melitensis	Contig	48	2	3	843	yes
+GCF_059400095.1	melitensis	melitensis	Contig	42	3	4	843	yes
+GCF_059400105.1	melitensis	melitensis	Contig	55	2	3	843	yes
+GCF_059400205.1	melitensis	melitensis	Contig	44	2	3	843	yes
+GCF_059400215.1	melitensis	melitensis	Contig	182	1	3	843	yes
+GCF_059400235.1	melitensis	melitensis	Contig	43	4	4	843	yes
+GCF_059400325.1	melitensis	melitensis	Contig	42	5	5	843	yes
+GCF_059400335.1	melitensis	melitensis	Contig	37	6	6	843	yes
+GCF_059400355.1	melitensis	melitensis	Contig	42	3	3	843	yes
+GCF_059400445.1	melitensis	melitensis	Contig	53	3	4	843	yes
+GCF_059400465.1	melitensis	melitensis	Contig	55	2	2	843	yes
+GCF_059400535.1	melitensis	melitensis	Contig	58	1	3	837	yes
+GCF_059400565.1	melitensis	melitensis	Contig	31	3	3	843	yes
+GCF_059400615.1	melitensis	melitensis	Contig	45	1	3	795	yes
+GCF_059400655.1	melitensis	melitensis	Contig	83	1	3	842	yes
+GCF_059400745.1	melitensis	melitensis	Contig	43	4	4	843	yes
+GCF_059400755.1	melitensis	melitensis	Contig	37	7	7	844	yes
+GCF_059400775.1	melitensis	melitensis	Contig	40	2	3	842	yes
+GCF_059400865.1	melitensis	melitensis	Contig	13	3	3	843	yes
+GCF_059400875.1	melitensis	melitensis	Contig	13	2	2	843	yes
+GCF_059400895.1	melitensis	melitensis	Contig	51	3	4	843	yes
+GCF_059400975.1	melitensis	melitensis	Contig	17	7	7	843	no
+GCF_059401015.1	melitensis	melitensis	Contig	34	4	4	843	yes
+GCF_059401075.1	melitensis	melitensis	Contig	33	4	5	845	yes
+GCF_059401095.1	melitensis	melitensis	Contig	40	5	5	843	yes
+GCF_059401185.1	melitensis	melitensis	Contig	52	1	3	843	yes
+GCF_059694605.1	ochrobactrum_anthropi	non_classical	Contig	39	0	0	0	no
+GCF_059694625.1	ochrobactrum_anthropi	non_classical	Contig	58	0	0	0	no
+GCF_059995225.1	ochrobactrum_cytisi	non_classical	Complete Genome	3	0	0	26	no
+GCF_059995445.1	melitensis	melitensis	Complete Genome	2	9	9	843	no
+GCF_060446325.1	melitensis	melitensis	Chromosome	31	0	1	371	yes
+GCF_061244415.1	ochrobactrum_intermedia	non_classical	Contig	77	0	0	0	no
+GCF_061325275.1	melitensis	melitensis	Chromosome	171	0	1	372	yes
+GCF_061325295.1	melitensis	melitensis	Chromosome	52	0	1	647	no
+GCF_061325345.1	melitensis	melitensis	Chromosome	96	0	1	371	no
+GCF_061325395.1	melitensis	melitensis	Chromosome	160	0	0	346	no
+GCF_061325415.1	melitensis	melitensis	Chromosome	101	0	0	173	no
+GCF_061325435.1	melitensis	melitensis	Chromosome	122	0	0	463	no
+GCF_061325495.1	melitensis	melitensis	Chromosome	616	0	0	388	no
+GCF_061325505.1	melitensis	melitensis	Chromosome	67	1	1	842	no
+GCF_061325515.1	melitensis	melitensis	Chromosome	61	0	1	372	no
+GCF_061325575.1	melitensis	melitensis	Chromosome	593	0	0	302	no
+GCF_061325615.1	melitensis	melitensis	Chromosome	107	0	1	371	no
+GCF_061325635.1	melitensis	melitensis	Chromosome	59	0	0	173	no
+GCF_061325655.1	melitensis	melitensis	Chromosome	232	0	1	371	no
+GCF_061325695.1	melitensis	melitensis	Chromosome	189	0	0	346	no
+GCF_061325755.1	melitensis	melitensis	Chromosome	131	0	1	371	no
+GCF_061325775.1	melitensis	melitensis	Chromosome	426	0	1	371	no
+GCF_061339055.1	sp.	held_out	Contig	78	0	0	0	no
+GCF_061550065.1	melitensis	melitensis	Chromosome	1093	0	1	548	no
+GCF_061550105.1	melitensis	melitensis	Chromosome	230	0	0	346	no
+GCF_061550155.1	melitensis	melitensis	Chromosome	566	0	1	527	no
+GCF_062009673.1	pseudochrobactrum_sp.	non_classical	Contig	16	0	0	0	no
+GCF_062009675.1	pseudochrobactrum_sp.	non_classical	Scaffold	42	0	0	0	no
+GCF_062026567.1	ochrobactrum_intermedia	non_classical	Complete Genome	3	0	0	0	no
+GCF_900000005.1	vulpis	classical_extra	Complete Genome	2	27	27	847	no
+GCF_900092405.1	sp.	held_out	Complete Genome	2	0	2	544	no
+GCF_900095085.1	abortus	abortus	Chromosome	7	1	2	742	no
+GCF_900095155.1	inopinata	classical_extra	Complete Genome	2	1	3	776	no
+GCF_900236335.1	melitensis	melitensis	Complete Genome	2	7	7	845	no
+GCF_900236345.1	melitensis	melitensis	Complete Genome	2	7	7	844	no
+GCF_900236355.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_900236365.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_900236375.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_900236385.1	melitensis	melitensis	Complete Genome	2	7	7	844	no
+GCF_900236395.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_900236405.1	melitensis	melitensis	Complete Genome	2	7	7	844	no
+GCF_900236415.1	melitensis	melitensis	Complete Genome	2	7	7	844	no
+GCF_900236425.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_900236435.1	melitensis	melitensis	Complete Genome	2	7	7	845	no
+GCF_900236445.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_900236455.1	melitensis	melitensis	Complete Genome	2	7	7	844	no
+GCF_900236465.1	melitensis	melitensis	Complete Genome	2	7	7	844	no
+GCF_900236485.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_900236495.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_900236515.1	melitensis	melitensis	Complete Genome	2	7	7	844	no
+GCF_900236525.1	melitensis	melitensis	Complete Genome	2	7	7	844	no
+GCF_900236535.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_900236545.1	melitensis	melitensis	Complete Genome	2	7	7	844	no
+GCF_900236555.1	melitensis	melitensis	Complete Genome	2	7	7	844	no
+GCF_900236565.1	melitensis	melitensis	Complete Genome	2	7	7	844	no
+GCF_900236575.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_900236585.1	melitensis	melitensis	Complete Genome	2	7	7	843	no
+GCF_900243435.1	ochrobactrum_soli	non_classical	Contig	5	0	0	26	no
+GCF_900417195.1	melitensis	melitensis	Scaffold	30	1	1	842	yes
+GCF_900417205.1	melitensis	melitensis	Contig	27	1	1	843	yes
+GCF_900417215.1	melitensis	melitensis	Contig	29	1	1	843	yes
+GCF_900417225.1	melitensis	melitensis	Scaffold	31	4	4	843	yes
+GCF_900417235.1	melitensis	melitensis	Contig	25	1	1	843	yes
+GCF_900417245.1	melitensis	melitensis	Contig	25	1	1	843	yes
+GCF_900417255.1	melitensis	melitensis	Scaffold	25	1	1	843	yes
+GCF_900446005.1	abortus	abortus	Contig	2	6	6	842	no
+GCF_900446015.1	abortus	abortus	Contig	3	6	6	842	no
+GCF_900446025.1	abortus	abortus	Contig	2	6	6	842	no
+GCF_900446035.1	melitensis	melitensis	Contig	19	9	9	844	no
+GCF_900446045.1	abortus	abortus	Contig	2	7	7	842	no
+GCF_900446055.1	abortus	abortus	Contig	2	6	6	842	no
+GCF_900446065.1	abortus	abortus	Contig	2	6	6	842	no
+GCF_900446085.1	melitensis	melitensis	Contig	27	8	8	843	no
+GCF_900446095.1	melitensis	melitensis	Contig	4	9	9	844	no
+GCF_900446105.1	neotomae	neotomae	Contig	38	10	10	843	no
+GCF_900446115.1	neotomae	neotomae	Contig	49	8	8	843	no
+GCF_900446125.1	neotomae	neotomae	Contig	2	10	10	843	no
+GCF_900446135.1	ovis	ovis	Contig	2	38	38	845	no
+GCF_900446145.1	suis	suis	Contig	18	8	8	843	no
+GCF_900454225.1	ochrobactrum_intermedia	non_classical	Contig	3	0	0	0	no
+GCF_900454235.1	ochrobactrum_anthropi	non_classical	Contig	5	0	0	0	no
+GCF_900460605.1	suis	suis	Contig	2	7	7	843	no
+GCF_900491895.1	canis	canis	Scaffold	26	1	1	843	yes
+GCF_900491905.1	canis	canis	Contig	26	0	0	396	yes
+GCF_900491915.1	canis	canis	Contig	29	0	1	569	yes
+GCF_900491925.1	canis	canis	Scaffold	25	2	2	842	yes
+GCF_900497665.1	canis	canis	Contig	33	1	1	843	yes
+GCF_902807045.1	microti	microti	Contig	29	0	0	281	yes
+GCF_902825325.1	ochrobactrum_tritici	non_classical	Contig	115	0	0	0	no
+GCF_903131625.1	sp.	held_out	Contig	72	0	1	461	no
+GCF_904066045.1	suis	suis	Contig	2	13	13	842	no
+GCF_904066055.1	suis	suis	Contig	2	13	13	842	no
+GCF_904066065.1	suis	suis	Contig	2	13	13	842	no
+GCF_904066075.1	suis	suis	Contig	2	13	13	842	no
+GCF_907164595.1	pseudochrobactrum_algeriensis	non_classical	Contig	5	0	0	0	no
+GCF_907164615.1	pseudochrobactrum_algeriensis	non_classical	Contig	5	0	0	0	no
+GCF_907164635.1	pseudochrobactrum_algeriensis	non_classical	Contig	5	0	0	0	no
+GCF_921446785.1	melitensis	melitensis	Contig	50	0	1	422	yes
+GCF_921446795.1	melitensis	melitensis	Contig	47	0	1	422	yes
+GCF_921446805.1	melitensis	melitensis	Contig	57	0	1	274	yes
+GCF_921446815.1	melitensis	melitensis	Contig	43	0	1	569	yes
+GCF_921446825.1	melitensis	melitensis	Contig	34	1	1	771	yes
+GCF_921446835.1	melitensis	melitensis	Contig	36	0	1	351	yes
+GCF_921446845.1	melitensis	melitensis	Contig	35	0	1	280	yes
+GCF_921446855.1	melitensis	melitensis	Contig	39	0	1	569	yes
+GCF_921446865.1	melitensis	melitensis	Contig	45	0	1	313	yes
+GCF_921446875.1	melitensis	melitensis	Contig	47	0	1	274	yes
+GCF_921446885.1	melitensis	melitensis	Contig	45	0	1	569	yes
+GCF_921446895.1	melitensis	melitensis	Contig	39	0	1	353	yes
+GCF_921446905.1	melitensis	melitensis	Contig	37	0	2	477	yes
+GCF_921446915.1	melitensis	melitensis	Contig	43	0	1	569	yes
+GCF_921446925.1	melitensis	melitensis	Contig	33	0	2	477	yes
+GCF_921446935.1	melitensis	melitensis	Contig	36	0	1	438	yes
+GCF_921446945.1	melitensis	melitensis	Contig	43	0	2	477	yes
+GCF_921446955.1	melitensis	melitensis	Contig	89	0	0	358	yes
+GCF_921446965.1	melitensis	melitensis	Contig	52	0	1	352	yes
+GCF_921446975.1	melitensis	melitensis	Contig	38	0	1	647	yes
+GCF_921446985.1	melitensis	melitensis	Contig	37	0	0	358	yes
+GCF_921446995.1	melitensis	melitensis	Contig	34	0	0	358	yes
+GCF_921447005.1	melitensis	melitensis	Contig	39	0	1	451	yes
+GCF_921447015.1	melitensis	melitensis	Contig	46	0	1	352	yes
+GCF_921447025.1	melitensis	melitensis	Contig	44	0	1	272	yes
+GCF_921447035.1	melitensis	melitensis	Contig	43	0	1	274	yes
+GCF_921447045.1	melitensis	melitensis	Contig	36	0	1	352	yes
+GCF_921447055.1	melitensis	melitensis	Contig	53	0	0	313	yes
+GCF_921447065.1	melitensis	melitensis	Contig	33	0	2	372	yes
+GCF_921447075.1	melitensis	melitensis	Contig	37	0	1	430	yes
+GCF_921447085.1	melitensis	melitensis	Contig	47	0	4	539	yes
+GCF_921447095.1	melitensis	melitensis	Contig	42	0	1	647	yes
+GCF_921447105.1	melitensis	melitensis	Contig	39	0	1	473	yes
+GCF_921447115.1	melitensis	melitensis	Contig	46	0	1	274	yes
+GCF_921447125.1	melitensis	melitensis	Contig	41	0	2	372	yes
+GCF_921447135.1	melitensis	melitensis	Contig	43	0	1	647	yes
+GCF_921447145.1	melitensis	melitensis	Contig	29	0	0	301	yes
+GCF_921447155.1	melitensis	melitensis	Contig	72	0	1	356	yes
+GCF_921447165.1	melitensis	melitensis	Contig	40	0	1	647	yes
+GCF_921447175.1	melitensis	melitensis	Contig	54	0	0	233	yes
+GCF_921447185.1	melitensis	melitensis	Contig	65	0	3	401	yes
+GCF_921447195.1	melitensis	melitensis	Contig	36	0	0	358	yes
+GCF_921447205.1	melitensis	melitensis	Contig	40	0	2	477	yes
+GCF_921447215.1	melitensis	melitensis	Contig	50	0	3	538	yes
+GCF_921447225.1	melitensis	melitensis	Contig	39	0	1	430	yes
+GCF_921447235.1	melitensis	melitensis	Contig	42	0	1	548	yes
+GCF_921447245.1	melitensis	melitensis	Contig	42	0	2	477	yes
+GCF_921447255.1	melitensis	melitensis	Contig	40	0	1	438	yes
+GCF_921447265.1	melitensis	melitensis	Contig	30	0	1	438	yes
+GCF_921447275.1	melitensis	melitensis	Contig	34	0	2	372	yes
+GCF_921447285.1	melitensis	melitensis	Contig	45	0	2	372	yes
+GCF_921447295.1	melitensis	melitensis	Contig	58	1	3	842	yes
+GCF_921447305.1	melitensis	melitensis	Contig	26	1	1	837	yes
+GCF_921447315.1	melitensis	melitensis	Contig	41	0	1	429	yes
+GCF_921447325.1	melitensis	melitensis	Contig	54	2	2	697	yes
+GCF_921447335.1	melitensis	melitensis	Contig	40	0	1	568	yes
+GCF_921447345.1	melitensis	melitensis	Contig	39	0	1	646	yes
+GCF_921447355.1	melitensis	melitensis	Contig	41	0	1	647	yes
+GCF_921447365.1	melitensis	melitensis	Contig	48	0	2	372	yes
+GCF_921447375.1	melitensis	melitensis	Contig	43	0	1	372	yes
+GCF_921447385.1	melitensis	melitensis	Contig	91	0	1	569	yes
+GCF_921447395.1	melitensis	melitensis	Contig	42	0	1	422	yes
+GCF_921447405.1	melitensis	melitensis	Contig	42	0	1	422	yes
+GCF_921447415.1	melitensis	melitensis	Contig	30	0	1	358	yes
+GCF_921447425.1	melitensis	melitensis	Contig	40	0	2	371	yes
+GCF_921447435.1	melitensis	melitensis	Contig	54	0	1	422	yes
+GCF_921447445.1	melitensis	melitensis	Contig	38	0	1	569	yes
+GCF_921447455.1	melitensis	melitensis	Contig	48	0	0	313	yes
+GCF_921447465.1	melitensis	melitensis	Contig	51	0	1	353	yes
+GCF_921447475.1	melitensis	melitensis	Contig	46	0	1	352	yes
+GCF_921447485.1	melitensis	melitensis	Contig	37	0	1	647	yes
+GCF_921447495.1	melitensis	melitensis	Contig	31	0	1	569	yes
+GCF_921447505.1	melitensis	melitensis	Contig	35	1	1	843	yes
+GCF_921447515.1	melitensis	melitensis	Contig	40	0	1	438	yes
+GCF_921447525.1	melitensis	melitensis	Contig	37	0	1	647	yes
+GCF_921447535.1	melitensis	melitensis	Contig	31	0	1	438	yes
+GCF_921447545.1	melitensis	melitensis	Contig	44	0	2	371	yes
+GCF_921447555.1	melitensis	melitensis	Contig	32	0	1	438	yes
+GCF_921447565.1	melitensis	melitensis	Contig	134	1	2	837	yes
+GCF_921447575.1	melitensis	melitensis	Contig	49	0	1	352	yes
+GCF_921447585.1	melitensis	melitensis	Contig	34	0	0	358	yes
+GCF_921447595.1	melitensis	melitensis	Contig	43	0	0	233	yes
+GCF_921447605.1	melitensis	melitensis	Contig	59	0	1	422	yes
+GCF_921447615.1	melitensis	melitensis	Contig	35	0	2	372	yes
+GCF_921447625.1	melitensis	melitensis	Contig	34	0	1	285	yes
+GCF_921447635.1	melitensis	melitensis	Contig	46	0	0	393	yes
+GCF_921447645.1	melitensis	melitensis	Contig	48	0	1	353	yes
+GCF_921447655.1	melitensis	melitensis	Contig	43	0	1	548	yes
+GCF_921447665.1	melitensis	melitensis	Contig	40	0	2	275	yes
+GCF_921447675.1	melitensis	melitensis	Contig	47	0	0	233	yes
+GCF_921447685.1	melitensis	melitensis	Contig	41	0	1	372	yes
+GCF_921447695.1	melitensis	melitensis	Contig	40	0	1	569	yes
+GCF_921447705.1	melitensis	melitensis	Contig	44	0	1	372	yes
+GCF_949711795.1	suis	suis	Contig	2	7	7	843	no
+GCF_949836965.1	suis	suis	Contig	62	1	1	771	yes
+GCF_949836995.1	suis	suis	Contig	48	1	1	771	yes
+GCF_949837105.1	suis	suis	Contig	52	1	1	771	yes
+GCF_949837185.1	suis	suis	Contig	69	1	1	771	yes
+GCF_949837395.1	suis	suis	Contig	58	1	1	771	yes
+GCF_949837415.1	suis	suis	Contig	64	1	1	771	yes
+GCF_949837565.1	suis	suis	Contig	59	1	1	771	yes
+GCF_949837635.1	suis	suis	Contig	65	1	1	771	yes
+GCF_949837685.1	suis	suis	Contig	60	1	1	771	yes
+GCF_951802155.1	suis	suis	Contig	2	13	13	843	no
+GCF_963555505.1	abortus	abortus	Complete Genome	2	5	5	842	no
+GCF_963693135.1	ceti	ceti	Contig	114	1	8	837	yes
+GCF_963693145.1	ceti	ceti	Contig	118	0	5	263	yes
+GCF_963693155.1	ceti	ceti	Contig	556	0	60	557	yes
+GCF_963693165.1	ceti	ceti	Contig	150	0	4	469	yes
+GCF_963693175.1	ceti	ceti	Contig	130	0	8	481	yes
+GCF_963693185.1	ceti	ceti	Contig	107	0	1	633	yes
+GCF_963693195.1	ceti	ceti	Contig	121	0	7	545	yes
+GCF_963693205.1	pinnipedialis	classical_extra	Contig	90	1	6	675	yes
+GCF_963693215.1	ceti	ceti	Contig	73	1	1	708	yes
+GCF_963693225.1	pinnipedialis	classical_extra	Contig	94	0	4	356	yes
+GCF_963693235.1	ceti	ceti	Contig	120	0	8	545	yes
+GCF_963693245.1	ceti	ceti	Contig	105	3	6	842	yes
+GCF_963990305.1	abortus	abortus	Complete Genome	2	5	5	842	no
+GCF_964185835.1	melitensis	melitensis	Contig	36	0	1	532	yes
+GCF_964185935.1	melitensis	melitensis	Contig	33	0	1	661	yes
+GCF_964185975.1	melitensis	melitensis	Contig	36	0	1	532	yes
+GCF_964185985.1	melitensis	melitensis	Contig	55	0	1	532	yes
+GCF_964185995.1	melitensis	melitensis	Contig	29	0	1	532	yes
+GCF_964186015.1	melitensis	melitensis	Contig	36	0	1	532	yes
+GCF_964186025.1	melitensis	melitensis	Contig	30	0	1	532	yes
+GCF_964186095.1	melitensis	melitensis	Contig	34	0	1	532	yes
+GCF_964186115.1	melitensis	melitensis	Contig	32	0	1	532	yes
+GCF_964186155.1	melitensis	melitensis	Contig	31	0	1	532	yes
+GCF_964186185.1	melitensis	melitensis	Contig	33	0	1	547	yes
+GCF_964186215.1	melitensis	melitensis	Contig	30	0	1	532	yes
+GCF_964186505.1	melitensis	melitensis	Contig	32	0	1	532	yes
+GCF_964186515.1	melitensis	melitensis	Contig	35	0	1	532	yes
+GCF_964186525.1	melitensis	melitensis	Contig	35	0	1	532	yes
+GCF_964186555.1	melitensis	melitensis	Contig	33	0	1	487	yes
+GCF_964186575.1	melitensis	melitensis	Contig	34	0	1	661	yes
+GCF_964187125.1	canis	canis	Contig	92	0	0	273	yes
+GCF_964187135.1	canis	canis	Contig	89	0	0	301	yes
+GCF_964187145.1	canis	canis	Contig	86	0	0	96	yes
+GCF_964187155.1	canis	canis	Contig	91	0	0	346	yes
+GCF_964187165.1	canis	canis	Contig	88	1	1	841	yes
+GCF_964187175.1	canis	canis	Contig	84	2	2	844	yes
+GCF_964187185.1	canis	canis	Contig	90	0	0	96	yes
+GCF_964187195.1	canis	canis	Contig	96	0	1	394	yes
+GCF_964187205.1	canis	canis	Contig	83	2	2	843	yes
+GCF_964187215.1	canis	canis	Contig	56	0	0	270	yes
+GCF_964187225.1	canis	canis	Contig	84	1	1	842	yes
+GCF_964187235.1	canis	canis	Contig	50	0	0	159	yes
+GCF_964187245.1	canis	canis	Contig	86	0	0	487	yes
+GCF_964187255.1	canis	canis	Contig	86	0	0	321	yes
+GCF_964187265.1	canis	canis	Contig	90	0	0	239	yes
+GCF_964187275.1	canis	canis	Contig	57	0	0	247	yes
+GCF_964187285.1	canis	canis	Contig	53	0	0	263	yes
+GCF_964187295.1	canis	canis	Contig	49	0	0	341	yes
+GCF_964187305.1	canis	canis	Contig	57	0	0	159	yes
+GCF_964187315.1	canis	canis	Contig	55	0	0	476	yes
+GCF_964187325.1	canis	canis	Contig	56	0	0	516	yes
+GCF_964187335.1	canis	canis	Contig	58	0	0	270	yes
+GCF_964187345.1	canis	canis	Contig	58	0	0	159	yes
+GCF_964187355.1	canis	canis	Contig	58	0	0	270	yes
+GCF_964187365.1	canis	canis	Contig	55	0	0	263	yes
+GCF_964187375.1	canis	canis	Contig	58	0	0	185	yes
+GCF_964187385.1	canis	canis	Contig	51	0	0	270	yes
+GCF_964187395.1	canis	canis	Contig	53	1	1	842	yes
+GCF_964187405.1	canis	canis	Contig	53	0	0	270	yes
+GCF_964187415.1	canis	canis	Contig	56	0	0	464	yes
+GCF_964187425.1	canis	canis	Contig	49	0	0	270	yes
+GCF_964187435.1	canis	canis	Contig	52	0	0	270	yes
+GCF_964187445.1	canis	canis	Contig	53	0	0	270	yes
+GCF_964187455.1	canis	canis	Contig	54	0	0	263	yes
+GCF_964187465.1	canis	canis	Contig	54	0	0	270	yes
+GCF_964187475.1	canis	canis	Contig	52	0	0	159	yes
+GCF_964187485.1	canis	canis	Contig	50	0	0	270	yes
+GCF_964187495.1	canis	canis	Contig	51	0	0	333	yes
+GCF_964187615.1	canis	canis	Contig	84	2	2	844	yes
+GCF_964187625.1	canis	canis	Contig	50	0	0	473	yes
+GCF_964253645.1	ochrobactrum_pseudogrignonensis	non_classical	Contig	4	0	0	0	no
+GCF_965209795.1	ochrobactrum_anthropi	non_classical	Contig	5	0	0	26	no
+GCF_965231655.1	abortus	abortus	Contig	31	0	2	489	yes
+GCF_965231665.1	abortus	abortus	Contig	33	0	2	292	yes
+GCF_965231675.1	abortus	abortus	Contig	30	0	2	489	yes
+GCF_965231685.1	abortus	abortus	Contig	31	0	2	489	yes
+GCF_965231695.1	abortus	abortus	Contig	35	0	2	489	yes
+GCF_965231705.1	abortus	abortus	Contig	30	0	2	489	yes
+GCF_965231715.1	abortus	abortus	Contig	31	0	2	489	yes
+GCF_965577835.1	ochrobactrum_pituitosa	non_classical	Complete Genome	3	0	0	0	no
+GCF_965579335.1	ochrobactrum_pituitosa	non_classical	Complete Genome	4	0	0	0	no
+GCF_965579345.1	ochrobactrum_pituitosa	non_classical	Complete Genome	4	0	0	0	no
+GCF_965579405.1	ochrobactrum_pituitosa	non_classical	Complete Genome	3	0	0	0	no
+GCF_966194465.1	microti	microti	Contig	2	13	13	843	no
+GCF_966194545.1	microti	microti	Contig	2	13	13	843	no
+GCF_966194825.1	microti	microti	Contig	2	13	13	843	no
+GCF_977007125.1	ochrobactrum_anthropi	non_classical	Contig	5	0	0	0	no
+GCF_977007145.1	ochrobactrum_anthropi	non_classical	Contig	5	0	0	0	no
+GCF_977007265.1	ochrobactrum_anthropi	non_classical	Contig	5	0	0	0	no
+GCF_977011815.1	ochrobactrum_intermedia	non_classical	Contig	2	0	0	0	no
+GCF_977011825.1	ochrobactrum_intermedia	non_classical	Contig	2	0	0	0	no
+GCF_977011915.1	ochrobactrum_anthropi	non_classical	Contig	9	0	0	0	no
+GCF_977011945.1	ochrobactrum_anthropi	non_classical	Contig	8	0	0	0	no
+GCF_977012045.1	ochrobactrum_pituitosa	non_classical	Contig	3	0	0	0	no
+GCF_977014235.1	ochrobactrum_teleogrylli	non_classical	Contig	5	0	0	26	no
+GCF_977969735.1	abortus	abortus	Contig	2	6	6	842	no
+GCF_977969745.1	abortus	abortus	Contig	2	6	6	842	no
+GCF_977969815.1	abortus	abortus	Contig	2	6	6	842	no
+GCF_979492545.1	ochrobactrum_ciceri	non_classical	Contig	16	0	0	0	no
+GCF_979502475.1	ochrobactrum_lupini	non_classical	Contig	29	0	0	26	no
+GCF_987113995.1	melitensis	melitensis	Scaffold	230	0	0	346	no
+GCF_987114005.1	melitensis	melitensis	Scaffold	101	0	0	173	no
+GCF_987114015.1	melitensis	melitensis	Scaffold	160	0	0	346	no
+GCF_987114045.1	melitensis	melitensis	Scaffold	232	0	1	371	no
+GCF_987114055.1	melitensis	melitensis	Scaffold	67	1	1	842	no
+GCF_987114065.1	melitensis	melitensis	Scaffold	566	0	1	527	no
+GCF_987114075.1	melitensis	melitensis	Scaffold	189	0	0	346	no
+GCF_987114085.1	melitensis	melitensis	Scaffold	171	0	1	372	yes
+GCF_987114105.1	melitensis	melitensis	Scaffold	426	0	1	371	no
+GCF_987114115.1	melitensis	melitensis	Scaffold	1093	0	1	548	no
+GCF_987114125.1	melitensis	melitensis	Scaffold	59	0	0	173	no
+GCF_987114135.1	melitensis	melitensis	Scaffold	107	0	1	371	no
+GCF_987114145.1	melitensis	melitensis	Scaffold	122	0	0	463	no
+GCF_987114155.1	melitensis	melitensis	Scaffold	593	0	0	302	no
+GCF_987114165.1	melitensis	melitensis	Scaffold	131	0	1	371	no
+GCF_987114175.1	melitensis	melitensis	Scaffold	61	0	1	372	no
+GCF_987114185.1	melitensis	melitensis	Scaffold	616	0	0	388	no
+GCF_987114195.1	melitensis	melitensis	Scaffold	96	0	1	371	no
+GCF_987114205.1	melitensis	melitensis	Scaffold	52	0	1	647	no

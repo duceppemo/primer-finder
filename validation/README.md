@@ -16,6 +16,9 @@ lost, and the dataset in `repeats/` that reproduces it. `repeats/make_repeat_exa
 genomes whose inclusion group carries one marker two to four times over, which is the shape most likely to
 be dropped by a rule built around where a region *differs*.
 
+`2026-10-16_v1.9.1_is711/` asks the same question of a real published assay in real genomes, and is set out
+under *repeats: a published repeat-targeted assay* below.
+
 Not every record is about an assay. `2026-10-14_v1.7.0_unitig/` measures what a change to the code does to
 a panel whose answer is already known — the question any change to the find or assembly rules has to
 answer before it can become a default.
@@ -159,3 +162,37 @@ Eight assemblies of this panel carry all three oligos of exactly one species ass
 of their own RefSeq label, while no genome of the panel carries two. Left in the exclusion group they
 remove a region that is specific to the species they really belong to, so every target is run twice: once
 on the panel as labelled, once with those eight held out.
+
+## repeats: a published repeat-targeted assay, and what a draft panel does to it
+
+`validation/repeats/` holds both halves of the repeats work. `make_repeat_example.py` writes the synthetic
+dataset the first record used. The `is711_*` files ask the same question of a published assay:
+
+> Bounaadja L., Albert D., Chenais B., Henault S., Zygmunt M.S., Poliak S., Garin-Bastuji B. (2009)
+> *Real-time PCR for identification of Brucella spp.: a comparative study of IS711, bcsp31 and per target
+> genes.* Veterinary Microbiology 137:156-164.
+> [doi:10.1016/j.vetmic.2008.12.023](https://doi.org/10.1016/j.vetmic.2008.12.023)
+
+That paper's subject is this question: a multi-copy target, the insertion sequence IS711, against two
+single-copy ones. It runs on the *Brucella* panel, so `validation/brucella/panel.py` and `census.py` have to
+have run first.
+
+```bash
+curl -s "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=M94960&rettype=fasta" \
+    -o /path/to/work/is711.fasta
+python validation/repeats/is711_census.py /path/to/work -t 32
+bash validation/repeats/run_is711.sh /path/to/work /path/to/is711 32 64
+```
+
+| File | What it holds |
+|---|---|
+| `is711_assay.tsv` | the published primer-and-probe set, with where each oligo was taken from and why |
+| `is711_census.py` | copies of the element and of the amplicon in every panel genome, by assembly level |
+| `is711_panels.py` | two small inclusion groups out of the panel: complete genomes, and a draft-heavy mix |
+| `is711_design.py` | designs on the regions that hold the published assay and prints the copy columns |
+| `run_is711.sh` | the 2 x 2 of `-d` against the assembler, the draft group, and the designs |
+
+**The oligos are checked against a genome before any of it runs.** The paper is paywalled and the oligos
+come from open-access papers that reproduce it; one of those has a typo in the reverse primer, which
+locating all three in a real genome caught. The amplicon length in `is711_assay.tsv` is measured here
+rather than quoted, and the file says so.

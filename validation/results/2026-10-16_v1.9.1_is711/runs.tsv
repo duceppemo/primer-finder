@@ -1,0 +1,9 @@
+group	duplication	assembler	min_inclusion	regions	recovered	regions_with_the_assay
+complete_30	1	skesa	1.0	5074	no	
+complete_30	12	skesa	1.0	5443	no	
+complete_30	1	unitig	1.0	10064	no	
+complete_30	12	unitig	1.0	10414	yes	unitig_2208 (289 bp); unitig_6072 (168 bp); unitig_9340 (116 bp)
+draft_30	5	unitig	1.0	10131	yes	unitig_1828 (338 bp)
+full_panel_1376	1	unitig	1.0	2028	no	
+full_panel_1376	6	unitig	1.0	2888	no	
+full_panel_1376	6	unitig	0.85	7014	yes	unitig_3509 (338 bp); unitig_6585 (128 bp); unitig_6856 (116 bp)

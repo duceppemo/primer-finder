@@ -1,0 +1,21 @@
+# The published genus-level IS711 real-time PCR assay of
+#
+#   Bounaadja L., Albert D., Chenais B., Henault S., Zygmunt M.S., Poliak S., Garin-Bastuji B. (2009)
+#   "Real-time PCR for identification of Brucella spp.: a comparative study of IS711, bcsp31 and per
+#   target genes." Veterinary Microbiology 137:156-164. doi:10.1016/j.vetmic.2008.12.023, PMID 19200666.
+#
+# That paper is the answer key for a *repeat-targeted* assay: its subject is a multi-copy target, IS711,
+# set against two single-copy ones, and IS711 won on sensitivity. IS711 is a 842-base insertion sequence
+# (GenBank M94960) carried several times over by every Brucella genome and by nothing else.
+#
+# The paper is paywalled, so the three oligos are taken from the open-access papers that reproduce them
+# and cite it. Eighteen of those in PMC carry the reverse primer as GGCCTACCGCTGCGAAT and one as
+# CGCCTACCGCTGCGAAT; the second spelling is in no Brucella genome, so it is a typo in that one paper and
+# the first is used here. `is711_census.py` locates all three in a genome before anything is run, which is
+# how that was caught -- the same reason `validation/brucella/verify_amplicon.py` exists.
+#
+# amplicon_bp is **measured here, not quoted**: 63 bases between the outer 5' ends of the two primers, in
+# every exact copy of the amplicon in GCF_000008145.1 (B. abortus 2308). The paper's own figure could not
+# be read. `check_assay.py` prints it as "the paper reports", which for this one row means "measured".
+target	assay	forward	reverse	probe	amplicon_bp	locus
+genus	IS711	GCTTGAAGCTTGCGGACAGT	GGCCTACCGCTGCGAAT	AAGCCAACACCCGGCCATTATGGT	63	IS711 (M94960)
