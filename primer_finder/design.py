@@ -798,6 +798,22 @@ def matching(flank: str, window: str) -> int:
     return sum(1 for base, other in zip(flank.upper(), window.upper(), strict=False) if base == other)
 
 
+def unambiguous_contigs(path: Path) -> dict[str, seqio.Record]:
+    """The genome's records by name, leaving out any name more than one record carries.
+
+    Blast reports the name, so two records sharing one cannot be told apart: a hit in the first would be
+    given a window out of the second, which is an unrelated stretch of sequence. Such a name is left out
+    rather than guessed at, and the flank rescue then simply does not apply to it.
+    """
+    seen: dict[str, seqio.Record] = {}
+    twice: set[str] = set()
+    for record in seqio.iter_records(path):
+        if record.name in seen:
+            twice.add(record.name)
+        seen[record.name] = record
+    return {name: record for name, record in seen.items() if name not in twice}
+
+
 def with_flanks(chain: Sequence[blast.Hit], size: int, amplicon: str,
                 contigs: dict[str, seqio.Record]) -> list[blast.Hit]:
     """The chain with the amplicon's unaligned ends added as the pieces blast did not report.
@@ -825,6 +841,7 @@ def with_flanks(chain: Sequence[blast.Hit], size: int, amplicon: str,
     contig = contigs.get(chain[0].subject)
     if contig is None:
         return list(chain)
+
     sequence = contig.seq
     low, high, forward = _subject_bounds(chain[0])
     last_low, last_high, _ = _subject_bounds(chain[-1])
@@ -836,8 +853,13 @@ def with_flanks(chain: Sequence[blast.Hit], size: int, amplicon: str,
             window = sequence[max(0, low - 1 - head):low - 1]
         else:
             window = seqio.reverse_complement(sequence[high:high + head])
+        # A window cut short by the start of the contig holds the bases nearest the alignment, which are
+        # the *last* of the flank -- so the comparison starts from the flank's inner end, not its first
+        # base. Taking `amplicon[:head]` against a short window compared the wrong bases against each
+        # other and could rescue a copy whose flank is not there at all.
         pieces.insert(0, blast.Hit(query=chain[0].query, qstart=1, qend=head, evalue=0.0,
-                                   length=head, identical=matching(amplicon[:head], window), gaps=0,
+                                   length=head, gaps=0,
+                                   identical=matching(amplicon[head - len(window):head], window),
                                    subject=chain[0].subject, sstart=low, send=low))
 
     tail = size - chain[-1].qend  # And after it
@@ -955,7 +977,7 @@ def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: 
                     # turn a copy into an absence -- and an absence is the claim that costs, since it
                     # ranks above every difference-based assay and is exempt from the differences filter.
                     if not contigs:
-                        contigs = seqio.read_fasta(folder / blast.LOCAL_FASTA)
+                        contigs = unambiguous_contigs(folder / blast.LOCAL_FASTA)
                     chain = with_flanks(chain, sizes[name], sequences[name], contigs)
                     held = has_the_amplicon(chain, sizes[name])
                 if not held:

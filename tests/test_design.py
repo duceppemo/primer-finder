@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from primer_finder import PrimerFinderError
+from primer_finder import PrimerFinderError, seqio
 from primer_finder.blast import Hit
 from primer_finder.design import (
     DEFAULT_MIN_PRIMER_DIFFERENCES,
@@ -38,6 +38,7 @@ from primer_finder.design import (
     requests_for,
     run,
     specific_by,
+    unambiguous_contigs,
     with_flanks,
     write_assays,
 )
@@ -726,13 +727,75 @@ def test_a_flank_can_rescue_a_copy_but_never_take_one_away(stubs, tmp_path, fast
     above every difference-based assay and exempt from the differences filter, so the check may only ever
     shed one. Measured over four Brucella targets and 958 assays: two absences shed, none gained."""
     amplicon = "ACGTTGCA" * 12  # 96 bases
-    # A hit reaching 95% of the amplicon, whose last bases the genome does NOT hold
-    stubs(amplicon_hits={"g1": 1}, amplicon_covers=0.95)
+    # A hit reaching 95% of the amplicon at 91.2% identity -- over the rule, but only just, so that an
+    # unheld flank folded in would take it under (86.5%) if the guard were not there.
+    mismatches = {str(position): "A" for position in range(1, 16, 2)}
+    stubs(amplicon_hits={"g1": 1}, amplicon_covers=0.95, amplicon_mismatch=mismatches)
     genomes = [fasta("g1.fasta", {"chr": amplicon[:91] + "GGGGGGGGGGGGGGG"})]
     one = assay(amplicon=amplicon, forward=oligo(start=0, length=20))
     counts, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=1)
     assert counts[one.name] == [1], "a chain that reaches far enough on its own must stay a copy"
 
+
+def test_a_flank_cut_off_by_the_start_of_a_contig_is_compared_in_place():
+    """A window the contig's start cuts short holds the bases nearest the alignment -- the *last* of the
+    flank. Comparing it against the flank's first bases instead lines up the wrong pairs, and could credit
+    a flank the genome does not hold at all."""
+    body = "ACGTTGCA" * 8                 # 64 bases the hit covers
+    amplicon = "AAAAACCC" + body           # An 8-base flank whose halves are plainly different
+    contig = {"chr": seqio.Record("chr", "", "CCC" + body)}  # Only its last three bases are there
+    one = hit(72, qstart=9, qend=72, sstart=4, send=67)
+    flank = with_flanks([one], 72, amplicon, contig)[0]
+    assert flank.length == 8
+    assert flank.identical == 3, flank.identical  # "CCC" against "CCC", not "AAA" against "CCC"
+
+
+def test_a_flank_is_not_taken_from_a_contig_whose_name_is_ambiguous(tmp_path):
+    """Blast reports the name, so two records sharing one cannot be told apart: a hit in the first would
+    be given a window out of the second. The rescue declines rather than guessing."""
+    path = tmp_path / "genome.fasta"
+    path.write_text(">c\nACGTACGTACGT\n>c\nTTTTTTTTTTTT\n")
+    assert unambiguous_contigs(path) == {}
+    path.write_text(">c\nACGTACGTACGT\n>d\nTTTTTTTTTTTT\n")
+    assert sorted(unambiguous_contigs(path)) == ["c", "d"]
+
+
+def test_the_tail_flank_on_the_minus_strand_is_taken_from_before_the_alignment():
+    """The mirror of the head case: on the minus strand the amplicon's tail lies *before* the alignment in
+    the genome, reverse complemented."""
+    body = "ACGTTGCA" * 8
+    amplicon = body + "TTTTCCCC"
+    # The whole amplicon on the minus strand: the genome read forwards is its reverse complement, so the
+    # amplicon's tail sits at the genome's *start* and the genome coordinate falls as the amplicon rises.
+    genome = seqio.reverse_complement(amplicon)
+    contigs = {"chr": seqio.Record("chr", "", genome)}
+    one = hit(72, qstart=1, qend=64, sstart=72, send=9)   # The body alone, 72 down to 9
+    flank = with_flanks([one], 72, amplicon, contigs)[-1]
+    assert (flank.qstart, flank.qend) == (65, 72)
+    assert flank.identical == 8, flank.identical          # Genome 8..1, reverse complemented
+
+
+def test_the_flanks_of_a_chain_are_taken_from_its_own_ends():
+    """A chain of two pieces: the head flank belongs to the first piece and the tail to the last. Using
+    one piece's bounds for both would take a window from the wrong place."""
+    body = "ACGTTGCA" * 4                 # 32 bases
+    amplicon = "AAAA" + body + body + "CCCC"   # 72: flank, two pieces, flank
+    genome = "AAAA" + body + "G" * 50 + body + "CCCC"
+    contigs = {"chr": seqio.Record("chr", "", genome)}
+    first = hit(72, qstart=5, qend=36, sstart=5, send=36)
+    second = hit(72, qstart=37, qend=68, sstart=87, send=118)
+    whole = with_flanks([first, second], 72, amplicon, contigs)
+    assert [(piece.qstart, piece.qend) for piece in whole] == [(1, 4), (5, 36), (37, 68), (69, 72)]
+    assert whole[0].identical == 4 and whole[-1].identical == 4
+
+
+def test_a_flank_is_compared_whatever_case_the_genome_is_written_in():
+    """Soft-masked genomes are ordinary input, and a lower-case flank is still the flank."""
+    body = "ACGTTGCA" * 8
+    amplicon = "TTTTCCCC" + body
+    contigs = {"chr": seqio.Record("chr", "", "ttttcccc" + body)}
+    one = hit(72, qstart=9, qend=72, sstart=9, send=72)
+    assert with_flanks([one], 72, amplicon, contigs)[0].identical == 8
 
 def test_a_flank_the_genome_does_not_hold_earns_little_and_stays_absent():
     """What keeps the above from turning every short hit into a copy: the credit is the bases that match

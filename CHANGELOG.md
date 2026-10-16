@@ -18,16 +18,24 @@
   there.
 
   A stretch no exclusion genome aligns now counts as differing, because that is what it does. It has to be
-  at least 25 bases — the widest a primer may be, so that a primer could sit wholly inside it — since
-  blast's local alignments of one contig do not quite abut and the gaps between them are a base or a few:
-  measured across two *Listeria* complexes, every such gap was 1 to 6 bases. With the threshold the change
-  is confined to what it is for: the repeat dataset goes from no region to one holding its marker, while
-  *Listeria* CC1 and CC3 stay at 8 and 43 regions and the bundled example is untouched.
+  at least **40 bases**, which is set by what the search can see rather than by what a primer needs:
+  measured against a 3 Mb genome at the exclusion search's own `-evalue 1e-10`, an exact island of 25
+  bases (evalue 1.16e-06) or 30 bases (8.15e-09) is not reported at all, while 33 bases (5.62e-11) is. A
+  shorter run could therefore be present and merely invisible. The real absences in the validation panels
+  run from 300 to 6,348 bases, so the margin costs nothing. With the floor the change is confined to what
+  it is for: the repeat dataset goes from no region to one holding its marker, while *Listeria* CC1 and
+  CC3 stay at 8 and 43 regions and the bundled example is untouched.
 
-  `-d/--duplication` still governs whether a repeat's kmers survive counting at all, which is working as
-  documented: it must be at least the highest copy number in any inclusion genome, and left at its default
-  of 1 a run reports fragments of a repeated marker or nothing. Both barriers are measured in
-  `validation/results/2026-10-16_v1.8.1_repeats/`.
+  The exclusion search now asks blast for every matching subject rather than the best ten. A draft
+  assembly can put a short stretch of a contig on a sequence of its own, and at ten that sequence could be
+  crowded out by others holding the rest — which would read as the genome lacking a stretch it has.
+
+  `-d/--duplication` still governs whether a repeat's kmers survive counting at all. Its ceiling is on a
+  kmer's **total** count across the inclusion group (`max_count = n x d`), not a per-genome one, so what
+  it has to reach is the marker's *mean* copy number rather than its highest — measured with copies
+  `(2, 2, 2, 6)`, where `-d 3` keeps the marker and `-d 2` leaves fragments. Its own help text and
+  `docs/wiki/Usage.md` said "in each inclusion genome", which predates this release and is corrected
+  here. Both barriers are measured in `validation/results/2026-10-16_v1.8.1_repeats/`.
 
 ### Added
 

@@ -58,8 +58,11 @@ def build_parser(max_cpu: int, max_mem: int) -> argparse.ArgumentParser:
                            "commonest where the two groups are closely related. SKESA and unitig honour "
                            "it; SPAdes warns and still stops at 200.")
     find.add_argument("-d", "--duplication", metavar="1", type=int, default=1,
-                      help="Maximum number of times a kmer can be found in each inclusion genome. Default 1, "
-                           "meaning that repeated regions are discarded.")
+                      help="How often a kmer may occur, per inclusion genome on average. The ceiling is "
+                           "on the total across the group -- a kmer is kept when it occurs at most this "
+                           "many times for each genome, counting them all together -- so a marker carried "
+                           "in several copies needs this at its *mean* copy number, not its highest. "
+                           "Default 1, which discards anything repeated.")
     find.add_argument("-p", "--min-inclusion", metavar="1.0", type=_fraction, default=1.0,
                       help="Fraction of the inclusion genomes a kmer must be in, between 0 and 1. Default "
                            "1.0, meaning every one of them. 0.9 keeps what 90%% of them share, rounded up, "

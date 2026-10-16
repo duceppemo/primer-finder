@@ -452,7 +452,7 @@ def test_a_region_whose_specificity_is_a_block_no_exclusion_genome_holds_is_repo
     hold no differences, so the run used to drop the region -- while the mapping step two steps earlier
     had called the same contig a candidate on the very block that is missing."""
     ends = [["ctg1", 1, 20, 1e-30, "ACGT" * 5, "ACGT" * 5],
-            ["ctg1", 81, 100, 1e-30, "ACGT" * 5, "ACGT" * 5]]  # 60 bases unaligned between them
+            ["ctg1", 81, 100, 1e-30, "ACGT" * 5, "ACGT" * 5]]  # 60 bases unaligned, over the floor
     stubs(exclusion_hits={"exclusion_1": ends, "exclusion_2": ends})
     scenario = settings(last_resort=False)
     assert run(scenario) == 0

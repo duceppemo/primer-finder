@@ -4,6 +4,14 @@
 The shape a repeat-targeted assay has: a marker carried two to four times by each inclusion genome and
 not at all by the exclusion genomes. Copy number varies between genomes, as a transposon's would, because
 that is what decides whether `-d` keeps the marker's kmers.
+
+The private changes are drawn over the whole genome, so one can land inside a copy of the marker and
+leave that copy differing from the others by a base. That is left as it is, deliberately: real copies of
+an element diverge, and copies that are *exactly* identical branch the de Bruijn graph at every junction
+so that the assembler cannot extend through them -- made exact, this dataset yields one region of 99
+bases, which is `-k` exactly, instead of the 444-base contig the record is about. `truth.json` records
+the marker each copy was made from and where the private changes went, so which copies differ can be
+worked out from it.
 """
 from __future__ import annotations
 
@@ -23,7 +31,10 @@ GROUP = 4
 
 def main(out: Path) -> int:
     rng = random.Random(SEED)
-    pick = lambda n: "".join(rng.choice("ACGT") for _ in range(n))
+
+    def pick(n: int) -> str:
+        return "".join(rng.choice("ACGT") for _ in range(n))
+
     backbone = pick(LENGTH)
     marker = pick(MARKER)
     truth = {"length": LENGTH, "marker_length": MARKER, "marker": marker, "copies": list(COPIES)}
@@ -42,7 +53,7 @@ def main(out: Path) -> int:
                 where = rng.randrange(len(bases))
                 bases[where] = rng.choice([b for b in "ACGT" if b != bases[where]])
             name = f"{group}_{number}.fasta" + (".gz" if number == GROUP else "")
-            text = f">chr\n" + "\n".join("".join(bases)[i:i + 70]
+            text = ">chr\n" + "\n".join("".join(bases)[i:i + 70]
                                          for i in range(0, len(bases), 70)) + "\n"
             path = folder / name
             if name.endswith(".gz"):

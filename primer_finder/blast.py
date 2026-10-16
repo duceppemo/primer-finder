@@ -21,9 +21,23 @@ log = logging.getLogger(__name__)
 MAX_EVALUE = 1e-10
 # A variant position is kept when it differs in at least this fraction of the exclusion genomes that hold
 # the region: a few exclusion genomes may carry the inclusion allele without making the assay useless.
-# The shortest stretch of a contig that no exclusion genome aligns which is worth calling absent: the
-# widest a primer may be, so that a primer could sit wholly inside it. See `unaligned_positions`.
-SHORTEST_ABSENT_STRETCH = 25
+# The shortest stretch of a contig that no exclusion genome aligns which is worth calling absent. The
+# test it has to pass is not "could a primer sit in it" but "would this search have reported it if the
+# genome held it" -- otherwise a stretch is called absent when it is only undetectable. Measured against a
+# 3 Mb genome at this module's own `-evalue 1e-10`, with an exact island flanked by unrelated sequence:
+#
+#   25 bases  evalue 1.16e-06   not reported
+#   30 bases  evalue 8.15e-09   not reported
+#   33 bases  evalue 5.62e-11   reported
+#   40 bases  evalue 3.27e-14   reported
+#
+# So anything under 33 is inside the search's blind spot, and 40 leaves room for a larger genome, whose
+# evalues are worse in proportion. The real absences in the validation panels run from 300 to 6,348
+# bases, so nothing of interest is lost by the margin.
+SHORTEST_ABSENT_STRETCH = 40
+# Subjects to ask for when reading what the exclusion genomes hold. Enough that a draft assembly of a few
+# hundred contigs cannot push the one carrying a short stretch out of the list.
+MOST_SUBJECTS = 500
 MIN_EXCLUSION_FRACTION = 0.90
 
 PRESENCE_FIELDS = ("qseqid", "evalue")
@@ -269,7 +283,11 @@ def exclusion_variants(
     def one(index: int, genome: Path) -> list[Hit]:
         folder = genome_folder(work_dir, index, genome)
         db = make_db(genome, folder)
-        return parse_hits(blastn(db, query, folder / HITS_NAME, ALIGNMENT_FIELDS), ALIGNMENT_FIELDS)
+        # Every subject that matches, not the ten best. A draft assembly can put a short stretch of a
+        # contig on a sequence of its own, and at the default ten that sequence can be crowded out by
+        # others holding the rest -- which would read as the genome lacking that stretch when it has it.
+        return parse_hits(blastn(db, query, folder / HITS_NAME, ALIGNMENT_FIELDS,
+                                 max_targets=MOST_SUBJECTS), ALIGNMENT_FIELDS)
 
     results: dict[str, ExclusionResult] = {name: ExclusionResult() for name in _query_names(query)}
     for hits in parallel(enumerate(genomes), one, threads):
@@ -305,11 +323,16 @@ def unaligned_positions(result: ExclusionResult, length: int,
     for alignments in result.genomes:
         for start, end, _ in alignments.spans:
             covered.update(range(start, end))
-    # Only runs long enough to mean something. Blast's local alignments of one contig do not quite abut,
-    # and the gaps between them are a base or a few: measured on two *Listeria* complexes, every such gap
-    # was 1 to 6 bases, and counting them turned 1 region into 8 and 16 into 44, none of them a real
-    # absence. A run at least as long as the widest primer is one a primer could sit wholly inside, which
-    # is the property that makes a stretch worth reporting -- and it is far longer than any gap seen.
+    # Only runs long enough to mean something, which `SHORTEST_ABSENT_STRETCH` explains. Two things this
+    # is NOT bounded by, both of which an earlier version of this comment claimed:
+    #
+    #  * the gaps between one contig's local alignments are not small. Measured per genome across five
+    #    *Listeria* complexes they run to 137 bases and beyond -- contig insertions, replacements of one
+    #    stretch by another, and HSP pairs megabases apart. What keeps them from being read as absences is
+    #    that this is a union over every exclusion genome, and a stretch has to be missing from all of
+    #    them. With a small exclusion group those per-genome gaps would be credited in full.
+    #  * a stretch is not safe merely for being long enough to hold a primer. Blast's own detection limit
+    #    is the binding constraint, and it is longer than a primer.
     runs: list[list[int]] = []
     for position in range(length):
         if position in covered:

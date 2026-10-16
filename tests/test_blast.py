@@ -12,6 +12,7 @@ from primer_finder.blast import (
     LOCAL_FASTA,
     PRESENCE_FIELDS,
     SEARCH_TASK,
+    SHORTEST_ABSENT_STRETCH,
     Alignments,
     ExclusionResult,
     Hit,
@@ -290,24 +291,31 @@ def test_a_stretch_no_exclusion_genome_aligns_counts_as_differing():
     assert enough_variants(missing, 2)
 
 
-def test_a_gap_between_two_alignments_is_not_an_absence():
-    """Blast's local alignments of one contig do not quite abut, and the gaps between them are a base or
-    a few. Measured on two *Listeria* complexes: every such gap was 1 to 6 bases, and counting them as
-    absences added a region that was not one. A run has to be long enough for a primer to sit wholly
-    inside it before it means anything."""
-    result = ExclusionResult(genomes=[])
+def one_genome_aligning(length: int, *spans: tuple[int, int]) -> ExclusionResult:
+    """One exclusion genome that aligns exactly the given half-open spans of a contig."""
     alignments = Alignments()
-    alignments.spans.append((0, 50, {}))     # q1-50
-    alignments.spans.append((56, 200, {}))   # q57-200: six bases unaligned between them
-    result.genomes.append(alignments)
-    assert unaligned_positions(result, 200) == []
-    # And the same gap, long enough to hold a primer, does count
-    wider = ExclusionResult(genomes=[])
-    spans = Alignments()
-    spans.spans.append((0, 50, {}))
-    spans.spans.append((75, 200, {}))        # 25 bases unaligned
-    wider.genomes.append(spans)
-    assert unaligned_positions(wider, 200) == list(range(50, 75))
+    for start, end in spans:
+        alignments.spans.append((start, end, {}))
+    return ExclusionResult(genomes=[alignments])
+
+
+@pytest.mark.parametrize(("gap", "counted"),
+                         [(1, False), (6, False), (32, False),
+                          (SHORTEST_ABSENT_STRETCH - 1, False), (SHORTEST_ABSENT_STRETCH, True)])
+def test_how_long_an_unaligned_run_has_to_be_before_it_is_an_absence(gap, counted):
+    """The gap between one contig's local alignments is not necessarily small -- measured per genome
+    across five *Listeria* complexes it runs to 137 bases and beyond. What has to decide this is whether
+    the search would have reported the stretch had the genome held it: against a 3 Mb genome at this
+    module's `-evalue 1e-10`, an exact island of 25 or 30 bases is not reported at all and one of 33 is,
+    so anything shorter than the floor could be present and merely invisible."""
+    result = one_genome_aligning(400, (0, 50), (50 + gap, 400))
+    assert (unaligned_positions(result, 400) == list(range(50, 50 + gap))) is counted
+
+
+def test_the_floor_is_above_what_the_search_can_miss():
+    """Not a round number chosen for comfort: 33 bases is where an exact island becomes reportable at
+    `-evalue 1e-10` against a 3 Mb genome, and the floor leaves room for a larger one."""
+    assert SHORTEST_ABSENT_STRETCH >= 33
 
 
 def test_a_contig_no_exclusion_genome_holds_at_all_has_no_unaligned_positions():
