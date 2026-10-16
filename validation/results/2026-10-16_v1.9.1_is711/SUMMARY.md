@@ -211,10 +211,10 @@ the top of the file and concluding nothing was found.
 ## One thing to decide: "present in every inclusion genome" counts any hit
 
 `blast.presence_in_genomes` calls a region present in a genome when blast returns **any** hit for it below
-the evalue cut-off, with no requirement on how much of the region that hit covers. On the draft group that
-is visible: the region the published assay was recovered in is 295 bases, two of the thirty inclusion
-genomes hold only its **first 76 bases** at 100% identity and nothing else of it, and the published
-amplicon sits in the part they do not have. The run reported the region as present in all thirty.
+the evalue cut-off, with no requirement on how much of the region that hit covers. The draft group above
+is the measured case: unitig_1828 is 338 bases, the only hit of it in GCF_964187125.1 under the cut-off is
+**41 identical bases at the start of a contig**, 12% of the region, and the published amplicon is not in
+that assembly at all. The run reported the region as present in all thirty inclusion genomes.
 
 Nothing downstream is fooled -- `design` reports `inclusion_copies_min 0` for every assay on that region,
 which is what says an inclusion genome lacks the amplicon -- so the pipeline's answer is right and it is
@@ -253,7 +253,6 @@ Every run of this record is in [`runs.tsv`](runs.tsv), and the per-genome census
 [`is711_census.tsv`](is711_census.tsv): one row per panel genome, with its assembly level, its whole
 element copies, its amplicon copies, the longest piece of the element it holds and whether a piece of it
 ends at a contig boundary.
-
 
 ```bash
 # the panel, its blast database and the census
