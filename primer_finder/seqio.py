@@ -251,4 +251,3 @@ def _other_fasta_files(folder: Path | str, found: Sequence[Path]) -> list[Path]:
             except (OSError, RuntimeError):  # Unreadable, a dangling link, a symlink loop
                 continue
     return others
-

@@ -784,6 +784,75 @@ def chains_of(hits: Sequence[blast.Hit]) -> list[list[blast.Hit]]:
     return chains
 
 
+def matching(flank: str, window: str) -> int:
+    """How many bases of an amplicon's unaligned end are there, in place, in the genome.
+
+    Compared base for base rather than aligned. An aligner flatters a short sequence -- it maximises over
+    every way of placing it, and with gaps to spend it finds half of any fifteen bases in any other -- so
+    aligning a flank turned eight of the bundled example's eleven genuine absences into copies. A flank
+    is a handful of bases that either sit where they have to or do not, and this asks exactly that. A real
+    flank carrying an indel loses a few of its bases to the comparison, and the alignment blast did report
+    carries it: measured on a 72-base amplicon whose eight-base flank holds an insertion and a deletion,
+    four of the eight still match in place, and the copy comes out at 93% identity overall.
+    """
+    return sum(1 for base, other in zip(flank.upper(), window.upper(), strict=False) if base == other)
+
+
+def with_flanks(chain: Sequence[blast.Hit], size: int, amplicon: str,
+                contigs: dict[str, seqio.Record]) -> list[blast.Hit]:
+    """The chain with the amplicon's unaligned ends added as the pieces blast did not report.
+
+    Blast will not always pay its gap costs to carry an alignment across an indel for the sake of a few
+    bases, so it can report a hit that stops short of the amplicon's ends although the genome holds them.
+    Measured on real output: a 72-base amplicon whose first eight bases sit either side of a one-base
+    insertion and a one-base deletion came back as `q9-72`, 88.9% of the amplicon, which fails the
+    coverage rule -- while megablast aligned all 72. There is one alignment, so chaining has nothing to
+    join. So each unaligned end is aligned against the stretch of genome it would have to occupy and
+    added to the chain, columns and mismatches alike.
+
+    Both, deliberately. An earlier attempt counted only the bases that matched, towards the reach, on the
+    reasoning that a difference among an amplicon's outermost bases is a difference at a primer's 5' end
+    and so does not stop the polymerase. That is true of one or two bases and false of eight: it turned
+    every one of the bundled example's eleven genuine absences into a copy, because a seventeen-base
+    flank aligned against any window at all picks up a quarter of itself by chance, which was enough to
+    cross the threshold. Folding the flank in needs no threshold of its own and gets all three measured
+    cases right: the 72-base amplicon above is held at 95.9%, the example's seventeen-base absent flank
+    reads 85.8% and stays absent, and an eight-base absent flank reads 88.5% and stays absent, which is
+    what megablast said of the same locus.
+    """
+    if not chain or not amplicon:
+        return list(chain)
+    contig = contigs.get(chain[0].subject)
+    if contig is None:
+        return list(chain)
+    sequence = contig.seq
+    low, high, forward = _subject_bounds(chain[0])
+    last_low, last_high, _ = _subject_bounds(chain[-1])
+    pieces = list(chain)
+
+    head = chain[0].qstart - 1  # Bases of the amplicon before the alignment
+    if head > 0:
+        if forward:
+            window = sequence[max(0, low - 1 - head):low - 1]
+        else:
+            window = seqio.reverse_complement(sequence[high:high + head])
+        pieces.insert(0, blast.Hit(query=chain[0].query, qstart=1, qend=head, evalue=0.0,
+                                   length=head, identical=matching(amplicon[:head], window), gaps=0,
+                                   subject=chain[0].subject, sstart=low, send=low))
+
+    tail = size - chain[-1].qend  # And after it
+    if tail > 0:
+        if forward:
+            window = sequence[last_high:last_high + tail]
+        else:
+            window = seqio.reverse_complement(
+                sequence[max(0, last_low - 1 - tail):last_low - 1])
+        pieces.append(blast.Hit(query=chain[-1].query, qstart=size - tail + 1, qend=size, evalue=0.0,
+                                length=tail, identical=matching(amplicon[size - tail:], window), gaps=0,
+                                subject=chain[-1].subject, sstart=last_high, send=last_high))
+    return pieces
+
+
 def has_the_amplicon(chain: Sequence[blast.Hit], size: int) -> bool:
     """Whether one chain of hits means this genome holds something the primer pair could amplify.
 
@@ -855,6 +924,7 @@ def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: 
     query = work_dir / "amplicons.fasta"
     seqio.write_fasta(query, [seqio.Record(assay.name, "", assay.amplicon) for assay in assays])
     sizes = {assay.name: len(assay.amplicon) for assay in assays}
+    sequences = {assay.name: assay.amplicon for assay in assays}
     starts = {assay.name: assay.forward.start for assay in assays}  # The amplicon starts here in the region
     fields = ("qseqid", "qstart", "qend", "evalue", "length", "pident", "nident", "gaps",
               "sseqid", "sstart", "send")
@@ -873,9 +943,22 @@ def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: 
             if hit.evalue > blast.MAX_EVALUE:
                 continue
             by_query.setdefault(hit.query, []).append(hit)
+        contigs: dict[str, seqio.Record] = {}
         for name, found_hits in by_query.items():
             for chain in chains_of(found_hits):
-                if not has_the_amplicon(chain, sizes[name]):
+                held = has_the_amplicon(chain, sizes[name])
+                if not held and chain and (chain[0].qstart > 1
+                                           or chain[-1].qend < sizes[name]):
+                    # Only ever a rescue, and only for a chain that fell short: the flank is looked at to
+                    # see whether a copy the rule refused is there after all, never to take one away. A
+                    # chain that reaches far enough on blast's own evidence is left alone, so this cannot
+                    # turn a copy into an absence -- and an absence is the claim that costs, since it
+                    # ranks above every difference-based assay and is exempt from the differences filter.
+                    if not contigs:
+                        contigs = seqio.read_fasta(folder / blast.LOCAL_FASTA)
+                    chain = with_flanks(chain, sizes[name], sequences[name], contigs)
+                    held = has_the_amplicon(chain, sizes[name])
+                if not held:
                     continue
                 found[name] = found.get(name, 0) + 1
                 if with_bases:

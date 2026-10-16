@@ -38,6 +38,7 @@ from primer_finder.design import (
     requests_for,
     run,
     specific_by,
+    with_flanks,
     write_assays,
 )
 from primer_finder.seqio import Record, reverse_complement
@@ -684,6 +685,90 @@ def test_how_far_apart_two_pieces_may_be_before_they_are_two_copies(gap, chained
     pieces = [hit(200, qstart=1, qend=100, sstart=1, send=100),
               hit(200, qstart=101, qend=200, sstart=101 + gap, send=200 + gap)]
     assert (len(chains_of(pieces)) == 1) is chained
+
+def contig_holding(flank: str, body: str, before: int = 100) -> dict:
+    """A genome whose amplicon sits at `before` + len(flank), with `flank` as the genome spells it."""
+    return {"chr": Record("chr", "", "A" * before + flank + body)}
+
+
+def test_a_flank_blast_would_not_pay_to_align_is_still_counted():
+    """Measured on real output: a 72-base amplicon against a *B. suis* genome came back as `q9-72`, 64 of
+    72 bases, because its first eight sit either side of a one-base insertion and a one-base deletion and
+    blastn will not pay its gap costs to cross that for four matching bases. megablast aligned all 72.
+    64 of 72 is 88.9%, just under the coverage rule, so the genome read as not holding an amplicon it
+    holds -- which hands the assay an unearned claim that there is nothing to amplify."""
+    body = "ACGTTGCA" * 8                      # The 64 bases blast did align
+    amplicon = "TGCCCATA" + body               # ... and the eight it did not
+    contigs = contig_holding("TGCCGCAT", body)  # As the genome spells them: one insertion, one deletion
+    one = hit(72, qstart=9, qend=72, sstart=109, send=172, mismatches=1)
+    assert not has_the_amplicon([one], 72)      # 64 of 72 on its own
+    whole = with_flanks([one], 72, amplicon, contigs)
+    assert [(piece.qstart, piece.qend) for piece in whole] == [(1, 8), (9, 72)]
+    assert whole[0].length == 8  # The flank is eight bases wherever they match
+    assert has_the_amplicon(whole, 72)
+
+
+def test_a_genome_holding_a_flank_blast_left_out_is_counted(stubs, tmp_path, fasta):
+    """Through `amplicon_copies` and the genome beside the blast database, not just the two functions on
+    their own: a hit covering 85% of the amplicon is under the coverage rule, and the genome holds the
+    rest exactly where it would have to be."""
+    amplicon = "ACGTTGCA" * 9  # 72 bases
+    stubs(amplicon_hits={"g1": 1}, amplicon_covers=0.85)
+    genomes = [fasta("g1.fasta", {"chr": amplicon + "TTTTTTTTTT"})]
+    one = assay(amplicon=amplicon, forward=oligo(start=0, length=20))
+    counts, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=1)
+    assert counts[one.name] == [1]
+
+
+def test_a_flank_can_rescue_a_copy_but_never_take_one_away(stubs, tmp_path, fasta):
+    """The guarantee the flank check rests on. It is consulted only for a chain that fell short, so a copy
+    blast's own evidence reaches is never reconsidered -- an `absence` is the claim that costs, ranking
+    above every difference-based assay and exempt from the differences filter, so the check may only ever
+    shed one. Measured over four Brucella targets and 958 assays: two absences shed, none gained."""
+    amplicon = "ACGTTGCA" * 12  # 96 bases
+    # A hit reaching 95% of the amplicon, whose last bases the genome does NOT hold
+    stubs(amplicon_hits={"g1": 1}, amplicon_covers=0.95)
+    genomes = [fasta("g1.fasta", {"chr": amplicon[:91] + "GGGGGGGGGGGGGGG"})]
+    one = assay(amplicon=amplicon, forward=oligo(start=0, length=20))
+    counts, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=1)
+    assert counts[one.name] == [1], "a chain that reaches far enough on its own must stay a copy"
+
+
+def test_a_flank_the_genome_does_not_hold_earns_little_and_stays_absent():
+    """What keeps the above from turning every short hit into a copy: the credit is the bases that match
+    where they would have to be, so a flank that is not there does not buy coverage."""
+    body = "ACGTTGCA" * 8
+    amplicon = "TTTTTTTTTTTTTTTTTTTT" + body   # 20 bases the genome has nothing like
+    contigs = contig_holding("CGACGACGACGACGACGACG", body)
+    one = hit(84, qstart=21, qend=84, sstart=121, send=184)
+    whole = with_flanks([one], 84, amplicon, contigs)
+    assert not has_the_amplicon(whole, 84)
+
+
+def test_a_difference_in_a_flank_is_not_held_against_the_copy():
+    """A flank is the amplicon's outermost bases, so a difference among them is a difference at a primer's
+    5' end -- the end whose mismatches do not stop the polymerase extending. Counting them against the
+    copy's identity denied amplifications that are real, on seven assays of the Brucella genus panel."""
+    body = "ACGTTGCA" * 10
+    amplicon = "TTTTTTTT" + body
+    contigs = contig_holding("TTTTTTTT", body)
+    one = hit(88, qstart=9, qend=88, sstart=109, send=188, mismatches=7)   # 73 of 80: 91.3%
+    whole = with_flanks([one], 88, amplicon, contigs)
+    assert (whole[0].identical, whole[0].length) == (8, 8)  # The flank is there exactly
+    assert has_the_amplicon(whole, 88)
+
+
+def test_a_flank_on_the_minus_strand_is_looked_for_the_other_way_round():
+    """On the minus strand the amplicon runs against the genome, so the head flank lies after the
+    alignment rather than before it, reverse complemented."""
+    body = "ACGTTGCA" * 8
+    amplicon = "TGCCCATA" + body
+    genome = reverse_complement("A" * 100 + "TGCCGCAT" + body)
+    contigs = {"chr": Record("chr", "", genome)}
+    # The body occupies the genome's first 64 bases, descending as the amplicon ascends
+    one = hit(72, qstart=9, qend=72, sstart=64, send=1)
+    whole = with_flanks([one], 72, amplicon, contigs)
+    assert whole[0].length == 8 and whole[0].identical == 4  # TGCCCATA against TGCCGCAT, in place
 
 def test_the_pieces_blast_splits_a_copy_into_are_read_as_one_copy():
     """Measured with real blastn 2.17: a 207-base amplicon against a genome carrying 100 extra bases in

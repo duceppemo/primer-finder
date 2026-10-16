@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.8.1
+
+### Fixed
+
+- **An exclusion genome holding an amplicon was recorded as not holding it, when blast reported a hit that
+  stopped a few bases short of the amplicon's ends.** Found by re-designing the *Brucella* panel under
+  1.8.0 and comparing against the 1.7.0 record, which is what that re-run was for.
+
+  Blast will not always pay its gap costs to carry an alignment across an indel for the sake of a few
+  bases. Measured on real output: a 72-base amplicon whose first eight bases sit either side of a one-base
+  insertion and a one-base deletion came back as `q9-72`, 88.9% of the amplicon, just under the coverage
+  rule — while megablast, which 1.7.0 used, aligned all 72 and called it a copy. There is one alignment,
+  so the chaining built for this shape of problem had nothing to join. **630 of 951 exclusion genomes**
+  went from holding that amplicon to not holding it, and the assay was handed the `absence` label, which
+  ranks above every difference-based assay and is exempt from `--min-primer-differences`.
+
+  Each unaligned end is now compared, base for base, against the stretch of genome it would have to
+  occupy, and counted as the piece blast did not report — columns and mismatches alike, so a flank the
+  genome does not hold still fails the rule on its own evidence. It is consulted **only** for a chain that
+  fell short, never to reconsider a copy blast's own evidence reaches, so it can shed an unearned
+  `absence` but never create one. Measured over four *Brucella* targets and 958 assays: two shed, none
+  gained, and the bundled example's eleven genuine absences are unchanged.
+
+  Two approaches were tried and rejected against that example, which is the one case with a known answer.
+  Aligning the flank rather than comparing it in place turned eight of those eleven into copies: an
+  aligner maximises over every way of placing a short sequence, and with gaps to spend it finds half of
+  any fifteen bases in any other. Counting only the bases that matched, towards the reach alone, turned
+  all eleven into copies for the same reason.
+
 ## 1.8.0
 
 ### Fixed

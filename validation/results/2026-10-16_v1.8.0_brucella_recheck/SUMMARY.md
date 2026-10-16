@@ -63,11 +63,25 @@ it, and the assay is handed a specificity claim it has not earned. Neither versi
 1.7.0's own count rested on megablast, whose blind spot for a copy that differs every ~25 bases is what
 `-task blastn` was adopted to close.
 
-Fixing it means deciding what to do when a hit stops short of an amplicon's end by a few bases: the
-missing flank can be compared against the subject directly, which is exact and needs the genome to hand,
-or the coverage rule can be given an absolute allowance beside its fraction, which is simpler and
-arbitrary. The first is the honest one. Until then, an `absence` verdict on an amplicon under about 150
-bases is worth checking against the genome by hand.
+**Fixed in 1.8.1**, by the first of the two routes considered here: each unaligned end is compared, base
+for base, against the stretch of genome it would have to occupy, and counted as the piece blast did not
+report. Re-running these four targets afterwards sheds those two absences and changes nothing else — the
+genus counts stay at 377 and 207, `abortus` at nil, and the bundled example's eleven genuine absences are
+untouched. The check is consulted only for a chain that fell short, so it can shed an unearned `absence`
+but never create one.
+
+Two other routes were tried and rejected against the bundled example, which is the only case here with a
+known answer. *Aligning* the flank instead of comparing it in place turned eight of those eleven genuine
+absences into copies: an aligner maximises over every way of placing a short sequence, and with gaps to
+spend it finds half of any fifteen bases in any other. Counting only the bases that matched, towards the
+reach alone, turned all eleven into copies for the same reason. The lesson is worth keeping: a flank is a
+handful of bases that either sit where they have to or do not, and anything cleverer than asking that
+question flatters it.
+
+The eight remaining differences from the 1.7.0 record are a separate matter and not this defect. Their
+best exclusion hit covers the whole amplicon at about **84%** identity over its aligned columns, which
+fails the 90% rule under either version's arithmetic; megablast had reported one or two genomes at ≥90%
+for the same locus. At that divergence the newer answer is the better founded one.
 
 ## Running it again
 
