@@ -55,8 +55,7 @@ Inclusion-specific kmers were found and assembled, but none of the contigs has t
 bases of each other when mapped to the exclusion genome. The region is specific, but by a single mismatch
 here and there, which does not make a selective assay.
 
-**Since the release after 1.7.0** (the Unreleased section of the
-[changelog](https://github.com/duceppemo/primer-finder/blob/main/CHANGELOG.md)) **a run does not stop here.** It tries again accepting a single difference and reports what it
+**Since 1.8.0 a run does not stop here.** It tries again accepting a single difference and reports what it
 finds marked `last_resort`, which is a lead rather than a result: an assay resting on one mismatch is the
 hardest kind to make work. So this message now means one of two things — the run was given
 `--no-last-resort`, or **no contig differs from the exclusion genome at all**, which is a different

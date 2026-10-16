@@ -644,6 +644,16 @@ def test_the_bases_come_from_every_piece_of_a_split_copy(stubs, tmp_path, fasta)
     assert one.forward.variant_bases == {10: "T"}   # In the first piece
     assert one.reverse.variant_bases == {80: "T"}   # In the second
 
+def test_a_chain_of_three_pieces_counts_each_base_once():
+    """The reach is a running maximum, not the last piece's end, so a piece overlapping more than its
+    immediate predecessor is still only counted for what it adds."""
+    chains = chains_of([hit(100, qstart=1, qend=40, sstart=1, send=40),
+                        hit(100, qstart=31, qend=70, sstart=31, send=70),
+                        hit(100, qstart=61, qend=100, sstart=61, send=100)])
+    assert len(chains) == 1
+    assert has_the_amplicon(chains[0], 100)  # 100 of 100 columns match
+
+
 @pytest.mark.parametrize(("overlap", "chained"), [(30, True), (31, False)])
 def test_how_much_two_pieces_may_overlap_before_they_are_two_copies(overlap, chained):
     """Blast overlaps its pieces by a base or two where it breaks a copy; an overlap much larger than that

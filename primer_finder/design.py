@@ -796,7 +796,11 @@ def has_the_amplicon(chain: Sequence[blast.Hit], size: int) -> bool:
     # overlapping by 30, the first matching throughout and the second carrying 10 mismatches among its
     # own 30 columns, is 80 of 90 columns matching, which should fail, but reads as 110 of 120, which
     # passes. The overlap is subtracted from both counts, which treats its columns as the matches they
-    # are wherever the pieces agree.
+    # are wherever the pieces agree. Where they disagree -- the later piece mismatching a column the
+    # earlier one matched -- this understates the identity by up to the size of the overlap, and that
+    # errs the wrong way, towards letting an assay claim there is nothing to amplify. Every real overlap
+    # measured was one to four bases, so the effect is a few columns in a hundred; it would be worth
+    # computing from the aligned sequences themselves if a real case ever came close to the threshold.
     aligned = identical = 0
     reached = None
     for piece in chain:

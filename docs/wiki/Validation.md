@@ -200,10 +200,13 @@ assemblies whose species label cannot be right, extending the paper's own Table 
 The full record is in
 [`2026-10-14_v1.7.0_brucella/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-14_v1.7.0_brucella/SUMMARY.md).
 
-> The tables above are labelled with the version that produced them and are not updated. From 1.8.0 the
-> counts move a little, because the blast searches changed from megablast to the more sensitive `blastn`
-> task: on four of these targets the regions went 57→59, 60→60, 1→3 and 19→21, with every recovery and
-> rank unchanged. The changelog entry explains why.
+> The tables above are labelled with the version that produced them and are not updated. Two changes in
+> 1.8.0 move the numbers. The blast searches went from megablast to the more sensitive `blastn` task, which
+> moves the **region** counts a little: on four of these targets they went 57→59, 60→60, 1→3 and 19→21,
+> with every recovery and rank unchanged. And the rule deciding whether an exclusion genome holds an
+> amplicon was wrong in two ways, so any **assay** count taken from a `design` run — the figures quoted
+> from `ALTERNATIVES.md` and `WHOLE_CLADE.md` below — would come out differently now, with fewer assays
+> claiming specificity by absence. The changelog entries explain both.
 
 ### What the two new features change, measured here
 
