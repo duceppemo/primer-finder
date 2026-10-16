@@ -183,13 +183,13 @@ The bundled example's contig is aligned end to end by every exclusion genome —
 to break the alignment in two is what does, and nothing in the test suite or the example had that shape
 before this. The repeat dataset is kept for that reason.
 
-One caveat about what gets reported. The marked positions become the region's "variants", and `design`
-counts them like any other difference — so an assay inside a 300-base absent block comes out with
-`best_primer_variants 20`, `forward_terminal_run 20` and a large `primer_variant_weight`, which are
-counts over bases that are *absent* rather than differing. The assay is labelled `absence` and the
-numbers order such assays sensibly among themselves, but `best_terminal_run 20` is not a claim about
-twenty 3'-end mismatches and should not be read as one. `strong_variants` and the per-oligo variant bases
-are empty for these, which is correct.
+**Fixed in 1.9.1.** What a region's marked bases mean is now recorded. They are of two kinds — most
+differ from the exclusion genomes, a stretch may instead be missing from all of them — and the sequence
+cannot tell them apart, so every mismatch measure counted the absent ones: an assay inside the 300-base
+block came out with `best_primer_variants 20`, `forward_terminal_run 20` and a `primer_variant_weight` of
+30, over a primer carrying no mismatch at all. `find` writes the absent stretches into `run_info.json`,
+`design` reads them, and the figures for those assays are now 0 with the count in
+`forward_absent_bases` instead. A run that recorded nothing — any run before this — is read as before.
 
 This says nothing about how such an assay behaves in a reaction. What it establishes is that a
 repeat-targeted marker now survives the pipeline that was discarding it, and that `-d` must be set to the

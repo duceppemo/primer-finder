@@ -146,6 +146,7 @@ the ones that would amplify both groups are kept at the end for the record.
 |---|---|
 | `assay` | its name, which is also the prefix of its oligos in the fasta files (`<assay>-F`, `-R`, `-P`) |
 | `region` | the candidate region it was designed in |
+| `forward_absent_bases`, `reverse_absent_bases`, `probe_absent_bases` | bases under that oligo which no exclusion genome holds at all, counted apart from `*_variants`. A difference and an absence are both marked in the region's sequence and cannot be told apart from it, so `find` records which stretches are which and the mismatch measures — `*_variants`, `*_terminal_run`, `best_primer_variants`, `primer_variant_weight` — leave the absent ones out. Before 1.9.1 they were counted as mismatches, so an assay inside a 300-base absent block reported twenty differences under a primer carrying none |
 | `specific_by` | `absence` (no exclusion genome holds the amplicon: no *chain* of hits reaching 90% of it at 90% identity over its aligned columns, see [Designing assays](Designing-assays#when-an-exclusion-genome-counts-as-holding-the-amplicon)), `difference` (an oligo sits on differing bases), or `nothing` (it would amplify both groups) |
 | `exclusion_genomes_with_amplicon` | how many exclusion genomes hold the amplicon. A copy blast reports in several pieces counts once, and an end blast stopped short of that the genome does hold is counted in |
 | `best_terminal_run` | the longest run of differences ending at a primer's 3' end |

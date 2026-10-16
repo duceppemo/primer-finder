@@ -21,6 +21,7 @@ from primer_finder.design import (
     Conditions,
     DesignSettings,
     Oligo,
+    absent_stretches_of,
     amplicon_copies,
     assays_of,
     build_request,
@@ -454,6 +455,51 @@ def test_a_right_primer_keeps_the_strand_primer3_reports_it_on():
     designed = assays_of(region, fields)[0]
     assert designed.reverse.sequence == reverse_complement(template) != template
     assert region.seq[designed.reverse.start:designed.reverse.end] == template
+
+
+def test_a_base_that_is_absent_is_not_counted_as_a_mismatch():
+    """A region's marked bases are of two kinds and the sequence cannot tell them apart: most differ from
+    the exclusion genomes, but a stretch may instead be missing from all of them. `find` records which.
+    Counted together, an assay inside a 300-base absent block reported twenty differences under a primer
+    carrying none, and a terminal run of twenty -- a claim about 3'-end mismatches that are not there."""
+    # Two differences at 10 and 11, then an absent block running to the forward primer's 3' end at 39
+    region = Record("ctg1", "", "A" * 10 + "cg" + "A" * 8 + "a" * 20 + "A" * 108 + "t" + "A" * 50)
+    fields = {
+        "SEQUENCE_ID": "ctg1", "PRIMER_PAIR_NUM_RETURNED": "1",
+        "PRIMER_LEFT_0": "0,40", "PRIMER_LEFT_0_SEQUENCE": "A" * 40,
+        "PRIMER_RIGHT_0": "189,20", "PRIMER_RIGHT_0_SEQUENCE": "T" * 20,
+        "PRIMER_PAIR_0_PRODUCT_SIZE": "190", "PRIMER_PAIR_0_PENALTY": "0.25",
+    }
+    # Without the record, every marked base reads as a difference
+    together = assays_of(region, fields)[0]
+    assert together.forward.variants == [10, 11, *range(20, 40)]
+    assert together.forward.absent == []
+    assert together.forward.terminal_run == 20   # Twenty "mismatches" at the 3' end, none of them real
+    assert together.best_primer_variants == 22
+    # With it, the absent bases are counted apart and no mismatch measure sees them
+    apart = assays_of(region, fields, [[20, 39]])[0]
+    assert apart.forward.variants == [10, 11]
+    assert apart.forward.absent == list(range(20, 40))
+    assert apart.forward.terminal_run == 0
+    assert apart.best_primer_variants == 2
+
+
+def test_an_older_run_without_the_record_is_read_as_before(tmp_path):
+    """Nothing is guessed: a run that recorded no absent stretches gets the figures it always got."""
+    (tmp_path / "run_info.json").write_text(json.dumps({"counts": {"final": 1}}))
+    assert absent_stretches_of(DesignSettings(results=tmp_path, output=tmp_path / "out", threads=1)) == {}
+    (tmp_path / "run_info.json").write_text(json.dumps(
+        {"absent_stretches": {"ctg1": [[12, 31]]}}))
+    assert absent_stretches_of(DesignSettings(results=tmp_path, output=tmp_path / "out", threads=1)) == {
+        "ctg1": [[12, 31]]}
+
+
+def test_a_record_of_absent_stretches_that_cannot_be_read_is_reported(tmp_path, caplog):
+    """A hand-edited or future file must not take the run down, and must not pass silently either."""
+    (tmp_path / "run_info.json").write_text(json.dumps({"absent_stretches": {"ctg1": "all of it"}}))
+    with caplog.at_level("WARNING"):
+        assert absent_stretches_of(DesignSettings(results=tmp_path, output=tmp_path / "out", threads=1)) == {}
+    assert "will include any base that is missing" in caplog.text
 
 
 def test_assays_of_counts_the_differences_each_oligo_covers():
@@ -1104,6 +1150,31 @@ def design_settings(results: Path, output: Path, **changes) -> DesignSettings:
     defaults = dict(results=results, output=output, threads=1)
     defaults.update(changes)
     return DesignSettings(**defaults)
+
+
+def test_the_absent_stretches_a_run_recorded_reach_the_table(stubs, genomes, tmp_path):
+    """End to end through `run`: the record `find` leaves must actually be read, or every mismatch
+    measure in the table counts bases that are not there."""
+    inclusion, exclusion = genomes
+    results = tmp_path / "results"
+    results.mkdir()
+    # The marked stretch sits where the stand-in puts the forward primer, 10 to 29, and all of it is
+    # absent rather than differing
+    region = "A" * 10 + "a" * 30 + "A" * 160
+    (results / "final_kmers.fasta").write_text(f">ctg1 {list(range(10, 40))}\n{region}\n")
+    (results / "run_info.json").write_text(json.dumps({
+        "parameters": {"inclusion": str(inclusion), "exclusion": str(exclusion)},
+        "absent_stretches": {"ctg1": [[10, 39]]},
+    }))
+    output = tmp_path / "assays"
+    assert run(design_settings(results, output)) == 0
+    rows = list(iter_rows(output / "assays.tsv"))
+    assert rows, "no assay was written"
+    assert any(int(row["forward_absent_bases"] or 0) > 0 for row in rows), \
+        "the absent bases were not counted anywhere"
+    for row in rows:
+        assert int(row["forward_variants"] or 0) == 0, row["assay"]
+        assert int(row["forward_terminal_run"] or 0) == 0, row["assay"]
 
 
 def test_the_genome_folders_come_from_what_the_run_recorded(finished_run, genomes, tmp_path):

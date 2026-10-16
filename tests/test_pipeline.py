@@ -463,6 +463,26 @@ def test_a_region_whose_specificity_is_a_block_no_exclusion_genome_holds_is_repo
     assert marked == 60, marked  # The 60 bases between the two aligned ends
 
 
+def test_the_absent_stretches_are_recorded_for_the_design_command(stubs, settings):
+    """`design` reads the marked positions off the sequence and cannot tell a base that differs from one
+    that is missing. This is the only channel that tells it, so the run has to write it."""
+    ends = [["ctg1", 1, 20, 1e-30, "ACGT" * 5, "ACGT" * 5],
+            ["ctg1", 81, 100, 1e-30, "ACGT" * 5, "ACGT" * 5]]  # 60 bases unaligned between them
+    stubs(exclusion_hits={"exclusion_1": ends, "exclusion_2": ends})
+    scenario = settings(last_resort=False)
+    assert run(scenario) == 0
+    info = json.loads((scenario.output / "run_info.json").read_text())
+    assert info["absent_stretches"] == {"ctg1": [[20, 79]]}
+
+
+def test_a_run_with_nothing_absent_records_nothing(stubs, settings):
+    """An ordinary region leaves the record empty rather than absent, so `design` can tell the two apart
+    from an older run that never wrote it."""
+    assert run(settings(last_resort=False)) == 0
+    info = json.loads((settings().output / "run_info.json").read_text())
+    assert info["absent_stretches"] == {}
+
+
 def test_a_region_resting_on_absence_says_what_a_small_group_is_worth(stubs, settings, caplog):
     """The differences rule needs 90% of the covering genomes to agree, so no one genome can carry it. A
     stretch missing from the group is credited on whatever the group says -- with a handful of genomes, one

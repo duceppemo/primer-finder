@@ -7,6 +7,7 @@ import logging
 import math
 import shutil
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -144,7 +145,12 @@ def _run(settings: Settings, inclusion: list[Path], exclusion: list[Path], refer
     info["parameters"]["assembler_used"] = assembler_used  # type: ignore[index]
     counts["contigs"] = seqio.count_records(assembly)
 
-    final, min_differences = check_the_contigs(settings, assembly, reference, inclusion, exclusion, counts)
+    absent: dict[str, list[list[int]]] = {}
+    final, min_differences = check_the_contigs(settings, assembly, reference, inclusion, exclusion,
+                                               counts, absent)
+    # Which marked stretches are missing from the exclusion group rather than differing from it. `design`
+    # reads the marks off the sequence and cannot tell the two apart on its own.
+    info["absent_stretches"] = {name: runs for name, runs in sorted(absent.items())}
     info["parameters"]["min_differences"] = min_differences  # type: ignore[index]
     info["last_resort"] = min_differences <= 1 and counts["final"] > 0
 
@@ -297,7 +303,8 @@ def assemble_kmers(settings: Settings, kmer_fasta: Path) -> tuple[Path, str]:
 
 
 def check_the_contigs(settings: Settings, assembly: Path, reference: Path, inclusion: list[Path],
-                      exclusion: list[Path], counts: dict[str, int]) -> tuple[Path, int]:
+                      exclusion: list[Path], counts: dict[str, int],
+                      absent: dict[str, list[list[int]]] | None = None) -> tuple[Path, int]:
     """Steps 3 to 5 at the strict rule, and again accepting a single difference if that found nothing.
 
     The three steps between the assembly and the answer all turn on how much a region has to differ, and
@@ -315,8 +322,11 @@ def check_the_contigs(settings: Settings, assembly: Path, reference: Path, inclu
     def pass_at(min_differences: int) -> Path:
         best, counts["candidates"] = find_candidates(settings, assembly, reference, min_differences)
         all_inclusion, counts["in_all_inclusion"] = keep_shared_by_inclusion(settings, best, inclusion)
-        final, counts["final"] = keep_absent_from_exclusion(settings, all_inclusion, exclusion,
-                                                            min_differences)
+        final, counts["final"], found = keep_absent_from_exclusion(settings, all_inclusion, exclusion,
+                                                                    min_differences)
+        if absent is not None:
+            absent.clear()          # A second pass replaces what the first one found
+            absent.update(found)
         return final
 
     strict = mapping.STRICT_DIFFERENCES
@@ -466,6 +476,17 @@ def warn_about_absence(regions: int, genomes: int) -> None:
         regions, genomes, genomes)
 
 
+def runs_of(positions: Sequence[int]) -> list[list[int]]:
+    """Consecutive positions as [first, last] pairs."""
+    runs: list[list[int]] = []
+    for position in positions:
+        if runs and position == runs[-1][1] + 1:
+            runs[-1][1] = position
+        else:
+            runs.append([position, position])
+    return runs
+
+
 def write_presence_table(path: Path, presence: dict[str, dict[str, bool]],
                          labels: dict[str, str] | None = None) -> None:
     """A table of contigs (rows) against genomes (columns), 1 when the contig is present."""
@@ -482,7 +503,7 @@ def write_presence_table(path: Path, presence: dict[str, dict[str, bool]],
 def keep_absent_from_exclusion(
     settings: Settings, all_inclusion: Path, exclusion: list[Path],
     min_differences: int = mapping.STRICT_DIFFERENCES,
-) -> tuple[Path, int]:
+) -> tuple[Path, int, dict[str, list[list[int]]]]:
     """Keep the contigs whose differences hold up against every exclusion genome, not just the one they were
     mapped to. A contig that no exclusion genome hits at all is kept as it is.
 
@@ -498,6 +519,7 @@ def keep_absent_from_exclusion(
 
     records: list[seqio.Record] = []
     resting_on_absence: list[str] = []
+    absent_by_region: dict[str, list[list[int]]] = {}
     for name, record in candidates.items():
         result = results.get(name, blast.ExclusionResult())
         if result.genomes_hit == 0:  # Absent from every exclusion genome: specific on its own
@@ -511,17 +533,22 @@ def keep_absent_from_exclusion(
         absent = blast.unaligned_positions(result, len(record.seq))
         if absent:
             resting_on_absence.append(name)
+            absent_by_region[name] = runs_of(absent)
         positions = sorted(set(blast.shared_variants(result)) | set(absent))
         if blast.enough_variants(positions, min_differences):
             tag = next((part for part in record.desc.split() if part.startswith(INCLUSION_TAG)), "")
             desc = " ".join(part for part in (f"{positions}", tag, mark) if part)
             records.append(seqio.Record(name, desc, lower_positions(record.seq, positions)))
     kept = {record.name for record in records}
+    # Returned for `design`, which reads the marked positions off the sequence and cannot otherwise tell a
+    # base that *differs* from one that is *missing* -- and counted them alike, so an assay inside an
+    # absent block came out with twenty "mismatches" under a primer carrying none.
+    absent_kept = {name: runs for name, runs in absent_by_region.items() if name in kept}
     if any(name in kept for name in resting_on_absence):
         warn_about_absence(sum(1 for name in resting_on_absence if name in kept), len(exclusion))
     final = settings.output / FINAL_NAME
     count = seqio.write_fasta(final, records)
-    return final, count
+    return final, count, absent_kept
 
 
 def lower_positions(seq: str, positions: list[int]) -> str:

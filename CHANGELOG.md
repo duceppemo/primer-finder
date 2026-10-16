@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### Fixed
+
+- **Every mismatch measure counted bases that are not there.** A region's marked bases are of two kinds —
+  most differ from the exclusion genomes, but a stretch may instead be missing from all of them — and the
+  sequence cannot tell them apart. `design` read them all as differences, so an assay inside a 300-base
+  absent block reported `best_primer_variants 20`, `forward_terminal_run 20` and a
+  `primer_variant_weight` of 30 over a primer carrying no mismatch at all. `best_terminal_run 20` reads as
+  a claim about twenty 3'-end mismatches, and a reader choosing between assays on that table was being
+  misled.
+
+  `find` now records the absent stretches in `run_info.json` and `design` reads them, so the mismatch
+  measures count only bases that differ and the absent ones are reported in `forward_absent_bases`,
+  `reverse_absent_bases` and `probe_absent_bases` of their own. Nothing else moves: the assay is still
+  specific by absence and still carried, since that rests on the amplicon check rather than on these
+  counts, and the bundled example — which has no absent stretch — is unchanged. A run recorded before
+  this has no such record and is read exactly as before rather than guessed at.
+
 ### Added
 
 - **A run that reports a region specific by absence now says what that rests on, when the exclusion group

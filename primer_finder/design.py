@@ -168,6 +168,11 @@ class Oligo:
     tm: float
     gc: float
     variants: list[int] = field(default_factory=list)  # Positions in the region it covers that differ
+    # Positions it covers that no exclusion genome holds at all. Counted apart from `variants` because
+    # every mismatch measure below would otherwise read them as mismatches: an assay inside a 300-base
+    # absent block came out with twenty differences under a primer that carries none, and a
+    # `terminal_run` of twenty, which is a claim about 3'-end mismatches that are not there.
+    absent: list[int] = field(default_factory=list)
     reverse: bool = False
     hairpin_tm: float = 0.0     # Where it folds on itself, as a melting temperature
     self_dimer_tm: float = 0.0  # Where it pairs with a copy of itself
@@ -404,7 +409,8 @@ def parse_records(text: str) -> list[dict[str, str]]:
     return records
 
 
-def _oligo(fields: dict[str, str], kind: str, number: int, name: str, variants: Sequence[int]) -> Oligo | None:
+def _oligo(fields: dict[str, str], kind: str, number: int, name: str, variants: Sequence[int],
+           absent: Sequence[int] = ()) -> Oligo | None:
     """One oligo out of a Primer3 record. `kind` is LEFT, RIGHT or INTERNAL."""
     position = fields.get(f"PRIMER_{kind}_{number}")
     sequence = fields.get(f"PRIMER_{kind}_{number}_SEQUENCE")
@@ -414,6 +420,7 @@ def _oligo(fields: dict[str, str], kind: str, number: int, name: str, variants: 
     if kind == "RIGHT":  # Primer3 gives the rightmost base of a right primer
         start = start - length + 1
     covered = sorted(p for p in variants if start <= p < start + length)
+    missing = sorted(p for p in absent if start <= p < start + length)
     return Oligo(
         name=name,
         sequence=sequence,
@@ -422,22 +429,32 @@ def _oligo(fields: dict[str, str], kind: str, number: int, name: str, variants: 
         tm=float(fields.get(f"PRIMER_{kind}_{number}_TM", "nan")),
         gc=float(fields.get(f"PRIMER_{kind}_{number}_GC_PERCENT", "nan")),
         variants=covered,
+        absent=missing,
         reverse=kind == "RIGHT",
         hairpin_tm=float(fields.get(f"PRIMER_{kind}_{number}_HAIRPIN_TH") or 0),
         self_dimer_tm=float(fields.get(f"PRIMER_{kind}_{number}_SELF_ANY_TH") or 0),
     )
 
 
-def assays_of(record: seqio.Record, fields: dict[str, str]) -> list[Assay]:
-    """Every assay Primer3 returned for one region."""
-    variants = [position for position, base in enumerate(record.seq) if base.islower()]
+def assays_of(record: seqio.Record, fields: dict[str, str],
+              absent_stretches: Sequence[Sequence[int]] = ()) -> list[Assay]:
+    """Every assay Primer3 returned for one region.
+
+    The marked bases of a region are of two kinds and the sequence cannot tell them apart: most differ
+    from the exclusion genomes, but a stretch may instead be missing from all of them. `find` records
+    which, and they are separated here so that no mismatch measure counts a base that is not there.
+    """
+    absent = {position for first, last in absent_stretches for position in range(first, last + 1)}
+    marked = [position for position, base in enumerate(record.seq) if base.islower()]
+    variants = [position for position in marked if position not in absent]
+    missing = [position for position in marked if position in absent]
     assays = []
     for number in range(int(fields.get("PRIMER_PAIR_NUM_RETURNED", "0"))):
-        forward = _oligo(fields, "LEFT", number, f"{record.name}_assay{number}-F", variants)
-        reverse = _oligo(fields, "RIGHT", number, f"{record.name}_assay{number}-R", variants)
+        forward = _oligo(fields, "LEFT", number, f"{record.name}_assay{number}-F", variants, missing)
+        reverse = _oligo(fields, "RIGHT", number, f"{record.name}_assay{number}-R", variants, missing)
         if forward is None or reverse is None:  # pragma: no cover - Primer3 returns pairs
             continue
-        probe = _oligo(fields, "INTERNAL", number, f"{record.name}_assay{number}-P", variants)
+        probe = _oligo(fields, "INTERNAL", number, f"{record.name}_assay{number}-P", variants, missing)
         assays.append(Assay(
             region=record.name,
             number=number,
@@ -648,7 +665,8 @@ def requests_for(record: seqio.Record, product_size: str, how_many: int, force_e
 def design(regions: Iterable[seqio.Record], work_dir: Path, product_size: str = DEFAULT_PRODUCT_SIZE,
            how_many: int = DEFAULT_ASSAYS_PER_REGION, force_ends: bool = True,
            threads: int = 1, gc_clamp: int = DEFAULT_GC_CLAMP,
-           conditions: Conditions | None = None) -> list[Assay]:
+           conditions: Conditions | None = None,
+           absent_stretches: dict[str, list[list[int]]] | None = None) -> list[Assay]:
     """Run Primer3 over every region and return the assays it proposes.
 
     Two kinds of request go in: a plain one, which lets Primer3 pick the best chemistry anywhere in the
@@ -695,7 +713,7 @@ def design(regions: Iterable[seqio.Record], work_dir: Path, product_size: str = 
                 raise PrimerFinderError(
                     f"Primer3 failed on {fields.get('SEQUENCE_ID', record.name)}: {fields['PRIMER_ERROR']}"
                 )
-            proposed.extend(assays_of(record, fields))
+            proposed.extend(assays_of(record, fields, (absent_stretches or {}).get(record.name, ())))
         return proposed
 
     found: dict[str, list[Assay]] = {record.name: [] for record in regions}
@@ -1066,12 +1084,12 @@ COLUMNS = (
     "inclusion_copies_min", "inclusion_copies_max", "product_size", "penalty", "penalty_band",
     "best_primer_variants", "primer_variant_weight", "pair_dimer_tm", "pair_dimer_end_tm",
     "forward", "forward_start", "forward_tm", "forward_gc", "forward_variants",
-    "forward_hairpin_tm", "forward_self_dimer_tm",
+    "forward_absent_bases", "forward_hairpin_tm", "forward_self_dimer_tm",
     "forward_strong_variants", "forward_terminal_run", "forward_near_3prime",
     "reverse", "reverse_start", "reverse_tm", "reverse_gc", "reverse_variants",
-    "reverse_hairpin_tm", "reverse_self_dimer_tm",
+    "reverse_absent_bases", "reverse_hairpin_tm", "reverse_self_dimer_tm",
     "reverse_strong_variants", "reverse_terminal_run", "reverse_near_3prime",
-    "probe", "probe_start", "probe_tm", "probe_gc", "probe_variants",
+    "probe", "probe_start", "probe_tm", "probe_gc", "probe_variants", "probe_absent_bases",
     "probe_hairpin_tm", "probe_self_dimer_tm",
 )
 VERDICT_COLUMNS = ("inclusion_total", "exclusion_total",
@@ -1129,6 +1147,8 @@ def assay_row(assay: Assay, verdict: dict[str, object] | None = None) -> dict[st
         row[f"{part}_tm"] = f"{oligo.tm:.1f}" if oligo else ""
         row[f"{part}_gc"] = f"{oligo.gc:.1f}" if oligo else ""
         row[f"{part}_variants"] = len(oligo.variants) if oligo else ""
+        # Counted apart, so that "variants" stays a count of bases that differ
+        row[f"{part}_absent_bases"] = len(oligo.absent) if oligo else ""
         row[f"{part}_hairpin_tm"] = f"{oligo.hairpin_tm:.1f}" if oligo else ""
         row[f"{part}_self_dimer_tm"] = f"{oligo.self_dimer_tm:.1f}" if oligo else ""
         if part != "probe":  # Where the differences sit matters only for the primers
@@ -1157,6 +1177,27 @@ def write_assays(path: Path, assays: Sequence[Assay], verdicts: dict[str, object
         writer.writeheader()
         for assay in assays:
             writer.writerow(assay_row(assay, (verdicts or {}).get(assay.name)))
+
+
+def absent_stretches_of(settings: DesignSettings) -> dict[str, list[list[int]]]:
+    """Which marked stretches of each region are missing from the exclusion group, as the run recorded.
+
+    A region's marked bases are of two kinds and the sequence cannot tell them apart. Without this every
+    mismatch measure counts a base that is not there: an assay inside a 300-base absent block reported
+    twenty differences under a primer carrying none. An older run has no such record, and then nothing is
+    separated -- the figures are as they were, which is the behaviour to fall back to rather than guess.
+    """
+    info_file = settings.results / "run_info.json"
+    if not info_file.is_file():
+        return {}
+    try:
+        recorded = json.loads(info_file.read_text()).get("absent_stretches") or {}
+        return {str(name): [[int(first), int(last)] for first, last in runs]
+                for name, runs in recorded.items()}
+    except (AttributeError, TypeError, ValueError, json.JSONDecodeError):
+        log.warning("%s records absent stretches in a form this cannot read; the difference counts will "
+                    "include any base that is missing rather than differing", info_file)
+        return {}
 
 
 def threshold_of(settings: DesignSettings) -> float:
@@ -1290,7 +1331,8 @@ def run(settings: DesignSettings) -> int:
              settings.assays_per_region)
     assays = design(regions, settings.output / "primer3", settings.product_size,
                     settings.assays_per_region, threads=settings.threads, gc_clamp=settings.gc_clamp,
-                    conditions=settings.conditions)
+                    conditions=settings.conditions,
+                    absent_stretches=absent_stretches_of(settings))
     log.info("Primer3 proposed %d assay(s) on %d region(s)", len(assays),
              len({assay.region for assay in assays}))
     if not assays:
