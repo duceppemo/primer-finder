@@ -82,7 +82,14 @@ another's; none does.
 | GCF_000662015.2 | canis (per Table S5) | suis | contig |
 
 That extends the paper's Table S5 from six assemblies to fourteen, two of them complete genomes deposited
-since. Four of the paper's own six revisions are independently confirmed by which assay the genome
+since.<a id="correction-1"></a>[^corr1]
+
+[^corr1]: **Correction, 2026-10-16.** Fourteen double-counts `GCF_000662015.2`, which is listed among the
+    eight above *and* is one of the paper's own six Table S5 revisions, as this record itself says two
+    paragraphs down. Seven of the eight are new to the table, so the total is **thirteen**. Everything
+    else here stands; the eight-assembly list and every count derived from it are unaffected, since the
+    assembly belongs in the list either way -- it is why the *B. suis* assay shows one exclusion hit on
+    the panel as labelled. Four of the paper's own six revisions are independently confirmed by which assay the genome
 carries (suis→melitensis, melitensis→suis ×2, melitensis→abortus). Of the other two:
 
 - **GCF_000292145.1** (abortus→melitensis, 292 contigs) carries no species assay at all: the melitensis

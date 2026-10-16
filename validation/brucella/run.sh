@@ -31,7 +31,11 @@ threads="${2:-16}"
 memory="${3:-32}"
 python_bin="${PYTHON:-$(command -v python || command -v python3 || true)}"
 
+# Every target `group_genomes.py` can build. Only those with a row in assays.tsv can be checked against a
+# published assay; `genus_wide` and `suis_lato` are this project's own, so they are run and reported but
+# not graded.
 targets=(genus genus_wide abortus melitensis suis suis_lato)
+published=(genus abortus melitensis suis)
 
 "${python_bin}" "${here}/panel.py" "${work}"
 "${python_bin}" "${here}/verify_amplicon.py" "${work}"
@@ -42,17 +46,29 @@ for target in "${targets[@]}"; do
     echo
     echo "=============== ${target}"
     "${python_bin}" "${here}/group_genomes.py" "${work}/panel.tsv" "${work}/${target}" --target "${target}"
-    primer-finder \
+    # Guarded: `set -e` would otherwise abandon every target after one primer-finder cannot finish, which
+    # is a thing that happens -- the record's own runs.tsv has a target that failed at -p 1.0.
+    if ! primer-finder \
         -i "${work}/${target}/inclusion" \
         -e "${work}/${target}/exclusion" \
         -o "${work}/${target}/results" \
-        -t "${threads}" -m "${memory}"
-    "${python_bin}" "${here}/check_assay.py" "${work}/${target}/results" --target "${target}" \
-        --json "${work}/${target}/check.json" || status=1
+        -t "${threads}" -m "${memory}"; then
+        echo "primer-finder found nothing for ${target}; carrying on with the rest"
+        status=1
+        continue
+    fi
+    if [[ " ${published[*]} " == *" ${target} "* ]]; then
+        "${python_bin}" "${here}/check_assay.py" "${work}/${target}/results" --target "${target}" \
+            --json "${work}/${target}/check.json" || status=1
+    else
+        echo "${target} has no published assay to check against; see its results folder"
+    fi
 done
 
 echo
 echo "Done. Read census.tsv beside the per-target check.json: a target whose assay the census shows is"
 echo "missing from its own group, or present in the exclusion group, is one primer-finder is right to"
-echo "leave out. The p_needed column says what -p a run would need to report it anyway."
+echo "leave out. The p_needed column is the share of the group whose genomes hold all three oligos, so it"
+echo "is an upper bound on what -p could achieve -- not a setting that would be enough, since a kmer-sized"
+echo "window has to be intact as well, which is a stricter thing."
 exit "${status}"

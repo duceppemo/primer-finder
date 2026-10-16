@@ -9,7 +9,7 @@ genomes, 763 of which the Institut Pasteur scheme places in a clonal complex, id
 
 **The question this answers** is whether either feature is safe to make the default. It was first written
 from the *Listeria* panel alone; two more were added afterwards, and the three together are what the
-recommendation at the end rests on: **19 targets, 51 runs, 21 of them paired on the same groups with both
+recommendation at the end rests on:[^corr1] **19 targets, 51 runs, 21 of them paired on the same groups with both
 assemblers.**
 
 | panel | genomes | targets | regions, SKESA → unitig | published assays recovered |
@@ -199,3 +199,13 @@ bash validation/listeria/run.sh /path/to/work 48 128     # the baseline, with SK
 | `bases_per_kmer.txt` | all 21 paired runs: kmers, bases assembled by each, SKESA's share and its bases per kmer |
 | `recheck.tsv` | the nine *Listeria* targets re-run after the hairpin fix, against the numbers above |
 | `panel.tsv.gz` | the 784 *Listeria* genomes and their clonal complexes, as this record used them |
+
+[^corr1]: **Correction, 2026-10-16.** This count does not add up and cannot be reconstructed from the
+    tables committed here, which hold 38 runs — 18 *Listeria* (9 targets), 8 *Xylella* (4 targets) and 12
+    *Brucella* (4 targets, the genus at three settings) — in 19 pairs across 17 targets, plus the 12
+    re-checks in `recheck.tsv`. `bases_per_kmer.txt`'s 21 paired measurements are those same 19 pairs
+    plus the two `unitig_demo` rows at k=31 and k=51, which are the demonstration runs rather than panel
+    comparisons -- so "21 of them paired" is right and it is "19 targets, 51 runs" that is not: 17
+    targets are listed, and 38 + 12 = 50 runs. Every measurement in this record recomputes from its own
+    tables; only this sentence's counts do not, and the driver that produced the sweep is not committed.
+    Read the tables for the figures.

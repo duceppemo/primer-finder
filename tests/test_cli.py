@@ -217,12 +217,24 @@ def test_a_find_option_reaches_the_run(stubs, genomes, tmp_path, options, name, 
 
 def test_the_no_last_resort_option_reaches_the_run(stubs, genomes, tmp_path):
     """Recorded at the top level rather than among the parameters, because it says what the run did and
-    not only what it was asked for."""
+    not only what it was asked for.
+
+    The scenario matters: with a contig the strict rule accepts, `last_resort` is false whether or not
+    the option is wired to anything. So this gives the contig a single difference, which only the
+    last-resort pass accepts, and checks the option decides the outcome.
+    """
     inclusion, exclusion = genomes
-    out = tmp_path / "out"
-    assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(out), "-t", "1", "-m", "2",
-                 "--no-last-resort"]) == 0
-    assert json.loads((out / "run_info.json").read_text())["last_resort"] is False
+    one_difference = [["ctg1", 1, 20, 1e-30, "ACGTACGTACGTACGTACGTA", "ACGTAAGTACGTACGTACGTA"]]
+    stubs(exclusion_hits={"exclusion_1": one_difference, "exclusion_2": one_difference})
+    rescued, refused = tmp_path / "rescued", tmp_path / "refused"
+    assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(rescued),
+                 "-t", "1", "-m", "2"]) == 0
+    info = json.loads((rescued / "run_info.json").read_text())
+    assert info["last_resort"] is True and info["counts"]["final"] == 1
+    assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(refused),
+                 "-t", "1", "-m", "2", "--no-last-resort"]) == 0
+    info = json.loads((refused / "run_info.json").read_text())
+    assert info["last_resort"] is False and info["counts"]["final"] == 0
 
 
 def test_the_keep_intermediate_option_reaches_the_run(stubs, genomes, tmp_path):
@@ -279,10 +291,10 @@ def test_the_design_groups_can_be_named_on_the_command_line(stubs, genomes, tmp_
 
 
 BAD_DESIGN_OPTIONS = [
-    (["--product-size", "20-40"], "least two"),
-    (["--product-size", "30-53"], "least two"),
+    (["--product-size", "20-40"], "starts below 27"),   # Primer3 refuses it outright
+    (["--product-size", "30-53"], "ends below 54"),     # Primer3 takes it and returns nothing
     (["--assays-per-region", "0"], "--assays-per-region must be 1 or more"),
-    (["--max-regions", "-1"], "--max-regions must be 1 or more"),
+    (["--max-regions", "-1"], "--max-regions must be 0 or more"),  # 0 means every region
     (["--gc-clamp", "-1"], "--gc-clamp must be 0 or more"),
     (["--mismatches", "-1"], "--mismatches must be 0 or more"),
     (["--min-primer-differences", "-1"], "--min-primer-differences must be 0 or more"),

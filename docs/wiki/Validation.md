@@ -195,8 +195,10 @@ therefore still cannot be reported.
 
 The census also reproduces the paper independently in three places — the two genomes that lack the genus
 assay are the two the paper names, both over-fragmented *B. suis* assemblies match its Table S4 contig for
-contig, and no genome of the 1,794 carries two species assays — and it finds eight further RefSeq
-assemblies whose species label cannot be right, extending the paper's own Table S5 from six to fourteen.
+contig, and no genome of the 1,794 carries two species assays — and it finds eight RefSeq assemblies whose
+species label cannot be right. Seven of those are not in the paper's own Table S5, which takes it from six
+revisions to **thirteen**; the eighth, `GCF_000662015.2`, is one of the paper's own six, where the census
+agrees that the label is wrong but reads the genome as *B. suis* rather than *B. canis*.
 The full record is in
 [`2026-10-14_v1.7.0_brucella/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-14_v1.7.0_brucella/SUMMARY.md).
 
@@ -211,10 +213,11 @@ The full record is in
 ### What the two new features change, measured here
 
 [`2026-10-14_v1.7.0_unitig/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-14_v1.7.0_unitig/SUMMARY.md)
-re-ran all three panels with both assemblers — 19 targets, 51 runs — to decide whether either of them
+re-ran all three panels with both assemblers — 17 targets and 38 paired runs, plus 12 re-checks — to
+decide whether either of them
 should be a default. On the *Listeria* panel the unitig walk gives 466 regions against SKESA's 332, recovers the
 same four assays, and moves one rank; across all three panels it never lost a recovery. The last-resort
-pass fired **once in 51 runs**, on the one target that has a single candidate locus. That record is also
+pass fired **once across all of them**, on the one target that has a single candidate locus. That record is also
 where the 0.1-bases-per-kmer threshold of the automatic fallback is measured.
 
 ### Running the *Brucella* test

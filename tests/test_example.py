@@ -89,11 +89,16 @@ def fake_results(folder: Path, dataset: Path, shift: int = 0) -> Path:
         index = position - start + shift
         bases[index] = bases[index].lower()
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / "final_kmers.fasta").write_text(f">Contig_1 {truth['variants']}\n{''.join(bases)}\n")
+    # The header lists positions in the contig, as the real one does -- not in the genome
+    listed = sorted(position - start + shift for position in truth["variants"])
+    (folder / "final_kmers.fasta").write_text(f">Contig_1 {listed}\n{''.join(bases)}\n")
     (folder / "run_info.json").write_text(json.dumps(
         {"counts": {"final": 1, "kmers": 214}, "reference": "x/exclusion_1.fasta",
          "last_resort": False,
-         "parameters": {"min_differences": 2, "assembler": "skesa", "assembler_used": "skesa"}}))
+         "inclusion_genomes": [f"inclusion_{n}.fasta" for n in range(1, 5)],
+         "exclusion_genomes": [f"exclusion_{n}.fasta" for n in range(1, 5)],
+         "parameters": {"min_differences": 2, "assembler": "skesa", "assembler_used": "skesa",
+                        "kmer_size": 99, "min_inclusion": 1.0}}))
     return folder
 
 

@@ -231,7 +231,7 @@ def main(argv: list[str] | None = None) -> int:
             # salt or dna concentration" -- or, for a negative --max-regions, silently slice a region off
             # the list and then explain the empty result with the wrong reason.
             for option, value, least in (("--assays-per-region", args.assays_per_region, 1),
-                                         ("--max-regions", args.max_regions, 1),
+                                         ("--max-regions", args.max_regions, 0),  # 0 is "every region"
                                          ("--gc-clamp", args.gc_clamp, 0),
                                          ("--mismatches", args.mismatches, 0),
                                          ("--min-primer-differences", args.min_primer_differences, 0)):

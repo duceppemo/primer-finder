@@ -5,6 +5,11 @@ Every genome is the same 20 kb backbone, with its own scattered single-base chan
 all carry the same planted variants around position 9,000: three mismatches within 16 bases, a 15-base
 insertion, and one isolated mismatch. Those are the only differences the inclusion group shares and the
 exclusion group lacks, so primer-finder must report that region and nothing else.
+
+That last part is a property of these settings rather than of the construction -- the private changes are
+drawn independently, so another seed can leave a backbone kmer altered in all four exclusion genomes and
+specific to the inclusion group by accident. It is checked before this exits, so a change of seed or of
+`PRIVATE_CHANGES` fails here rather than confusingly in `check_example.py`.
 """
 
 from __future__ import annotations
@@ -13,6 +18,7 @@ import argparse
 import gzip
 import json
 import random
+import sys
 from pathlib import Path
 
 LENGTH = 20_000  # The backbone, in bases
@@ -27,6 +33,8 @@ INSERTION = "GGCATTACGTTAACC"  # 15 bases
 PRIVATE_CHANGES = 20  # Per genome, away from the planted region
 KEEP_CLEAR = 500  # No private change this close to the planted region
 GROUP_SIZE = 4
+# The kmer size the example is run at, which is what "the only region" is measured against below.
+KMER_SIZE = 99
 
 
 def random_sequence(rng: random.Random, length: int) -> list[str]:
@@ -80,6 +88,62 @@ def write_genome(path: Path, bases: list[str], line_length: int = 70) -> None:
         path.write_text(text)
 
 
+def specific_kmers(folder: Path) -> set[str]:
+    """The canonical kmers every inclusion genome holds and no exclusion genome does."""
+    groups: dict[str, list[set[str]]] = {"inclusion": [], "exclusion": []}
+    for group in groups:
+        for path in sorted((folder / group).iterdir()):
+            opener = gzip.open if path.suffix == ".gz" else open
+            with opener(path, "rt") as fh:
+                sequence = "".join(line.strip() for line in fh if not line.startswith(">")).upper()
+            groups[group].append(canonical_kmers(sequence))
+    shared = set.intersection(*groups["inclusion"])
+    return shared - set.union(*groups["exclusion"])
+
+
+def canonical_kmers(sequence: str) -> set[str]:
+    table = str.maketrans("ACGT", "TGCA")
+    found = set()
+    for start in range(len(sequence) - KMER_SIZE + 1):
+        kmer = sequence[start:start + KMER_SIZE]
+        found.add(min(kmer, kmer.translate(table)[::-1]))
+    return found
+
+
+def unplanned_specific_runs(folder: Path, planted: dict[str, object]) -> list[tuple[int, int]]:
+    """Stretches of an inclusion genome that are specific to the group but are not the planted region.
+
+    The docstring above claims the planted variants are the only thing the inclusion group shares and the
+    exclusion group lacks. That is not guaranteed by construction: the private changes are drawn
+    independently, so whenever all four exclusion genomes happen to alter a base inside one kmer-sized
+    window, the untouched backbone kmer there becomes inclusion-specific too. It holds for the settings
+    above and is checked here, so a change of seed or of `PRIVATE_CHANGES` fails loudly at generation
+    rather than confusingly in `check_example.py`.
+    """
+    specific = specific_kmers(folder)
+    if not specific:
+        return [(0, 0)]
+    first = sorted((folder / "inclusion").iterdir())[0]
+    sequence = "".join(line.strip() for line in first.read_text().splitlines()
+                       if not line.startswith(">")).upper()
+    table = str.maketrans("ACGT", "TGCA")
+    marked = set()
+    for start in range(len(sequence) - KMER_SIZE + 1):
+        kmer = sequence[start:start + KMER_SIZE]
+        if min(kmer, kmer.translate(table)[::-1]) in specific:
+            marked.update(range(start, start + KMER_SIZE))
+    runs: list[tuple[int, int]] = []
+    for position in sorted(marked):
+        if runs and position == runs[-1][1] + 1:
+            runs[-1] = (runs[-1][0], position)
+        else:
+            runs.append((position, position))
+    # The planted region's own run: every position the planted variants touch, with a kmer either side
+    low = TARGET - KMER_SIZE
+    high = TARGET + max(MISMATCHES) + len(INSERTION) + KMER_SIZE
+    return [run for run in runs if not (low <= run[0] and run[1] <= high)]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("output", nargs="?", type=Path, default=Path(__file__).parent / "data",
@@ -103,6 +167,12 @@ def main(argv: list[str] | None = None) -> int:
             write_genome(folder / name, bases)
             truth.setdefault(f"{group}_private_changes", {})[name] = changes  # type: ignore[union-attr]
     (args.output / "truth.json").write_text(json.dumps(truth, indent=2) + "\n")
+    extra = unplanned_specific_runs(args.output, planted)
+    if extra:
+        print(f"The dataset has {len(extra)} inclusion-specific stretch(es) besides the planted region: "
+              f"{extra}. The docstring's claim does not hold for these settings -- change SEED, or lower "
+              f"PRIVATE_CHANGES, and run this again.", file=sys.stderr)
+        return 1
     print(f"Wrote {GROUP_SIZE} inclusion and {GROUP_SIZE} exclusion genomes to {args.output}")
     return 0
 

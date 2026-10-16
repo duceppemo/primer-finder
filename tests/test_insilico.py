@@ -15,6 +15,8 @@ from primer_finder.design import Assay, Oligo
 from primer_finder.insilico import (
     REPORT,
     Verdict,
+    _side_in,
+    _trimmed_primer_ends,
     command,
     count_genomes,
     read_report,
@@ -183,17 +185,26 @@ def write_hits(folder: Path, rows: list[tuple[str, str, int, int, int]], probe: 
         for number, (sample, gene, mismatches, forward, reverse) in enumerate(rows):
             start = 1000 * number + 1          # Somewhere of its own in the genome
             finish = start + 199
-            fields = [sample, gene, "chr", f"{start}-{finish}", f"{gene}-F", f"{gene}-R",
+            # A 5' trim takes a base off the outer end of the amplicon, so the reported extent moves in;
+            # a 3' trim leaves it where it is. Real insilicoPCR 0.6.1 reports exactly that.
+            low_end, high_end = (start + forward, finish - reverse) if end == "5" else (start, finish)
+            fields = [sample, gene, "chr", f"{low_end}-{high_end}", f"{gene}-F", f"{gene}-R",
                       str(mismatches), "0", str(-forward), str(-reverse)]
             fh.write("\t".join(fields + (["0"] if probe else [])) + "\n")
-            for primer, trimmed, where in ((f"{gene}-F", forward, start),
-                                           (f"{gene}-R", reverse, finish - PRIMER_LENGTH + 1)):
+            for primer, trimmed in ((f"{gene}-F", forward), (f"{gene}-R", reverse)):
                 # Trimmed off the 5' end the alignment starts at the primer's base 1 + n; off the 3' end
-                # it stops at its base length - n. Real insilicoPCR 0.6.1 reports exactly that.
+                # it stops at its base length - n. Each primer's alignment reaches its end of the
+                # amplicon, which is how the binder is told from a second copy of the same site.
                 low, high = (1 + trimmed, PRIMER_LENGTH) if end == "5" else (1, PRIMER_LENGTH - trimmed)
+                span = high - low
+                reverse_primer = primer.endswith("-R")
+                where = high_end - span if reverse_primer else low_end
+                # The reverse primer aligns reversed, so its positions along the primer descend -- which
+                # is what the reader's min/max is for
+                on_primer = (high, low) if reverse_primer else (low, high)
                 detailed.setdefault(sample, []).append(
-                    ["chr", primer, str(PRIMER_LENGTH), str(high - low + 1),
-                     str(where), str(where + high - low), str(low), str(high)])
+                    ["chr", primer, str(PRIMER_LENGTH), str(span + 1),
+                     str(where), str(where + span), str(on_primer[0]), str(on_primer[1])])
     for sample, hits in detailed.items():
         path = folder / "detailed_report" / sample / f"{sample}.tsv"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -214,6 +225,38 @@ def test_an_amplicon_that_needed_a_trimmed_primer_end_is_recognised(tmp_path):
     assert read_terminal_only(tmp_path) == {"a_assay0": {"g0", "g1"}}
 
 
+REAL_DETAILED_ROWS = """qseqid\tsseqid\tpositive\tmismatch\tgaps\tevalue\tbitscore\tslen\tlength\tqstart\tqend\tqseq\tsstart\tsend\tsseq
+chr\tassay-R\t20\t0\t0\t4.28e-08\t40.1\t20\t20\t681\t700\tTTGCCC\t20\t1\tTTGCCC
+chr\tassay-F\t19\t0\t0\t1.0e-07\t38.2\t20\t19\t501\t519\tCTGGAT\t1\t19\tCTGGAT
+chr\tassay-R\t8\t0\t0\t0.62\t16.4\t20\t8\t944\t951\tAACTAG\t12\t5\tAACTAG
+"""
+
+
+def test_the_trimmed_end_is_read_off_rows_the_real_program_writes(tmp_path):
+    """Copied from insilicoPCR 0.6.1's own output for a 3'-end mismatch under the forward primer. Note
+    the reverse primer's positions along the primer run *down* (20 to 1) because it aligns reversed,
+    while the forward primer's run up -- so the side cannot be read off the first and last values as
+    written, and a short spurious hit elsewhere sits among the real ones."""
+    sample = tmp_path / "detailed_report" / "g0"
+    sample.mkdir(parents=True)
+    (sample / "g0.tsv").write_text(REAL_DETAILED_ROWS)
+    hits = _trimmed_primer_ends(tmp_path, "g0")
+    assert _side_in(hits[("chr", "assay-F")], (501, 700)) == "3"   # 1-19 of 20: its last base is missing
+    assert _side_in(hits[("chr", "assay-R")], (501, 700)) == "none"  # 20-1 of 20: all of it aligned
+    # The spurious 8-base hit sits outside the amplicon and is not mistaken for the primer that bound
+    assert len(hits[("chr", "assay-R")]) == 2
+
+
+def test_the_primer_that_bound_is_the_one_reaching_the_end_of_the_amplicon(tmp_path):
+    """A second copy of a primer's site inside the amplicon is not the primer that bound. Taking the
+    longest alignment instead picked it whenever the two were the same length, which read a real 5'-end
+    amplification as the 3'-end blind spot -- the misranking this check exists to prevent."""
+    binder = (502, 520, 19, "5")        # At the amplicon's start, 5' base trimmed
+    inner_copy = (601, 619, 19, "3")    # Further in, same length, 3' base trimmed
+    assert _side_in([inner_copy, binder], (502, 700)) == "5"
+    assert _side_in([binder, inner_copy], (502, 700)) == "5"
+
+
 def test_a_quote_in_a_genomes_header_does_not_swallow_the_rows_after_it(tmp_path):
     """insilicoPCR writes the fasta description straight through, unquoted. Read with the default quote
     handling, a description beginning with a quote character swallows the rest of its row and every row up
@@ -226,6 +269,19 @@ def test_a_quote_in_a_genomes_header_does_not_swallow_the_rows_after_it(tmp_path
     rows[0][columns.index("Contig Description") if "Contig Description" in columns else 2] = '"strain x'
     report.write_text("\n".join(["\t".join(columns)] + ["\t".join(row) for row in rows]) + "\n")
     assert read_report(tmp_path) == {"a_assay0": {"g0", "g1"}}
+
+
+def test_a_quote_in_a_genomes_header_does_not_lose_the_trimmed_end_tally(tmp_path):
+    """The same hazard in the other reader, which decides whether an amplification is excused."""
+    write_hits(tmp_path, [("g0", "a_assay0", 0, 1, 0), ("g1", "a_assay0", 0, 1, 0)])
+    report = tmp_path / REPORT
+    lines = report.read_text().splitlines()
+    columns = lines[0].split("\t")
+    rows = [line.split("\t") for line in lines[1:]]
+    rows[0][columns.index("Contig")] = '"chr'
+    report.write_text("\n".join(["\t".join(columns)] + ["\t".join(row) for row in rows]) + "\n")
+    # g0's own row is unusable, but g1's must survive it
+    assert read_terminal_only(tmp_path) == {"a_assay0": {"g1"}}
 
 
 def test_a_report_without_the_columns_the_counts_come_from_is_an_error(tmp_path):

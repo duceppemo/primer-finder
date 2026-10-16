@@ -46,6 +46,11 @@ def spread(rows: list[dict[str, str]], how_many: int) -> list[dict[str, str]]:
 
 def link(rows: list[dict[str, str]], folder: Path) -> int:
     folder.mkdir(parents=True, exist_ok=True)
+    # Cleared first. Only the names about to be written were replaced before, so re-using a folder for a
+    # second target kept the first one's links -- and a genome of the new target's exclusion group could
+    # still be sitting in its inclusion group from the run before.
+    for stale in folder.glob("*.fasta"):
+        stale.unlink()
     for row in rows:
         target = Path(row["path"]).resolve()
         name = folder / f"{row['accession']}_{row['cc']}.fasta"

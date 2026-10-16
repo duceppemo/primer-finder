@@ -80,21 +80,34 @@ def main(argv: list[str] | None = None) -> int:
     }
     if not shared:
         print("\nNOT RECOVERED: the three oligos are not together in one region")
+    best: dict[str, object] | None = None
     for region in sorted(shared):
         forward = next(hit for hit in hits["forward"] if hit.region == region)
         reverse = next(hit for hit in hits["reverse"] if hit.region == region)
         start, end = sorted((forward.start, reverse.start))
         amplicon = end + len(assay["reverse"]) - start
-        facing = forward.strand != reverse.strand
+        # Opposite strands is not convergent: a pair arranged back to back also has opposite strands,
+        # points outward and amplifies nothing. The primer matched on the plus strand has to be the
+        # left-hand one of the two.
+        plus = [hit for hit in (forward, reverse) if hit.strand == "+"]
+        minus = [hit for hit in (forward, reverse) if hit.strand == "-"]
+        facing = len(plus) == 1 and len(minus) == 1 and plus[0].start < minus[0].start
         probe_inside = any(start <= hit.start < end for hit in hits["probe"] if hit.region == region)
-        outcome.update({"region": region, "amplicon_bp": amplicon, "rank": ranks[region],
-                        "region_length": forward.region_length})
+        as_published = abs(amplicon - int(assay["amplicon_bp"])) <= 1  # Within one base, as elsewhere
+        matches = as_published and facing and probe_inside
         print(f"\nRECOVERED in {region} ({forward.region_length} bp, rank {ranks[region]} of {len(records)})")
         print(f"  amplicon {amplicon} bp (the paper reports {assay['amplicon_bp']} bp), "
               f"primers facing each other: {facing}, probe between them: {probe_inside}")
-        if amplicon != int(assay["amplicon_bp"]) or not facing or not probe_inside:
-            outcome["recovered"] = False
+        if not matches:
             print("  but the layout does not match the published assay")
+        candidate = {"region": region, "amplicon_bp": amplicon, "rank": ranks[region],
+                     "region_length": forward.region_length, "matches": matches}
+        if best is None or (matches, -candidate["rank"]) > (best["matches"], -best["rank"]):
+            best = candidate
+    if best is not None:
+        outcome.update({name: best[name]
+                        for name in ("region", "amplicon_bp", "rank", "region_length")})
+        outcome["recovered"] = best["matches"]
     if args.json:
         args.json.write_text(json.dumps(outcome, indent=2) + "\n")
     return 0 if outcome["recovered"] else 1

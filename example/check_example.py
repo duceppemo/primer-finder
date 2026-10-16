@@ -37,6 +37,17 @@ def locate(contig: str, genome: str) -> tuple[int, bool] | None:
     return None
 
 
+# The inclusion-specific 99-mers this dataset yields. Deterministic: the generator has a fixed seed, and
+# the number was recomputed from the eight genomes independently of the pipeline.
+EXPECTED_KMERS = 214
+
+
+def header_positions(desc: str) -> set[int]:
+    """The positions a contig's header lists, out of its leading `[...]` list."""
+    listed = desc.split("]")[0].lstrip("[")
+    return {int(part) for part in listed.replace(",", " ").split() if part.lstrip("-").isdigit()}
+
+
 def shorten(positions: set[int], most: int = 8) -> str:
     """A set of positions, short enough to read."""
     listed = sorted(positions)
@@ -113,6 +124,13 @@ def main(argv: list[str] | None = None) -> int:
           f"the contig carries the planted insertion {insertion}")
     check(contig.desc.startswith("[") and contig.desc != "[]",
           f"the header lists the variant positions: {contig.desc[:40]}")
+    # And that the header agrees with the sequence: it is the tool's own report of where the differences
+    # are, and the two are built from one list, so a 0-vs-1-based slip in either would show here
+    listed = header_positions(contig.desc)
+    lowered = {position for position, base in enumerate(contig.seq) if base.islower()}
+    check(listed == lowered,
+          f"the header's positions are exactly the lower-case bases (header has "
+          f"{shorten(listed - lowered)} extra, sequence has {shorten(lowered - listed)})")
 
     # The lower-case bases must be exactly the planted variants, no others and none missing. Mapping them
     # back to the genome is what catches a shifted or mis-oriented set of positions.
@@ -170,9 +188,23 @@ def main(argv: list[str] | None = None) -> int:
     check("last_resort" not in contig.desc.split(),
           f"the contig is not tagged as a last-resort candidate: {contig.desc[:60]}")
 
+    # What the run was actually given. `make_example.py` writes four and four; anything else means the
+    # data folder held something it did not put there, and the pipeline was checked against a dataset
+    # nothing here describes.
+    check(len(info.get("inclusion_genomes", [])) == 4 and len(info.get("exclusion_genomes", [])) == 4,
+          f"the run used four inclusion and four exclusion genomes (got "
+          f"{len(info.get('inclusion_genomes', []))} and {len(info.get('exclusion_genomes', []))})")
+    check(parameters.get("kmer_size") == 99,
+          f"the run counted 99-mers (got {parameters.get('kmer_size')})")
+    check(parameters.get("min_inclusion") == 1.0,
+          f"every inclusion genome was required to hold the region (got "
+          f"{parameters.get('min_inclusion')})")
+
     counts = info["counts"]
     check(counts["final"] == 1, f"run_info.json counts one final contig (got {counts['final']})")
-    check(counts["kmers"] > 0, f"inclusion-specific kmers were found ({counts['kmers']})")
+    # 214 is what this dataset yields, recomputed from the genomes themselves: not merely "some"
+    check(counts["kmers"] == EXPECTED_KMERS,
+          f"the planted region gives {EXPECTED_KMERS} inclusion-specific 99-mers (got {counts['kmers']})")
     check(Path(info["reference"]).name == "exclusion_1.fasta",
           f"the first exclusion genome was used as the reference ({Path(info['reference']).name})")
 

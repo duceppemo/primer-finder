@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import logging
 import os
+import stat
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -155,13 +156,37 @@ def base_name(path: Path) -> str:
 
 
 def find_genomes(folder: Path | str, extensions: tuple[str, ...] = EXTENSIONS) -> list[Path]:
-    """Every fasta file in a folder and its subfolders, sorted, following symbolic links."""
+    """Every fasta file in a folder and its subfolders, sorted, following symbolic links, each genome once.
+
+    De-duplicated here rather than in `require_genomes` alone, because the staging and the counting that
+    the in-silico verdicts are measured against call this directly: a link beside a genome used to make
+    the denominator of those verdicts one larger than the panel the kmers were counted from.
+    """
+    return unique_paths(walk_genomes(folder, extensions))
+
+
+def walk_genomes(folder: Path | str, extensions: tuple[str, ...] = EXTENSIONS) -> list[Path]:
+    """Every path in a folder and its subfolders that ends in one of `extensions`, sorted, duplicates and
+    all. `require_genomes` wants the duplicates so that it can say it dropped them."""
     found: list[Path] = []
     for root, _, filenames in os.walk(folder, followlinks=True):
         for filename in filenames:
             if filename.endswith(extensions):
                 found.append(Path(root) / filename)
     return sorted(found)
+
+
+def unique_paths(paths: Iterable[Path]) -> list[Path]:
+    """One path per file, keeping the first name each was found under. Two paths to one genome -- a link
+    beside the file, or a link to the folder itself, which the walk descends -- are one genome."""
+    seen: dict[Path, Path] = {}
+    for path in paths:
+        try:
+            key = path.resolve()
+        except (OSError, RuntimeError):  # A symlink loop, or a name that cannot be resolved
+            key = path.absolute()
+        seen.setdefault(key, path)
+    return sorted(seen.values())
 
 
 def require_genomes(folder: Path, group: str) -> list[Path]:
@@ -192,31 +217,38 @@ def require_genomes(folder: Path, group: str) -> list[Path]:
         log.warning("%d file(s) in the %s folder look like fasta but do not end in %s, so they are NOT "
                     "part of the %s group: %s%s", len(skipped), group, " or ".join(EXTENSIONS), group,
                     listed, extra)
-    # Two paths to one genome -- a symbolic link beside the file, or a link to the folder itself, which
-    # `os.walk(followlinks=True)` descends -- would count that genome twice, and once per level of a
-    # loop. One genome, once.
-    seen: dict[Path, Path] = {}
-    for genome in genomes:
-        seen.setdefault(genome.resolve(), genome)
-    if len(seen) < len(genomes):
-        log.warning("%d of the %d file(s) in the %s folder are further paths to a genome already counted "
-                    "and were left out", len(genomes) - len(seen), len(genomes), group)
-    return sorted(seen.values())
+    # `find_genomes` already dropped the second path to a genome; this only says so.
+    duplicates = len(walk_genomes(folder)) - len(genomes)
+    if duplicates > 0:
+        log.warning("%d file(s) in the %s folder are further paths to a genome already counted -- a link "
+                    "beside it, or a link to the folder itself -- and were left out", duplicates, group)
+    return genomes
 
 
 def _other_fasta_files(folder: Path | str, found: Sequence[Path]) -> list[Path]:
     """Files in the folder that read as fasta but whose extension is not an accepted one."""
-    accepted = {path.resolve() for path in found}
+    accepted = set()
+    for path in found:
+        try:
+            accepted.add(path.resolve())
+        except (OSError, RuntimeError):
+            accepted.add(path.absolute())
     others: list[Path] = []
     for root, _, filenames in os.walk(folder, followlinks=True):
         for filename in filenames:
             path = Path(root) / filename
-            if path.resolve() in accepted or filename.startswith("."):
+            if filename.startswith("."):
                 continue
             try:
+                if path.resolve() in accepted:
+                    continue
+                # Only ordinary files are opened below. Opening a named pipe with nothing on the other
+                # end never returns, and this walks whatever happens to be in the folder.
+                if not stat.S_ISREG(os.stat(path).st_mode):
+                    continue
                 if is_fasta(path):
                     others.append(path)
-            except OSError:  # Unreadable, or a dangling link: not this function's business
+            except (OSError, RuntimeError):  # Unreadable, a dangling link, a symlink loop
                 continue
     return others
 

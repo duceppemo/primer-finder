@@ -431,7 +431,14 @@ def _side_in(hits: list[tuple[int, int, int, str]], span: tuple[int, int] | None
     inside = [hit for hit in hits if low <= hit[0] and hit[1] <= high]
     if not inside:
         return "unknown"
-    return max(inside, key=lambda hit: hit[2])[3]
+    # The amplicon is reported as the extent of the two alignments that made it, so the primer that bound
+    # reaches one of its ends. Any other alignment of the same primer inside the amplicon is a second copy
+    # of that site, and taking the longest without regard to where it sits picks it whenever the two are
+    # the same length: measured on real output, a genome with a 5'-trimmed F site at the amplicon's start
+    # and an untouched-length 3'-trimmed copy of F further in was read as the 3' blind spot and excused,
+    # which is the misranking this whole check exists to prevent.
+    touching = [hit for hit in inside if hit[0] == low or hit[1] == high]
+    return max(touching or inside, key=lambda hit: hit[2])[3]
 
 
 def _span(text: str) -> tuple[int, int] | None:

@@ -39,10 +39,24 @@ def read_tsv(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader([line for line in fh if not line.startswith("#")], delimiter="\t"))
 
 
+def panel_stamp(genomes: list[dict[str, str]]) -> str:
+    """What the cached fasta, database and hit table were built from.
+
+    Every count below is read fresh from `panel.tsv` while the hits come from these three caches, so a
+    panel that has changed since they were written would put a new denominator against an old numerator
+    and quietly move every percentage. Written beside the fasta and compared on each run.
+    """
+    return f"{len(genomes)} genomes\n" + "".join(f"{row['accession']}\t{row['species']}\n"
+                                                 for row in sorted(genomes,
+                                                                   key=lambda row: row["accession"]))
+
+
 def panel_fasta(genomes: list[dict[str, str]], out: Path) -> None:
     """Every genome in one file, each record named `accession|species|contig_number`."""
-    if out.is_file():
+    stamp = out.with_suffix(".panel")
+    if out.is_file() and stamp.is_file() and stamp.read_text() == panel_stamp(genomes):
         return
+    stamp.write_text(panel_stamp(genomes))
     with out.open("w") as fh:
         for row in genomes:
             number = 0
@@ -69,9 +83,11 @@ def main(argv: list[str] | None = None) -> int:
     where = {row["accession"]: row for row in genomes}
 
     fasta = args.work / "panel.fasta"
+    before = fasta.stat().st_mtime if fasta.is_file() else 0.0
     panel_fasta(genomes, fasta)
+    rebuilt = fasta.stat().st_mtime != before  # The panel changed, so the two caches below are stale
     database = args.work / "panel"
-    if not database.with_suffix(".nin").is_file():
+    if rebuilt or not database.with_suffix(".nin").is_file():
         subprocess.run(["makeblastdb", "-in", str(fasta), "-dbtype", "nucl", "-out", str(database)],
                        check=True, capture_output=True)
     query = args.work / "oligos.fasta"
@@ -80,7 +96,7 @@ def main(argv: list[str] | None = None) -> int:
             for part in PARTS:
                 fh.write(f">{assay['target']}:{part}\n{assay[part]}\n")
     hits = args.work / "oligo_hits.tsv"
-    if not hits.is_file():
+    if rebuilt or not hits.is_file():
         subprocess.run(["blastn", "-task", "blastn-short", "-query", str(query), "-db", str(database),
                         "-outfmt", "6 qseqid sseqid pident length qlen mismatch gapopen",
                         "-evalue", "1000", "-max_target_seqs", "10000000",

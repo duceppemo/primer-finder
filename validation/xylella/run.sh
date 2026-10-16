@@ -24,11 +24,17 @@ for target in multiplex fastidiosa pauca morus; do
     echo
     echo "=============== ${target}"
     "${python_bin}" "${here}/group_genomes.py" "${work}/genomes" "${work}/${target}" --target "${target}"
-    primer-finder \
+    # Guarded: `set -e` would otherwise abandon every remaining target after one primer-finder cannot
+    # finish, and a target with nothing to report is an ordinary outcome of a sweep.
+    if ! primer-finder \
         -i "${work}/${target}/inclusion" \
         -e "${work}/${target}/exclusion" \
         -o "${work}/${target}/results" \
-        -t "${threads}" -m "${memory}"
+        -t "${threads}" -m "${memory}"; then
+        echo "primer-finder found nothing for ${target}; carrying on with the rest"
+        status=1
+        continue
+    fi
     "${python_bin}" "${here}/check_assay.py" "${work}/${target}/results" --target "${target}" \
         --json "${work}/${target}/check.json" || status=1
 done

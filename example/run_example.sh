@@ -19,6 +19,10 @@ if [ -z "${python_bin}" ]; then
     exit 1
 fi
 
+# Cleared first: `make_example.py` writes the eight genomes but does not remove anything already there,
+# and a leftover file in either folder is read as one more genome of that group -- so the pipeline would
+# be checked against a dataset the generator does not describe.
+rm -rf "${out}/data"
 "${python_bin}" "${here}/make_example.py" "${out}/data"
 
 if command -v primer-finder > /dev/null; then

@@ -85,19 +85,27 @@ def main(argv: list[str]) -> int:
                 # Both columns carry a trim in the real reports, and -1 or -2
                 forward_end, reverse_end = ("0", "-2") if number % 2 else ("-1", "0")
             mismatch = "1" if sample in counted else "0"
-            row = [sample, assay, "1-100", "100", "chr", "", f"{assay}-F", f"{assay}-R",
-                   mismatch, "0", forward_end, reverse_end]
+            at_five = sample in five_prime
+            trims = (-int(forward_end), -int(reverse_end))
+            # A 5' trim moves the outer end of the amplicon in by the bases it took; a 3' trim does not
+            low_end, high_end = (1 + trims[0], 100 - trims[1]) if at_five else (1, 100)
+            row = [sample, assay, f"{low_end}-{high_end}", str(high_end - low_end + 1), "chr", "",
+                   f"{assay}-F", f"{assay}-R", mismatch, "0", forward_end, reverse_end]
             if qpcr:
                 row += [f"{assay}-P", "20-40", "20", "0"]
             rows.append(row)
-            # One alignment per primer, inside the amplicon, saying which end was left out of it
-            at_five = sample in five_prime
-            for primer, trimmed, where in ((f"{assay}-F", -int(forward_end), 1),
-                                           (f"{assay}-R", -int(reverse_end), 100 - PRIMER + 1)):
+            # One alignment per primer, reaching its end of the amplicon, saying which end of the primer
+            # was left out of it
+            for primer, trimmed in ((f"{assay}-F", trims[0]), (f"{assay}-R", trims[1])):
                 low, high = (1 + trimmed, PRIMER) if at_five else (1, PRIMER - trimmed)
+                span = high - low
+                reverse_primer = primer.endswith("-R")
+                where = high_end - span if reverse_primer else low_end
+                # A reverse primer aligns reversed, so its positions along the primer descend
+                on_primer = (high, low) if reverse_primer else (low, high)
                 detailed.setdefault(sample, []).append(
-                    ["chr", primer, str(PRIMER), str(high - low + 1),
-                     str(where), str(where + high - low), str(low), str(high)])
+                    ["chr", primer, str(PRIMER), str(span + 1),
+                     str(where), str(where + span), str(on_primer[0]), str(on_primer[1])])
     with report.open("w") as fh:
         fh.write("\t".join(columns) + "\n")
         for row in rows:

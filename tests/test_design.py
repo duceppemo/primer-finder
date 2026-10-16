@@ -645,13 +645,28 @@ def test_the_bases_come_from_every_piece_of_a_split_copy(stubs, tmp_path, fasta)
     assert one.reverse.variant_bases == {80: "T"}   # In the second
 
 def test_a_chain_of_three_pieces_counts_each_base_once():
-    """The reach is a running maximum, not the last piece's end, so a piece overlapping more than its
-    immediate predecessor is still only counted for what it adds."""
-    chains = chains_of([hit(100, qstart=1, qend=40, sstart=1, send=40),
-                        hit(100, qstart=31, qend=70, sstart=31, send=70),
-                        hit(100, qstart=61, qend=100, sstart=61, send=100)])
+    """Three pieces of a 100-base amplicon overlapping by 10 each, the last carrying 11 mismatches: 89 of
+    the 100 covered columns match, which is under the rule. Counting the overlapping columns twice gives
+    109 of 120, which is over it."""
+    pieces = [hit(100, qstart=1, qend=40, sstart=1, send=40),
+              hit(100, qstart=31, qend=70, sstart=31, send=70),
+              hit(100, qstart=61, qend=100, sstart=61, send=100, mismatches=11)]
+    chains = chains_of(pieces)
     assert len(chains) == 1
-    assert has_the_amplicon(chains[0], 100)  # 100 of 100 columns match
+    assert not has_the_amplicon(chains[0], 100)
+    # The same three pieces matching throughout are held, so it is the identity that decided it
+    pieces[-1] = hit(100, qstart=61, qend=100, sstart=61, send=100)
+    assert has_the_amplicon(chains_of(pieces)[0], 100)
+
+
+def test_the_reach_of_a_chain_is_the_furthest_any_piece_got():
+    """Not the last piece's end: a piece that reaches past the one after it must not make the overlap
+    with that one read as negative, which would count its columns twice."""
+    chain = [hit(100, qstart=1, qend=60, sstart=1, send=60),
+             hit(100, qstart=21, qend=50, sstart=21, send=50),    # Inside the reach already
+             hit(100, qstart=51, qend=100, sstart=51, send=100, mismatches=11)]
+    # 100 columns covered, 11 of them mismatching: under the rule however the pieces are added up
+    assert not has_the_amplicon(chain, 100)
 
 
 @pytest.mark.parametrize(("overlap", "chained"), [(30, True), (31, False)])
@@ -761,6 +776,14 @@ def test_the_coverage_boundary_is_how_much_of_the_amplicon_the_hit_reaches(reach
 @pytest.mark.parametrize(("mismatches", "expected"), [(10, True), (11, False)])
 def test_the_identity_boundary_counts_only_the_columns_that_align(mismatches, expected):
     assert has_the_amplicon([hit(100, mismatches=mismatches)], 100) is expected
+
+
+@pytest.mark.parametrize(("mismatches", "expected"), [(9, True), (10, False)])
+def test_the_gap_columns_are_left_out_of_the_identity(mismatches, expected):
+    """With 10 gap columns in the alignment, 90 columns have a base in both: 9 mismatches among them is
+    90% and 10 is 89%. Counting the gaps as columns -- as blast's own `pident` does -- would make both
+    of them 100 columns and put the second over the line."""
+    assert has_the_amplicon([hit(100, gaps=10, mismatches=mismatches)], 100) is expected
 
 
 def test_a_hit_of_nothing_but_gaps_is_not_a_copy():

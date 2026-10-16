@@ -4,6 +4,29 @@
 
 ### Fixed
 
+- **An exclusion amplification was still excused when a second copy of a primer's site sat inside the
+  amplicon.** The 5'-versus-3' fix below reads the trimmed end off the alignment, and picked the longest
+  alignment inside the amplicon -- but a second copy of the same primer site is also inside it, and when
+  the two are the same length the longest is whichever blast printed first. Measured on real output: a
+  genome whose forward site is 5'-trimmed at the amplicon's start, with a 3'-trimmed copy of that site
+  further in, read as the 3'-end blind spot and was excused. The primer that bound is the one that
+  reaches an end of the amplicon, since the amplicon is reported as the extent of the two alignments that
+  made it, so that is what decides now.
+- **A legitimate `--max-regions 0` was refused.** Its own help says "0 for every region" and the code
+  implements it; the new range check demanded 1 or more.
+- **A legitimate `--product-size` was refused.** The floor was set at 54, the least two primers and a
+  probe can span, but Primer3 takes a range starting anywhere from 27 and picks a longer product out of
+  it -- `50-150` designed normally before and was refused. The floor is now Primer3's own, 27, with a
+  separate check that the range does not *end* below 54, which is the case that really does return
+  nothing region after region.
+- **A named pipe in a genome folder hung the run, and a symbolic-link loop crashed it.** Looking for
+  fasta files with an unaccepted extension means opening whatever is in the folder, and opening a pipe
+  with nothing on the other end never returns. Both arrived with that warning in this same release.
+- **The genome count the in-silico verdicts are measured against still counted duplicates**, while the
+  kmer and blast steps worked from the de-duplicated panel -- so a link beside a genome could lift the
+  amplified fraction past `-p`. De-duplication moved into `find_genomes`, which the staging and the
+  counting both use.
+
 - **An exclusion amplification through a difference at a primer's *5'* end was excused as the model's
   blind spot.** insilicoPCR's `ForwardEndMismatch` says how many bases blast trimmed off a primer, not
   from which end, and the two ends mean opposite things: a difference at the 3' end sits on the base the
@@ -153,6 +176,44 @@
 
 ### Internal
 
+- **The example could be checked against a dataset the generator does not describe.** `run_example.sh`
+  never cleared the data folder, so a leftover file was read as one more genome of its group, and
+  nothing looked at how many genomes the run had used: dropping two files in gave a 5-and-5 run that
+  reported "All checks passed". The folder is cleared, and the checks now pin the genome counts, the
+  kmer size, `--min-inclusion`, the exact number of specific kmers (214, recomputed from the genomes),
+  and that the header's positions are exactly the lower-case bases -- the last of which catches a
+  0-versus-1-based slip in the tool's own report of where the differences are.
+- **The generator's central claim is now checked rather than asserted.** It says the planted variants are
+  the only thing the inclusion group shares and the exclusion group lacks, which is a property of the
+  seed and not of the construction: the private changes are drawn independently, so another seed can
+  leave a backbone kmer altered in all four exclusion genomes and specific by accident. Of seeds 1-300,
+  13 do. The property is verified before `make_example.py` exits, so a change of seed or of
+  `PRIVATE_CHANGES` fails there rather than confusingly in the checker.
+- **`check_assay.py` called a back-to-back primer pair "facing each other"** and reported the assay
+  recovered. Opposite strands is not convergent: a pair arranged outward also has opposite strands and
+  amplifies nothing. Demonstrated on a synthetic region, where the old check gave output identical to
+  the convergent case. It also let any second region overturn a correct recovery and named whichever
+  region sorted last, so a rank-1 exact match was reported as "not recovered" in a different region;
+  each region is now judged on its own and the best one reported. All three panels' copies had both
+  defects, and the amplicon tolerance now reads "within one base" either way in all of them, which is
+  what the docstrings said and what `verify_amplicon.py` already did.
+- **`census.py` could put a fresh denominator against a cached numerator.** The counts are read from
+  `panel.tsv` every run while the hits came from a cached fasta, database and hit table with nothing
+  checking they described the same panel -- so every percentage silently went wrong when the panel
+  changed. The caches are stamped with the panel they were built from and rebuilt when it differs, and
+  `score_assays.py` refuses a database older than the panel rather than scoring against it.
+- **`validation/brucella/run.sh` could never succeed**: it swept six targets but only four have a
+  published assay, so the other two exited 2 and latched the failure. All three panels' runners also
+  abandoned every remaining target when primer-finder could not finish one, which is an ordinary outcome
+  of a sweep -- the Brucella record's own `runs.tsv` has such a target.
+- **`listeria/group_genomes.py` left the previous target's links in place**, so re-using a folder could
+  put one genome in the inclusion and the exclusion group at once. It clears the folder first, as the
+  Brucella version already did.
+- Two numbers in the records were wrong and are corrected in the wiki, with a dated note appended to each
+  record rather than rewriting it: the mislabelled-assembly count double-counted an assembly that is
+  already one of the paper's own six revisions, so the total is **thirteen** and not fourteen; and the
+  unitig sweep's "19 targets, 51 runs" does not match its own tables, which hold 38 runs in 19 pairs
+  across 17 targets plus 12 re-checks.
 - **`-ci` and `-cx` filter on KMC's true count, not on the saturated one.** The comment here said the
   opposite, from a measurement that read the count KMC *reports* and took it for the one it filters on.
   Measured again on one kmer repeated 300 and 301 times with no `-cs`: `-ci300` keeps it, `-cx300` keeps

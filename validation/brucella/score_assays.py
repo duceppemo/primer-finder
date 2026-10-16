@@ -44,7 +44,11 @@ def read_tsv(path: Path) -> list[dict[str, str]]:
 def panel_database(work: Path) -> Path:
     """The blast database of the whole panel, as census.py builds it."""
     fasta, database = work / "panel.fasta", work / "panel"
-    if database.with_suffix(".nin").is_file():
+    index = database.with_suffix(".nin")
+    if index.is_file():
+        if fasta.is_file() and fasta.stat().st_mtime > index.stat().st_mtime:
+            raise SystemExit(f"{fasta} is newer than {index}: the panel changed since the database was "
+                             f"built. Run census.py again before scoring against it.")
         return database
     if not fasta.is_file():
         raise SystemExit(f"{fasta} is missing: run census.py first")

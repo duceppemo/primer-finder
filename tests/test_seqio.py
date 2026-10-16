@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import gzip
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -17,6 +21,7 @@ from primer_finder.seqio import (
     iter_records,
     read_fasta,
     require_genomes,
+    walk_genomes,
     write_fasta,
 )
 
@@ -83,8 +88,48 @@ def test_find_genomes_is_recursive_sorted_and_follows_links(tmp_path):
     (tmp_path / "b.fasta").write_text(">b\nA\n")
     (tmp_path / "sub" / "a.fna").write_text(">a\nA\n")
     (tmp_path / "notes.txt").write_text("ignored")
+    # A link to a folder, which the walk descends -- so it finds what is in it a second time
+    (tmp_path / "d.fasta").symlink_to(tmp_path / "sub")
+    assert [path.name for path in walk_genomes(tmp_path)] == ["b.fasta", "a.fna", "a.fna"]
+    assert [path.name for path in find_genomes(tmp_path)] == ["b.fasta", "a.fna"]
+
+
+def test_find_genomes_counts_a_genome_once_however_many_names_it_has(tmp_path):
+    """The staging and the genome counts the in-silico verdicts are measured against call this directly,
+    so a second name for a genome here makes the denominator of those verdicts larger than the panel the
+    kmers were counted from."""
+    (tmp_path / "b.fasta").write_text(">b\nA\n")
     (tmp_path / "c.fasta").symlink_to(tmp_path / "b.fasta")
-    assert [path.name for path in find_genomes(tmp_path)] == ["b.fasta", "c.fasta", "a.fna"]
+    assert [path.name for path in walk_genomes(tmp_path)] == ["b.fasta", "c.fasta"]
+    assert [path.name for path in find_genomes(tmp_path)] == ["b.fasta"]
+
+
+def test_a_named_pipe_in_a_genome_folder_does_not_stop_the_run(tmp_path):
+    """Looking for fasta files with an unaccepted extension means opening whatever is in the folder, and
+    opening a named pipe with nothing on the other end never returns."""
+    folder = tmp_path / "inclusion"
+    folder.mkdir()
+    (folder / "g1.fasta").write_text(">chr\nACGT\n")
+    os.mkfifo(folder / "pipe")
+    done = subprocess.run(
+        [sys.executable, "-c",
+         "import sys; from primer_finder.seqio import require_genomes;"
+         "print(len(require_genomes(__import__('pathlib').Path(sys.argv[1]), 'inclusion')))",
+         str(folder)],
+        capture_output=True, text=True, timeout=30, cwd=Path(__file__).resolve().parent.parent)
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip() == "1"
+
+
+def test_a_symlink_loop_in_a_genome_folder_is_not_a_crash(tmp_path):
+    """`resolve()` on a loop raises -- RuntimeError on some versions, OSError on others -- and the command
+    line turns neither into a message."""
+    folder = tmp_path / "inclusion"
+    folder.mkdir()
+    (folder / "g1.fasta").write_text(">chr\nACGT\n")
+    (folder / "loop_a").symlink_to(folder / "loop_b")
+    (folder / "loop_b").symlink_to(folder / "loop_a")
+    assert len(require_genomes(folder, "inclusion")) == 1
 
 
 def test_a_fasta_with_an_unaccepted_extension_is_reported_not_ignored(tmp_path, caplog):
@@ -128,8 +173,6 @@ def test_require_genomes_reports_what_is_wrong(tmp_path):
 
 
 def test_base_name():
-    from pathlib import Path
-
     assert base_name(Path("/a/b/genome.fasta")) == "genome"
     assert base_name(Path("genome.fna.gz")) == "genome"
     assert base_name(Path("genome.v2.fasta")) == "genome.v2"
