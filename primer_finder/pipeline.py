@@ -425,7 +425,7 @@ def keep_shared_by_inclusion(settings: Settings, best: Path, inclusion: list[Pat
                  count, required, len(inclusion))
     else:
         log.info("%d contig(s) are present in all inclusion genomes", count)
-    report_partial_presence(presence, (record.name for _, record in kept), folder / HITS_NAME)
+    report_partial_presence(presence, (record for _, record in kept), folder / HITS_NAME)
     if count == 0:
         how_many = f"at least {required} of the inclusion genomes" if partial else "all the inclusion genomes"
         hint = (f" A -p/--min-inclusion below {settings.min_inclusion:g} would ask for fewer than {required}."
@@ -504,6 +504,10 @@ def write_presence_table(path: Path, presence: dict[str, dict[str, float]],
     meant; what the fraction adds is that a genome holding a part of a region can be told from one holding
     the region, which the tick could not say and which is the difference that matters where an assembly
     has broken a repeat in two.
+
+    Three decimals, so a genome holding under a two-thousandth of a region reads as `0.000` like one
+    holding none of it. That needs a region of some 66,000 bases hit over the 33 the search can see, which
+    no run here has produced; the figure to go by in that case is the log line, which counts bases.
     """
     labels = labels or {}
     genomes = sorted({genome for hits in presence.values() for genome in hits},
@@ -515,7 +519,7 @@ def write_presence_table(path: Path, presence: dict[str, dict[str, float]],
             fh.write(f"{contig}\t" + "\t".join(row) + "\n")
 
 
-def report_partial_presence(presence: dict[str, dict[str, float]], kept: Iterable[str],
+def report_partial_presence(presence: dict[str, dict[str, float]], kept: Iterable[seqio.Record],
                             table: Path) -> int:
     """Say how many of the kept contigs an inclusion genome holds only part of. Returns that count.
 
@@ -531,26 +535,29 @@ def report_partial_presence(presence: dict[str, dict[str, float]], kept: Iterabl
     published amplicon at all. The region was worth reporting -- the other genomes carry it -- and the
     run had no way of saying which case it was.
     """
-    kept = set(kept)
-    worst: tuple[float, str] | None = None
+    worst: tuple[float, str, int] | None = None
     partial = 0
-    for contig in kept:
-        held = [covered for covered in presence.get(contig, {}).values() if covered > 0]
+    for record in kept:
+        # Only the genomes that hold some of it. Below -p 1.0 a region is kept although some genomes have
+        # none of it, and that is what the fraction in its header is for; this line is about the genomes
+        # that do hold it, which is a different thing and the one the table cannot be read without.
+        held = [covered for covered in presence.get(record.name, {}).values() if covered > 0]
         if not held:  # pragma: no cover - a contig held by no genome is never kept
             continue
         least = min(held)
         if least < MOSTLY_PRESENT:
             partial += 1
             if worst is None or least < worst[0]:
-                worst = (least, contig)
+                worst = (least, record.name, len(record.seq))
     if worst is not None:
-        # "of the genomes that hold it" is the distinction that matters below -p 1.0, where a region is
-        # kept although some genomes have none of it: that is what the header's fraction is for, and this
-        # line is about the ones that do hold it.
+        # Bases rather than a percentage: a rounded percentage of a long region reads as a contradiction
+        # -- "as little as 0%" for a genome that does hold 33 bases of a 7 kb region, or "90%" for one
+        # just under the threshold this line is about.
         log.info("%d of them are held only in part by an inclusion genome that holds them at all: as "
-                 "little as %.0f%% of %s. A region can be worth reporting on the part its genomes share "
-                 "-- the design step checks each amplicon against every genome -- but see %s for which "
-                 "genome holds how much.", partial, 100 * worst[0], worst[1], table)
+                 "little as %d of the %d bases of %s. A region can be worth reporting on the part its "
+                 "genomes share -- the design step checks each amplicon against every genome -- but see "
+                 "%s for which genome holds how much.",
+                 partial, round(worst[0] * worst[2]), worst[2], worst[1], table)
     return partial
 
 

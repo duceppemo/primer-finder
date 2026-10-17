@@ -228,17 +228,32 @@ def test_genome_folder_is_unique_per_genome(tmp_path):
 
 
 def test_presence_in_genomes(stubs, tmp_path):
+    """The fraction of the contig each genome holds: all of it, or none."""
     stubs(presence={"g1": ["ctg1"], "g2": []})
     genomes = [genome(tmp_path / "in", f"{name}.fasta") for name in ("g1", "g2")]
     presence = presence_in_genomes(query_file(tmp_path), genomes, tmp_path / "work", threads=2)
-    assert presence == {"ctg1": {str(genomes[0]): True, str(genomes[1]): False}}
+    assert presence == {"ctg1": {str(genomes[0]): 1.0, str(genomes[1]): 0.0}}
+
+
+def test_presence_in_genomes_reports_the_part_a_genome_holds(stubs, tmp_path):
+    """A genome holding some of a contig is told from one holding all of it -- not a yes or no. Asserted
+    on the number, not on its truthiness, since 1.0 and 0.0 satisfy an assertion written for True and
+    False and so would a return to booleans."""
+    contig = tmp_path / "long.fasta"
+    contig.write_text(">ctg1\n" + "ACGT" * 50 + "\n")          # 200 bases
+    stubs(presence={"g1": ["ctg1"], "g2": ["ctg1"]},
+          presence_spans={"g2": {"ctg1": [[1, 24], [101, 130]]}})  # 24 + 30 of the 200
+    genomes = [genome(tmp_path / "in", f"{name}.fasta") for name in ("g1", "g2")]
+    presence = presence_in_genomes(contig, genomes, tmp_path / "work", threads=2)
+    assert presence["ctg1"][str(genomes[0])] == 1.0
+    assert presence["ctg1"][str(genomes[1])] == pytest.approx(54 / 200)
 
 
 def test_two_genomes_with_the_same_name_stay_apart(stubs, tmp_path):
     stubs(presence={"a/g": ["ctg1"], "b/g": []})
     genomes = [genome(tmp_path / "in" / sample, "g.fasta") for sample in ("a", "b")]
     presence = presence_in_genomes(query_file(tmp_path), genomes, tmp_path / "work", threads=2)
-    assert presence == {"ctg1": {str(genomes[0]): True, str(genomes[1]): False}}
+    assert presence == {"ctg1": {str(genomes[0]): 1.0, str(genomes[1]): 0.0}}
 
 
 def test_a_hit_that_is_not_good_enough_is_not_a_presence(stubs, tmp_path):
@@ -246,7 +261,7 @@ def test_a_hit_that_is_not_good_enough_is_not_a_presence(stubs, tmp_path):
     stubs(presence_evalue="1e-3")
     genomes = [genome(tmp_path / "in", "g1.fasta")]
     presence = presence_in_genomes(query_file(tmp_path), genomes, tmp_path / "work", threads=1)
-    assert presence == {"ctg1": {str(genomes[0]): False}}
+    assert presence == {"ctg1": {str(genomes[0]): 0.0}}
 
 
 def test_exclusion_variants_reads_every_hit_of_each_genome(stubs, tmp_path):

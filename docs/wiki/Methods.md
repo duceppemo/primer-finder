@@ -224,12 +224,16 @@ Step 5 is what checks them against the whole exclusion group.
 
 ```
 makeblastdb -in <each inclusion genome> -dbtype nucl -out <output folder>/...
-blastn -task blastn -db <genome> -query best_kmers.fasta -evalue 1e-10 -max_target_seqs 1 \
-       -num_threads 1 -outfmt "6 qseqid evalue"
+blastn -task blastn -db <genome> -query best_kmers.fasta -evalue 1e-10 -max_target_seqs 500 \
+       -num_threads 1 -outfmt "6 qseqid qstart qend evalue"
 ```
 
 Each inclusion genome is searched for each candidate; a hit with an e-value of 1e-10 or better counts as
-present. The presence of every candidate in every genome is written to `inclusion_blast_hits.tsv`, and a
+present, however little of the candidate it covers. The query span of every hit is read so that the table
+can say *how much* of each candidate each genome holds, and every subject is asked for rather than the best
+one, because a draft assembly that broke a candidate between two of its contigs would otherwise be credited
+with the longer piece alone. Neither affects which candidates are kept. The presence of every candidate in
+every genome is written to `inclusion_blast_hits.tsv`, and a
 candidate missing from even one inclusion genome is dropped: an assay must amplify all of them. This is
 where the kmer counting of step 1 is checked properly, since "occurs at least `N` times" is not quite "is in
 `N` genomes". With `-p/--min-inclusion`, a candidate has to reach the same number of genomes as the kmers

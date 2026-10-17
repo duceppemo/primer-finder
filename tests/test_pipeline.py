@@ -10,16 +10,19 @@ import pytest
 
 from primer_finder import PrimerFinderError
 from primer_finder.blast import MOST_SUBJECTS, PRESENCE_FIELDS
+from primer_finder.design import MIN_AMPLICON_COVERAGE
 from primer_finder.pipeline import (
     ABSENCE_WANTS_GENOMES,
     HITS_NAME,
+    MOSTLY_PRESENT,
     Settings,
     lower_positions,
+    report_partial_presence,
     required_genomes,
     run,
     write_presence_table,
 )
-from primer_finder.seqio import iter_records
+from primer_finder.seqio import Record, iter_records
 
 # The whole of the default contig, differing from it at offsets 5 and 12: two differences
 # close enough to share one primer, which is what the strict rule asks for.
@@ -948,7 +951,7 @@ def test_a_contig_an_inclusion_genome_holds_part_of_is_kept_and_said_to_be_parti
     assert held["inclusion_2.fasta"] == "0.120"
     assert held["inclusion_1.fasta"] == "1.000"
     assert "held only in part by an inclusion genome" in caplog.text
-    assert "12% of ctg1" in caplog.text
+    assert "as little as 12 of the 100 bases of ctg1" in caplog.text
 
 
 def test_nothing_is_said_about_partial_presence_when_every_genome_holds_the_whole_region(
@@ -958,6 +961,35 @@ def test_nothing_is_said_about_partial_presence_when_every_genome_holds_the_whol
     with caplog.at_level("INFO"):
         assert run(settings()) == 0
     assert "held only in part" not in caplog.text
+
+
+def test_a_genome_that_holds_none_of_a_region_is_not_called_a_partial_one(caplog):
+    """Below -p 1.0 a region is kept although some genomes have none of it, and the fraction in its header
+    says so. This line is about the genomes that do hold it: counting the others would report every such
+    region as held "only in part", which is the regime the filter exists for and the one the end-to-end
+    test above cannot reach, since it runs at -p 1.0."""
+    records = [Record("r1", "", "A" * 100), Record("r2", "", "A" * 100)]
+    presence = {
+        "r1": {"g1": 1.0, "g2": 0.0, "g3": 0.3},   # one genome lacks it, another holds 30 of its 100
+        "r2": {"g1": 1.0, "g2": 0.0, "g3": 1.0},   # one genome lacks it; the rest hold all of it
+    }
+    with caplog.at_level("INFO"):
+        assert report_partial_presence(presence, records, Path("table.tsv")) == 1
+    assert "as little as 30 of the 100 bases of r1" in caplog.text
+    assert "r2" not in caplog.text
+
+
+def test_nothing_is_reported_when_no_kept_region_is_partly_held(caplog):
+    with caplog.at_level("INFO"):
+        assert report_partial_presence({"r1": {"g1": 1.0}}, [Record("r1", "", "AC")], Path("t")) == 0
+    assert "held only in part" not in caplog.text
+
+
+def test_the_partial_presence_threshold_is_the_one_the_design_step_requires():
+    """`MOSTLY_PRESENT` is reported against, never applied, and it is worth reporting against the figure
+    the design step does apply: what `design` asks of an amplicon is what makes part of a region worth
+    telling from the whole of it. Two independent literals until one of them moves."""
+    assert MOSTLY_PRESENT == MIN_AMPLICON_COVERAGE
 
 
 def test_the_presence_search_asks_for_every_subject_not_the_best_one(stubs, settings):

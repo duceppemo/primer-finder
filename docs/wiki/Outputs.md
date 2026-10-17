@@ -81,16 +81,32 @@ not in the contig — so they only show in the cigar string.
 
 ## inclusion_blast_hits.tsv
 
-Which inclusion genome holds which candidate: `1` present (a blast hit at 1e-10 or better), `0` absent. The
-candidates with a `0` are the ones dropped at this step; the table is the place to look when a region you
-expected disappeared. A column is named after the genome's path inside the inclusion folder, so genomes with
-the same file name in different subfolders (`sampleA/contigs.fasta`, `sampleB/contigs.fasta`) stay apart.
+How much of each candidate each inclusion genome holds, as a fraction of the candidate's length: `1.000`
+all of it, `0.000` none of it. A candidate is present in a genome on **any** blast hit at 1e-10 or better,
+so anything above 0 counts as present, and the candidates with a `0.000` are the ones dropped at this step.
+The table is the place to look when a region you expected disappeared. A column is named after the genome's
+path inside the inclusion folder, so genomes with the same file name in different subfolders
+(`sampleA/contigs.fasta`, `sampleB/contigs.fasta`) stay apart.
 
 ```
 contig	inclusion_1.fasta	inclusion_2.fasta	inclusion_3.fasta
-Contig_1_67.5167	1	1	1
-Contig_2_41.2	1	0	1
+Contig_1_67.5167	1.000	1.000	1.000
+Contig_2_41.2	1.000	0.000	1.000
+Contig_3_55.9	1.000	0.121	1.000
 ```
+
+The third row is the case the fraction is for: every genome holds that candidate, so it is reported, but one
+of them holds an eighth of it — commonly because its assembly broke inside a repeat, which is where a
+multi-copy marker sits. Such a candidate can still carry a good assay on the part the genomes share, and
+`design` is what settles that: it checks each amplicon it proposes against every inclusion genome and
+reports `inclusion_copies_min`, which is 0 when one of them does not carry the amplicon at all. A run that
+keeps a candidate some genome holds only part of says so in its log, counting bases.
+
+Written with three decimals, so a genome holding under a two-thousandth of a long candidate reads as
+`0.000` like one holding none; the log line counts bases and is exact.
+
+Before 1.9.2 this table held `1` and `0`. Presence means the same thing, so the rows of an older run read
+the same.
 
 ## run_info.json
 
