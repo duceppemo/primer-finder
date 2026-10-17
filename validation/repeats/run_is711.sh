@@ -22,8 +22,15 @@ HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 ASSAY=$HERE/is711_assay.tsv
 CHECK=$HERE/../brucella/check_assay.py
 
-# -d has to reach the mean copy number of the group, which is a property of the group and not of the
-# element: is711_panels.py prints both means, and these are what it prints.
+# What -d has to reach is the highest pooled count of a kmer of the target divided by the size of the
+# group; the mean copy number is a lower bound and not always enough. Measured exactly over the element's
+# 744 99-mers, the smallest sufficient values are 11.03 for the complete group and 5.40 for the draft one.
+#
+# These are the values the record was produced with, so they are left as they were: 12, which is enough,
+# and 5, which is the draft group's mean and is NOT -- it cuts the 18 kmers of element positions 433-450,
+# and the regions that run reports begin at 451 for that reason. The record sets this out. They are also
+# hard-coded rather than read from is711_panels.py, which only prints its means, so a panel rebuilt from a
+# changed census would move the means without moving these: check its output against them.
 D_COMPLETE=12
 D_DRAFT=5
 

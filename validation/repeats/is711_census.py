@@ -163,8 +163,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {what:<9} pooled {sum(counts):>6}, mean {sum(counts)/len(counts):>6.2f} per genome, "
               f"none in {sum(1 for c in counts if c == 0):>4} of them")
     mean = sum(amplicons.get(row["accession"], 0) for row in classical) / len(classical)
-    print(f"  so -d has to be at least {mean:.2f} for a kmer of the amplicon to survive the ceiling, "
-          f"which the whole group shares")
+    # A lower bound, and labelled as one. No kmer lies inside a 63-base amplicon at -k 99, and what the
+    # ceiling acts on is a kmer's pooled count: counted exactly over the element's 744 99-mers, the
+    # highest-counting one needs -d 3.11 on this panel where this figure says 3.78, and on the 30-genome
+    # draft group of is711_panels.py the mean says 4.93 where the true requirement is 5.40. Use this to
+    # know the order of magnitude, not to choose -d.
+    print(f"  the mean copy number is {mean:.2f}: a lower bound on the -d a kmer of this region needs, "
+          f"since the ceiling is on a kmer's pooled count over the whole group")
 
     print(f"\n{'assembly level':<18}{'genomes':>8}{'element=0':>11}{'element med':>12}{'amplicon med':>13}"
           f"{'contigs med':>12}{'cut at an end':>14}")

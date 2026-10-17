@@ -7,10 +7,12 @@
 element. On those the element is intact, so the only thing in the way of a repeat-targeted marker is
 primer-finder's own handling of repeats -- which is what the 2 x 2 of `run_is711.sh` measures.
 
-`draft/` is 15 of those complete genomes and 15 contig-level assemblies, which is what a real panel looks
-like: `is711_census.py` finds no whole copy of the element in 557 of the 873 contig-level assemblies of
-this panel. It asks the next question -- what the same run does when the repeat is broken in half the
-group.
+`draft/` is 15 complete genomes and 15 contig-level assemblies, which is what a real panel looks like:
+`is711_census.py` finds no whole copy of the element in 557 of the 873 contig-level assemblies of this
+panel. It asks the next question -- what the same run does when the repeat is broken in half the group.
+The fifteen complete ones are drawn from the same pool as the group above rather than from that group, so
+the two overlap only partly (five of the fifteen, at this seed): the comparison is between two groups of
+the same shape, not the same genomes resampled.
 
 Both get the same exclusion group, 30 complete non-classical genomes: *Ochrobactrum* and its relatives,
 which carry no IS711 at all. Choices are seeded, so the folders are the same on every run, and the

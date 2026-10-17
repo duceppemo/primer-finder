@@ -15,7 +15,11 @@
 # how that was caught -- the same reason `validation/brucella/verify_amplicon.py` exists.
 #
 # amplicon_bp is **measured here, not quoted**: 63 bases between the outer 5' ends of the two primers, in
-# every exact copy of the amplicon in GCF_000008145.1 (B. abortus 2308). The paper's own figure could not
-# be read. `check_assay.py` prints it as "the paper reports", which for this one row means "measured".
+# every exact copy of the amplicon. The paper's own figure could not be read. `check_assay.py` prints it as
+# "the paper reports", which for this one row means "measured". Measured in three complete genomes, which
+# hold 3, 6 and 38 exact copies of it: GCF_000008145.1 (B. abortus bv. 1 str. 9-941 -- not 2308, as an
+# earlier version of this comment said), GCF_000007125.1 (B. melitensis 16M, which is the one
+# `is711_census.py` picks, being the first complete classical genome by accession) and GCF_000016845.1
+# (B. ovis).
 target	assay	forward	reverse	probe	amplicon_bp	locus
 genus	IS711	GCTTGAAGCTTGCGGACAGT	GGCCTACCGCTGCGAAT	AAGCCAACACCCGGCCATTATGGT	63	IS711 (M94960)

@@ -531,7 +531,7 @@ def report_partial_presence(presence: dict[str, dict[str, float]], kept: Iterabl
 
     Measured on the draft-heavy *Brucella* group of `validation/results/2026-10-16_v1.9.1_is711/`: a
     338-base region was reported as present in all thirty inclusion genomes while one of them, a
-    contig-level *B. canis* assembly, held 41 identical bases of it at the end of a contig and not the
+    contig-level *B. canis* assembly, held 41 identical bases of it at the start of a contig and not the
     published amplicon at all. The region was worth reporting -- the other genomes carry it -- and the
     run had no way of saying which case it was.
     """

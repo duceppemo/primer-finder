@@ -31,7 +31,7 @@ specific here, and a run should be able to report it.
 oligos are taken from the open-access papers that reproduce them and cite it. Eighteen of those in PMC
 carry the reverse primer as `GGCCTACCGCTGCGAAT` and one as `CGCCTACCGCTGCGAAT`; the second spelling occurs
 in no *Brucella* genome, so it is a typo in that one paper. Locating all three oligos in
-GCF_000008145.1 before trusting the table is what caught it — the same job
+GCF_000008145.1 (*B. abortus* bv. 1 str. 9-941) before trusting the table is what caught it — the same job
 [`verify_amplicon.py`](../../brucella/verify_amplicon.py) does for the *Brucella* key. The amplicon is
 **63 bases**, measured here between the outer 5' ends of the two primers; the paper's own figure could not
 be read, so where `check_assay.py` prints "the paper reports 63 bp" it means "measured".
@@ -47,7 +47,9 @@ Whole copies of the element and copies of the 63-base amplicon, counted by blast
 | the exclusion group | 315 | 0 | 0 | 315 |
 
 and for the 63-base amplicon the assay would see: pooled **5,197** over the classical genomes, mean
-**3.78**, none at all in **226** of them.
+**3.78**, none at all in **226** of them. That mean is a lower bound on what `-d` must reach and not the
+figure to set it by — see recommendation 1 below, corrected after review: counted exactly, the
+highest-counting 99-mer of the element needs 3.11 on this panel, and on the draft group the mean is short.
 
 The copy numbers are right where the literature puts them, in the genomes that can show them:
 
@@ -101,7 +103,7 @@ is responsible, because they differ in nothing else. Both counted the same 1,329
 | `-d 12` | longest piece of the element in `2_assembly/assembly.fasta` |
 |---|---|
 | `-a skesa` | 19 bases — nothing of it, the assembly has 5,616 records |
-| `-a unitig` | 289, 225 and 197 bases, in an assembly of 10,923 records |
+| `-a unitig` | 289, 225 and 197 bases -- the longest of 40 contigs holding 100 or more -- in 10,923 |
 
 So at `-d 1` the ceiling discards the marker's kmers whichever assembler follows, and at `-d 12` the
 kmers are there and SKESA does not assemble them: near-identical copies branch the graph at every
@@ -122,7 +124,8 @@ positions 433-739, two of them at 100% identity and unitig_2208 at 98.6%. They d
 unitig_2208 against unitig_6072 is three mismatches over the 168 bases they share, while unitig_9340
 matches both exactly over the 98 bases it overlaps and ends elsewhere. That is the graph branching where
 the copies of the element diverge, which they do: in B. abortus 2308 the reverse primer's site reads
-`GGCCTACCGCTGCGAAT` in one chromosome-I copy and `GGCCTACCGCTGAGAAT` in three others. A repeat-targeted
+`GGCCTACCGCTGCGAAT` in one chromosome-I copy of *B. abortus* 9-941 and `GGCCTACCGCTGAGAAT` in three
+others. A repeat-targeted
 region therefore arrives as several short pieces rather than one long one, which is why `--min-region 99`
 matters here as much as `-d`.
 
@@ -134,8 +137,9 @@ only ever been checked against the synthetic dataset; it is right on a real repe
 
 ## On a draft-heavy group: recovered, and `design` is the one that says what it cost
 
-The second group is fifteen of those complete genomes and fifteen contig-level assemblies, which is what a
-public panel looks like. Whole element copies: pooled 148, mean 4.93, and **ten of the thirty hold no whole
+The second group is fifteen complete genomes and fifteen contig-level assemblies, which is what a public
+panel looks like. (It is sampled from the same pool rather than from the thirty above, so only five of its
+complete genomes are among them — corrected after review, where this said "fifteen of those".) Whole element copies: pooled 148, mean 4.93, and **ten of the thirty hold no whole
 copy at all**, so `-d 5`.
 
 At `-d 5 -a unitig -p 1.0` the run reports 10,131 regions and the assay **is recovered**, in unitig_1828
@@ -170,7 +174,8 @@ All 1,376 classical genomes against all 315 non-classical ones, `-k 99 --min-reg
 The last one is slower because lowering `-p` lowers KMC's `-ci` with it, so more kmers survive and more
 candidates go through the per-genome checks: 7,341 contigs against 1,376 genomes rather than 5,542.
 
-`-d 6` is above the 3.78 the amplicon census asks for. Following the `-d 6 -p 1.0` run through its own
+`-d 6` is above both the 3.78 the amplicon census suggests and the 3.11 the element's highest-counting
+99-mer actually needs here. Following the `-d 6 -p 1.0` run through its own
 intermediate folders says exactly where the marker goes:
 
 | stage | records | holding 100+ bases of IS711 |
@@ -182,14 +187,21 @@ intermediate folders says exactly where the marker goes:
 So with the ceiling raised the kmers survive, assemble, and reach the candidate stage — four of those
 contigs hold the published 63-base amplicon at 100% identity — and the **"present in every inclusion
 genome" check drops them**. That is the correct answer to the question as asked. The run's own
-`inclusion_blast_hits.tsv` says how close they came:
+`inclusion_blast_hits.tsv` says how close the four amplicon-bearing ones came:
 
 | contig | inclusion genomes holding it |
 |---|---|
 | unitig_1596 | 1,213 of 1,376 (0.882) |
 | unitig_4695 | 1,181 of 1,376 (0.858) |
 | unitig_3892 | 1,176 of 1,376 (0.855) |
-| unitig_1751 | 1,119 of 1,376 (0.813) |
+| unitig_5498 | 1,168 of 1,376 (0.849) |
+
+**Corrected after review**: this table first listed unitig_1751 at 1,119 in place of unitig_5498.
+unitig_1751 holds 163 bases of the element but not the amplicon, so the four that carry the assay span
+1,168 to 1,213, not 1,119 to 1,213. The 14 contigs holding 100 or more bases of the element span 1,119 to
+1,359, eight of them above 96% of the panel — a weaker version of "most assemblies have lost the repeat"
+than the four amplicon contigs alone suggest. unitig_5498 at 1,168 is also why the `-p 0.85` run reports
+three regions and not four: the quorum there is 1,170.
 
 which is the census number from the other direction: 1,150 of the 1,376 assemblies hold the amplicon
 (0.836). A panel most of whose draft assemblies have lost the repeat cannot support a marker inside it at
@@ -232,21 +244,37 @@ Two ways to settle it:
 
 **Settled the same day in [`2026-10-16_v1.9.1_presence/`](../2026-10-16_v1.9.1_presence/SUMMARY.md), by
 measuring the first option against every answer key: it is the second.** A rule asking for 0.9 of the
-region would drop 31.4% of what the full panel reports at `-p 0.85` and all three regions carrying this
-assay — they are held to 0.112, 0.289 and 0.310 by their stingiest genome — while gaining nothing on the
-complete-genome panels, where nothing is partly held and all eight recovered published assays sit in
-regions every genome holds whole. The fraction is now reported, in the presence table and in a log line,
-and nothing is kept or dropped differently.
+region would drop only 6 of the 7,014 regions the full panel reports at `-p 0.85` — and all three regions
+carrying this assay are among those 6, since the genomes holding 0.9 of them number 1,115, 1,100 and 1,119
+against the 1,170 that run requires. On the complete-genome panels such a rule would gain nothing either:
+nothing is partly held there and all eight recovered published assays sit in regions every genome holds
+whole. So it would leave a run's regions almost untouched and remove the repeat-targeted answer key. The
+fraction is now reported, in the presence table and in a log line, and nothing is kept or dropped
+differently.
 
 ## If you are after a repeat-targeted marker
 
 What this run says to do, in order:
 
-1. **count the copies first.** `-d` is a ceiling on the *pooled* count, so it has to reach the group's
-   **mean** copy number: 12 for the complete-genome group here, 5 for the draft-heavy one, 4 for the whole
-   panel. A census like `is711_census.py` is how that number is known before the run rather than after;
-2. **use `-a unitig`.** With the same kmers, SKESA kept nothing of the element and `unitig` kept pieces of
-   289, 225 and 197 bases. Set `--min-region` to the kmer size as well, since the pieces are short;
+1. **count the copies first, and count the right thing.** `-d` is a ceiling on a kmer's *pooled* count
+   across the group, so what it must reach is the **highest pooled count of a kmer of the target**,
+   divided by the number of inclusion genomes. The mean copy number is a convenient lower bound and it
+   is **not sufficient** — corrected after review, with this record's own draft group as the
+   counterexample. Counted exactly over the element's 744 99-mers:
+
+   | group | highest pooled count of one | the smallest `-d` that keeps them all | the record's `-d` | kmers lost |
+   |---|---|---|---|---|
+   | 30 complete genomes | 331 | 11.03, so 12 | 12 (the mean, 11.63) | none |
+   | 15 complete + 15 contig | 162 | 5.40, so 6 | 5 (the mean, 4.93) | **18**, at element positions 433-450 |
+
+   The draft group's run recovered the assay anyway, through the kmers below its ceiling — and the
+   regions it reported begin at element position 451, exactly where the surviving kmers begin. Note also
+   that the amplicon is 63 bases against `-k 99`, so no kmer lies *inside* it: the amplicon copy count is
+   a proxy for the pooled count of a kmer spanning it, and on the whole panel it overstates (3.78 against
+   a measured 3.11 for the highest-counting element kmer) while on the draft group the mean understates;
+2. **use `-a unitig`.** With the same kmers, SKESA kept nothing of the element — its longest hit to it is
+   19 bases — while `unitig` kept 40 contigs holding 100 bases or more of it, the longest three being 289,
+   225 and 197. Set `--min-region` to the kmer size as well, since the pieces are short;
 3. **check the assemblies.** If the inclusion group is draft-heavy, the repeat may be missing from most of
    it, and then `-p` has to come down — to 0.85 on this panel — or the panel has to be rebuilt from
    assemblies that resolved the repeat. Long reads resolve IS711; short-read contigs break inside it;
