@@ -222,13 +222,21 @@ the find stage's own log line, "N contig(s) are present in all inclusion genomes
 was checked. This is the repeat case making a general property visible: a region partly present in a
 genome is commonest where the assembly broke, which is where repeats are.
 
-Two ways to settle it, neither taken here:
+Two ways to settle it:
 
 - **require a fraction of the region to align** for "present", the analogue of `MIN_AMPLICON_COVERAGE` on
-  the design side. It changes what every run reports, so it needs measuring against all three answer keys
+  the design side. It changes what every run reports, so it needs measuring against all the answer keys
   before it could be a default;
 - **report it**: carry the worst inclusion genome's coverage into the presence table and the log, and
   leave the decision to the reader. Non-breaking.
+
+**Settled the same day in [`2026-10-16_v1.9.1_presence/`](../2026-10-16_v1.9.1_presence/SUMMARY.md), by
+measuring the first option against every answer key: it is the second.** A rule asking for 0.9 of the
+region would drop 31.4% of what the full panel reports at `-p 0.85` and all three regions carrying this
+assay — they are held to 0.112, 0.289 and 0.310 by their stingiest genome — while gaining nothing on the
+complete-genome panels, where nothing is partly held and all eight recovered published assays sit in
+regions every genome holds whole. The fraction is now reported, in the presence table and in a log line,
+and nothing is kept or dropped differently.
 
 ## If you are after a repeat-targeted marker
 

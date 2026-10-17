@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from primer_finder import PrimerFinderError
+from primer_finder.blast import MOST_SUBJECTS, PRESENCE_FIELDS
 from primer_finder.pipeline import (
     ABSENCE_WANTS_GENOMES,
     HITS_NAME,
@@ -269,7 +270,7 @@ def test_contig_missing_from_an_inclusion_genome_is_dropped(stubs, settings):
     assert run(scenario) == 0
     rows = (scenario.output / "4_blast" / "inclusion_blast_hits.tsv").read_text().splitlines()
     assert rows[0].split("\t") == ["contig", "inclusion_1.fasta", "inclusion_2.fasta"]
-    assert rows[1:] == ["ctg1\t1\t1", "ctg2\t1\t0"]
+    assert rows[1:] == ["ctg1\t1.000\t1.000", "ctg2\t1.000\t0.000"]
     assert set(final_records(scenario.output)) == {"ctg1"}
 
 
@@ -648,8 +649,8 @@ def test_lower_positions():
 
 def test_write_presence_table(tmp_path):
     path = tmp_path / "hits.tsv"
-    write_presence_table(path, {"b": {"g2.fasta": True}, "a": {"g1.fasta": False, "g2.fasta": True}})
-    assert path.read_text() == "contig\tg1.fasta\tg2.fasta\na\t0\t1\nb\t0\t1\n"
+    write_presence_table(path, {"b": {"g2.fasta": 1.0}, "a": {"g1.fasta": 0.0, "g2.fasta": 0.4}})
+    assert path.read_text() == "contig\tg1.fasta\tg2.fasta\na\t0.000\t0.400\nb\t0.000\t1.000\n"
 
 
 def test_several_genomes_are_blasted_in_parallel(stubs, settings, tmp_path):
@@ -670,9 +671,9 @@ def test_several_genomes_are_blasted_in_parallel(stubs, settings, tmp_path):
     assert len(header) == 1 + 8  # The contig column and one per genome
     counts = dict(zip(header[1:], rows[2].split("\t")[1:], strict=True))
     assert rows[2].startswith("ctg2\t")
-    assert counts["inclusion_5.fasta"] == "0"  # The one that lacks it, in its own column
-    assert sorted(counts.values()) == ["0"] + ["1"] * 7
-    assert rows[1] == "ctg1\t" + "\t".join(["1"] * 8)
+    assert counts["inclusion_5.fasta"] == "0.000"  # The one that lacks it, in its own column
+    assert sorted(counts.values()) == ["0.000"] + ["1.000"] * 7
+    assert rows[1] == "ctg1\t" + "\t".join(["1.000"] * 8)
 
 
 def test_two_genomes_with_the_same_file_name(stubs, genomes, tmp_path):
@@ -690,7 +691,7 @@ def test_two_genomes_with_the_same_file_name(stubs, genomes, tmp_path):
                         threads=2, memory_gb=2, keep_intermediate=True)) == 0
     rows = (output / "4_blast" / "inclusion_blast_hits.tsv").read_text().splitlines()
     assert rows[0].split("\t") == ["contig", "sampleA/contigs.fasta", "sampleB/contigs.fasta"]
-    assert rows[1:] == ["ctg1\t1\t1", "ctg2\t1\t0"]
+    assert rows[1:] == ["ctg1\t1.000\t1.000", "ctg2\t1.000\t0.000"]
     # Each genome got a folder of its own, named after its position in the list
     folders = sorted(path.name for path in (output / "4_blast" / "inclusion_db").iterdir())
     assert folders == ["0000_contigs", "0001_contigs"]
@@ -925,13 +926,63 @@ def test_the_tag_survives_on_a_contig_no_exclusion_genome_hits(stubs, four_inclu
     assert "100I" in record.desc  # And what the mapping step said about it
 
 
+def test_a_contig_an_inclusion_genome_holds_part_of_is_kept_and_said_to_be_partial(
+        stubs, settings, caplog):
+    """Presence is any hit at all, and stays that way: the design step checks each amplicon it proposes
+    against every genome one at a time, so a region whose shared part carries a usable assay is worth
+    reporting even where one genome holds only some of it. What the run has to do is say so, because
+    holding a region and holding an eighth of it were the same tick in the table.
+
+    Measured case behind this: on a draft Brucella group a 338-base region was reported as present in all
+    thirty inclusion genomes while one of them held 41 bases of it at the end of a contig.
+    """
+    stubs(contigs={"ctg1": DIFFERS_AT_5_AND_12},
+          sam=[["ctg1", 0, "40=1X7=1X50="]],
+          presence_spans={"inclusion_2": {"ctg1": [[1, 12]]}})   # 12 of its 100 bases
+    scenario = settings()
+    with caplog.at_level("INFO"):
+        assert run(scenario) == 0
+    assert "ctg1" in final_records(scenario.output)          # kept, which is the point
+    rows = (scenario.output / "4_blast" / HITS_NAME).read_text().splitlines()
+    held = dict(zip(rows[0].split("\t")[1:], rows[1].split("\t")[1:], strict=True))
+    assert held["inclusion_2.fasta"] == "0.120"
+    assert held["inclusion_1.fasta"] == "1.000"
+    assert "held only in part by an inclusion genome" in caplog.text
+    assert "12% of ctg1" in caplog.text
+
+
+def test_nothing_is_said_about_partial_presence_when_every_genome_holds_the_whole_region(
+        stubs, settings, caplog):
+    """The line is worth printing because it is unusual; on an ordinary run it would be noise."""
+    stubs(contigs={"ctg1": DIFFERS_AT_5_AND_12}, sam=[["ctg1", 0, "40=1X7=1X50="]])
+    with caplog.at_level("INFO"):
+        assert run(settings()) == 0
+    assert "held only in part" not in caplog.text
+
+
+def test_the_presence_search_asks_for_every_subject_not_the_best_one(stubs, settings):
+    """A draft assembly breaks a region across two of its own sequences exactly where a repeat is. With
+    one subject the other piece is missing from the fraction, which is the case the fraction is for."""
+    calls = stubs(contigs={"ctg1": DIFFERS_AT_5_AND_12}, sam=[["ctg1", 0, "40=1X7=1X50="]])
+    assert run(settings()) == 0
+    # blast runs in the database's own folder with relative paths, so the search is told apart by the
+    # fields it asks for rather than by where it was run. The whole list, quoted as the log writes it:
+    # the exclusion search asks for these four and two more, and its first four read the same.
+    wanted = "-outfmt '6 " + " ".join(PRESENCE_FIELDS) + "'"
+    presence_calls = [line for line in calls.read_text().splitlines()
+                      if line.startswith("blastn ") and wanted in line]
+    assert len(presence_calls) == 2, presence_calls  # One per inclusion genome
+    assert all(f"-max_target_seqs {MOST_SUBJECTS}" in line for line in presence_calls), presence_calls
+
+
 def test_the_presence_table_lists_the_candidates_that_were_dropped(stubs, four_inclusion):
     """The table is the place to look when a region disappears, so it is written before the filtering."""
     scenario = four_inclusion(min_inclusion=0.75)
     run(scenario)
     rows = (scenario.output / "4_blast" / HITS_NAME).read_text().splitlines()
     assert rows[0].split("\t") == ["contig", "g1.fasta", "g2.fasta", "g3.fasta", "g4.fasta"]
-    assert rows[1:] == ["ctg1\t1\t1\t1\t0", "ctg2\t1\t1\t0\t0"]  # ctg2 was dropped, and is still here
+    assert rows[1:] == ["ctg1\t1.000\t1.000\t1.000\t0.000",
+                        "ctg2\t1.000\t1.000\t0.000\t0.000"]  # ctg2 was dropped, and is still here
     assert "ctg2" not in (scenario.output / "final_kmers.fasta").read_text()
 
 

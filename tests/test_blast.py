@@ -18,6 +18,7 @@ from primer_finder.blast import (
     ExclusionResult,
     Hit,
     blastn,
+    covered_fraction,
     enough_variants,
     exclusion_variants,
     genome_folder,
@@ -64,10 +65,35 @@ def test_parse_hits_ignores_malformed_lines(tmp_path):
 
 
 def test_parse_hits_without_the_alignment_fields(tmp_path):
+    """The presence search asks for the query span and nothing more: no aligned sequences to read."""
     path = tmp_path / "hits.tsv"
-    path.write_text("ctg1\t1e-30\n")
+    path.write_text("ctg1\t1\t20\t1e-30\n")
     hits = parse_hits(path, PRESENCE_FIELDS)
-    assert (hits[0].query, hits[0].qseq, hits[0].qstart) == ("ctg1", "", 0)
+    assert (hits[0].query, hits[0].qseq, hits[0].qstart, hits[0].qend) == ("ctg1", "", 1, 20)
+
+
+def test_covered_fraction_merges_the_pieces_instead_of_adding_them():
+    """A repeated region is hit once per copy, over the same columns of the query. Added up, a genome
+    would look as though it held the contig several times over -- and the figure would be worst exactly
+    where repeats are, which is what it is there to describe."""
+    three_copies = [hit(1, 50, "", ""), hit(1, 50, "", ""), hit(1, 50, "", "")]
+    assert covered_fraction(three_copies, 100) == 0.5
+    assert covered_fraction([hit(1, 50, "", ""), hit(41, 60, "", "")], 100) == 0.6   # overlapping
+    assert covered_fraction([hit(1, 20, "", ""), hit(81, 100, "", "")], 100) == 0.4  # two pieces
+    assert covered_fraction([hit(1, 100, "", "")], 100) == 1.0
+    assert covered_fraction([], 100) == 0.0
+
+
+def test_covered_fraction_counts_pieces_a_draft_genome_split_between_its_contigs():
+    """The case the figure exists for: a genome that broke the region in two holds all of it, and the two
+    halves come back as two hits because they are on two of its sequences."""
+    halves = [hit(1, 60, "", ""), hit(61, 120, "", "")]
+    assert covered_fraction(halves, 120) == 1.0
+
+
+def test_a_hit_reaching_past_the_contig_is_not_more_than_all_of_it():
+    """Nothing blast reports should, but a fraction above 1 would read as a sure thing."""
+    assert covered_fraction([hit(1, 150, "", "")], 100) == 1.0
 
 
 def test_variant_bases_give_what_the_exclusion_genome_has_there():

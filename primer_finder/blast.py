@@ -48,7 +48,7 @@ SHORTEST_ABSENT_STRETCH = 40
 MOST_SUBJECTS = 500
 MIN_EXCLUSION_FRACTION = 0.90
 
-PRESENCE_FIELDS = ("qseqid", "evalue")
+PRESENCE_FIELDS = ("qseqid", "qstart", "qend", "evalue")
 ALIGNMENT_FIELDS = ("qseqid", "qstart", "qend", "evalue", "qseq", "sseq")
 
 # BLAST splits its path arguments on whitespace, so it is never given a path that could hold a space: each
@@ -258,30 +258,68 @@ def genome_folder(work_dir: Path, index: int, genome: Path) -> Path:
     return work_dir / f"{index:04d}_{base_name(genome)}"
 
 
+def covered_fraction(hits: Iterable[Hit], length: int) -> float:
+    """How much of a contig a genome's hits cover, as a fraction of the contig's length.
+
+    Overlapping pieces are merged rather than added. A repeated region is hit once per copy over the same
+    columns of the query, so adding them would make a genome look as though it held several times the
+    contig -- the figure would pass any threshold exactly where it matters least.
+    """
+    if length <= 0:  # pragma: no cover - a contig of no length cannot be reported
+        return 0.0
+    covered = reached = 0
+    for start, end in sorted((min(hit.qstart, hit.qend), max(hit.qstart, hit.qend)) for hit in hits):
+        start = max(start, reached + 1)
+        if end >= start:
+            covered += end - start + 1
+            reached = end
+    return min(1.0, covered / length)
+
+
 def presence_in_genomes(
     query: Path, genomes: Sequence[Path], work_dir: Path, threads: int
-) -> dict[str, dict[str, bool]]:
-    """For every contig of `query`, whether it is present in each genome. Keyed by contig, then by the
-    genome's path, which is what tells two genomes with the same file name apart."""
-    def one(index: int, genome: Path) -> set[str]:
+) -> dict[str, dict[str, float]]:
+    """For every contig of `query`, how much of it each genome holds, as a fraction of its length. Keyed
+    by contig, then by the genome's path, which is what tells two genomes with the same file name apart.
+
+    Anything above 0 means "the contig is there", which is what this has always answered and still is:
+    the step this feeds keeps a contig on any hit at all, and deliberately so -- a region whose shared
+    part carries a usable assay is worth keeping, and the design step checks the amplicon it proposes
+    against every genome one at a time. The fraction is reported rather than applied, because holding a
+    region and holding forty bases of it looked identical in the output and they are not the same thing.
+    """
+    sizes = _query_sizes(query)
+
+    def one(index: int, genome: Path) -> dict[str, float]:
         folder = genome_folder(work_dir, index, genome)
         db = make_db(genome, folder)
-        hits = parse_hits(blastn(db, query, folder / HITS_NAME, PRESENCE_FIELDS, max_targets=1),
-                          PRESENCE_FIELDS)
-        return {hit.query for hit in hits if hit.evalue <= MAX_EVALUE}
+        # Every subject that matches, not the best one. A draft assembly breaks a contig across two of
+        # its own sequences exactly where a repeat is, and with one subject the other piece would be
+        # missing from the fraction -- which is the case this number exists to show.
+        hits = parse_hits(blastn(db, query, folder / HITS_NAME, PRESENCE_FIELDS,
+                                 max_targets=MOST_SUBJECTS), PRESENCE_FIELDS)
+        per_contig: dict[str, list[Hit]] = {}
+        for hit in hits:
+            if hit.evalue <= MAX_EVALUE and hit.query in sizes:
+                per_contig.setdefault(hit.query, []).append(hit)
+        return {contig: covered_fraction(found, sizes[contig]) for contig, found in per_contig.items()}
 
     found = parallel(enumerate(genomes), one, threads)
-    contigs = _query_names(query)
-    presence: dict[str, dict[str, bool]] = {contig: {} for contig in contigs}
-    for genome, hits in zip(genomes, found, strict=True):
-        for contig in contigs:
-            presence[contig][str(genome)] = contig in hits
+    presence: dict[str, dict[str, float]] = {contig: {} for contig in sizes}
+    for genome, covered in zip(genomes, found, strict=True):
+        for contig in sizes:
+            presence[contig][str(genome)] = covered.get(contig, 0.0)
     return presence
 
 
 def _query_names(query: Path) -> list[str]:
     """The names of the contigs in a fasta file, in file order."""
     return [record.name for record in iter_records(query)]
+
+
+def _query_sizes(query: Path) -> dict[str, int]:
+    """The contigs of a fasta file and their lengths, in file order."""
+    return {record.name: len(record.seq) for record in iter_records(query)}
 
 
 def exclusion_variants(

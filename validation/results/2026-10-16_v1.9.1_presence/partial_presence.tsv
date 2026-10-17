@@ -1,0 +1,13 @@
+run	regions	partly_held_below_0.9	below_0.75	below_0.5	lowest_worst_fraction	assay_regions
+xylella_fastidiosa	782	2	2	0	0.579	unitig_1=1.000
+xylella_morus	514	1	0	0	0.778	unitig_7=1.000
+xylella_multiplex	1223	1	0	0	0.843	unitig_1=1.000
+xylella_pauca	3471	5	4	1	0.463	unitig_247=1.000
+listeria_CC5	84	0	0	0	1.000	unitig_2=1.000
+listeria_CC6	67	0	0	0	1.000	unitig_6=1.000
+listeria_CC7	85	0	0	0	1.000	unitig_1=1.000
+listeria_CC8	83	0	0	0	1.000	unitig_2=1.000
+brucella_genus_p1.0	398	18	10	4	0.301	none
+is711_complete_d12	10414	14	9	5	0.201	unitig_2208=1.000;unitig_6072=1.000;unitig_9340=1.000
+is711_draft_d5	10131	31	19	10	0.121	unitig_1828=0.121
+is711_full_p0.85	7014	2204	1442	806	0.021	unitig_3509=0.112;unitig_6585=0.289;unitig_6856=0.310

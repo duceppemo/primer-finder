@@ -7,7 +7,7 @@ import logging
 import math
 import shutil
 import time
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -406,7 +406,9 @@ def keep_shared_by_inclusion(settings: Settings, best: Path, inclusion: list[Pat
     partial = required < len(inclusion)
     kept: list[tuple[int, seqio.Record]] = []
     for record in seqio.iter_records(best):
-        found = sum(1 for present in presence[record.name].values() if present)
+        # Any hit at all is the contig being there, which is the rule this has always applied. See
+        # `report_partial_presence` for why it is not a fraction of the contig.
+        found = sum(1 for covered in presence[record.name].values() if covered > 0)
         if found < required:
             continue
         if partial:  # The candidates are no longer equal: say what each one covers
@@ -423,6 +425,7 @@ def keep_shared_by_inclusion(settings: Settings, best: Path, inclusion: list[Pat
                  count, required, len(inclusion))
     else:
         log.info("%d contig(s) are present in all inclusion genomes", count)
+    report_partial_presence(presence, (record.name for _, record in kept), folder / HITS_NAME)
     if count == 0:
         how_many = f"at least {required} of the inclusion genomes" if partial else "all the inclusion genomes"
         hint = (f" A -p/--min-inclusion below {settings.min_inclusion:g} would ask for fewer than {required}."
@@ -455,6 +458,11 @@ def genome_labels(genomes: list[Path], root: Path) -> dict[str, str]:
 # held somewhere in the full set; with 10, 44%; with 25, 17%; with all 716, none. The real absences were
 # found at every group size, so what grows as the group shrinks is the false ones.
 ABSENCE_WANTS_GENOMES = 25
+# An inclusion genome that aligns less than this much of a region holds it only partly, and the run says
+# so. The same figure as `design.MIN_AMPLICON_COVERAGE`, which is the rule this one reports against: what
+# the design step requires of an amplicon is what makes a part of a region worth telling apart from the
+# whole of it. It is a reporting threshold only -- nothing is kept or dropped by it.
+MOSTLY_PRESENT = 0.9
 
 
 def warn_about_absence(regions: int, genomes: int) -> None:
@@ -487,17 +495,63 @@ def runs_of(positions: Sequence[int]) -> list[list[int]]:
     return runs
 
 
-def write_presence_table(path: Path, presence: dict[str, dict[str, bool]],
+def write_presence_table(path: Path, presence: dict[str, dict[str, float]],
                          labels: dict[str, str] | None = None) -> None:
-    """A table of contigs (rows) against genomes (columns), 1 when the contig is present."""
+    """A table of contigs (rows) against genomes (columns), holding the fraction of the contig each genome
+    aligns: 0 for absent, 1 for all of it.
+
+    It was 1 and 0 until 1.9.2. Presence is still decided on anything above 0, so the rows mean what they
+    meant; what the fraction adds is that a genome holding a part of a region can be told from one holding
+    the region, which the tick could not say and which is the difference that matters where an assembly
+    has broken a repeat in two.
+    """
     labels = labels or {}
     genomes = sorted({genome for hits in presence.values() for genome in hits},
                      key=lambda genome: labels.get(genome, genome))
     with path.open("w") as fh:
         fh.write("contig\t" + "\t".join(labels.get(genome, genome) for genome in genomes) + "\n")
         for contig in sorted(presence):
-            row = ["1" if presence[contig].get(genome) else "0" for genome in genomes]
+            row = [f"{presence[contig].get(genome, 0.0):.3f}" for genome in genomes]
             fh.write(f"{contig}\t" + "\t".join(row) + "\n")
+
+
+def report_partial_presence(presence: dict[str, dict[str, float]], kept: Iterable[str],
+                            table: Path) -> int:
+    """Say how many of the kept contigs an inclusion genome holds only part of. Returns that count.
+
+    A contig counts as present in a genome on any hit at all, with no requirement on how much of it that
+    hit covers, and that is left alone on purpose: the design step checks each amplicon it proposes
+    against every genome separately, so a region whose shared part carries a usable assay is worth
+    keeping, and asking for most of the region here would drop it before anything looked at the part the
+    genomes agree on. What was missing is that the output could not tell the two apart.
+
+    Measured on the draft-heavy *Brucella* group of `validation/results/2026-10-16_v1.9.1_is711/`: a
+    338-base region was reported as present in all thirty inclusion genomes while one of them, a
+    contig-level *B. canis* assembly, held 41 identical bases of it at the end of a contig and not the
+    published amplicon at all. The region was worth reporting -- the other genomes carry it -- and the
+    run had no way of saying which case it was.
+    """
+    kept = set(kept)
+    worst: tuple[float, str] | None = None
+    partial = 0
+    for contig in kept:
+        held = [covered for covered in presence.get(contig, {}).values() if covered > 0]
+        if not held:  # pragma: no cover - a contig held by no genome is never kept
+            continue
+        least = min(held)
+        if least < MOSTLY_PRESENT:
+            partial += 1
+            if worst is None or least < worst[0]:
+                worst = (least, contig)
+    if worst is not None:
+        # "of the genomes that hold it" is the distinction that matters below -p 1.0, where a region is
+        # kept although some genomes have none of it: that is what the header's fraction is for, and this
+        # line is about the ones that do hold it.
+        log.info("%d of them are held only in part by an inclusion genome that holds them at all: as "
+                 "little as %.0f%% of %s. A region can be worth reporting on the part its genomes share "
+                 "-- the design step checks each amplicon against every genome -- but see %s for which "
+                 "genome holds how much.", partial, 100 * worst[0], worst[1], table)
+    return partial
 
 
 def keep_absent_from_exclusion(

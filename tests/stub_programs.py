@@ -8,6 +8,7 @@ every program on PATH; what they produce is read from the PRIMER_FINDER_STUBS en
     contigs          {name: sequence} for the assembler to write
     sam              [[query name, flag, cigar], ...] for minimap2 to write
     presence         {genome: [contig, ...]} the contigs blastn finds in each inclusion genome
+    presence_spans   {genome: {contig: [[qstart, qend], ...]}} which part of a contig it finds there
     exclusion_hits   {genome: [[query, qstart, qend, evalue, qseq, sseq], ...]} for the exclusion genomes
     fail             the name of a program that should exit 1
     kill             the name of a program that should die by a signal, as an OOM kill looks
@@ -63,7 +64,8 @@ DEFAULT_SSEQ = ("ACGTA" + "A" + "GTACGT" + "T" + "CGTACGT" + "ACGT" * 20)  # Mis
 # Every key the stubs understand. A scenario asking for anything else is a mistyped fixture, and silently
 # ignoring it has produced tests that passed while exercising nothing -- so it is an error instead.
 KNOWN_KEYS = frozenset({
-    "kmers", "shared_kmers", "contigs", "sam", "presence", "presence_evalue", "exclusion_hits",
+    "kmers", "shared_kmers", "contigs", "sam", "presence", "presence_evalue", "presence_spans",
+    "exclusion_hits",
     "fail", "kill", "exit_code",
     "amplicon_hits", "amplicon_mismatch", "amplicon_qstart", "amplicon_covers", "amplicon_insertion",
     "amplicon_split",
@@ -166,6 +168,19 @@ def stub_programs_local_fasta() -> str:
     return LOCAL_FASTA
 
 
+def query_sequences(argv: list[str]) -> dict[str, str]:
+    """The query fasta of a blastn call, as {name: sequence}."""
+    sequences: dict[str, str] = {}
+    name = None
+    for line in Path(argument(argv, "-query")).read_text().splitlines():
+        if line.startswith(">"):
+            name = line[1:].split()[0]
+            sequences[name] = ""
+        elif name:
+            sequences[name] += line.strip()
+    return sequences
+
+
 def blastn(argv: list[str]) -> int:
     """Write the tabular output the pipeline asked for, for the genome the database was made from."""
     fields = argument(argv, "-outfmt").split()[1:]
@@ -253,10 +268,20 @@ def blastn(argv: list[str]) -> int:
         default = [[query, 1, len(DEFAULT_QSEQ), 1e-30, DEFAULT_QSEQ, DEFAULT_SSEQ] for query in queries]
         for query, qstart, qend, evalue, qseq, sseq in hits.get(genome, default):
             rows.append([str(query), str(qstart), str(qend), str(evalue), qseq, sseq])
-    else:  # The inclusion step: is the contig there at all?
+    else:  # The inclusion step: is the contig there, and how much of it?
         present = value("presence", {}).get(genome, queries)
         evalue = value("presence_evalue", "1e-30")
-        rows = [[query, evalue] for query in queries if query in present]
+        # `presence_spans` {genome: {contig: [[qstart, qend], ...]}} says which part of a contig the
+        # genome aligns, as blast reports one row per high-scoring pair. The default is all of it, which
+        # is what a genome holding the contig looks like.
+        spans = value("presence_spans", {}).get(genome, {})
+        sizes = {name: len(sequence) for name, sequence in query_sequences(argv).items()}
+        for query in queries:
+            if query not in present:
+                continue
+            for start, end in spans.get(query, [[1, sizes.get(query, 100)]]):
+                row = {"qseqid": query, "qstart": str(start), "qend": str(end), "evalue": evalue}
+                rows.append([row[name] for name in fields])
     out_file.write_text("".join("\t".join(row) + "\n" for row in rows))
     return 0
 

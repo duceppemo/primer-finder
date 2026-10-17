@@ -19,6 +19,10 @@ be dropped by a rule built around where a region *differs*.
 `2026-10-16_v1.9.1_is711/` asks the same question of a real published assay in real genomes, and is set out
 under *repeats: a published repeat-targeted assay* below.
 
+`2026-10-16_v1.9.1_presence/` is about a rule rather than an assay: a region counts as present in a genome
+on any blast hit, however little of the region it covers. `partial_presence.py` measures what that lets
+through on every answer key, which is what decided that the rule stays and the fraction gets reported.
+
 Not every record is about an assay. `2026-10-14_v1.7.0_unitig/` measures what a change to the code does to
 a panel whose answer is already known — the question any change to the find or assembly rules has to
 answer before it can become a default.
