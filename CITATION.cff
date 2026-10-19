@@ -7,12 +7,14 @@ authors:
     given-names: Marc-Olivier
 version: 1.9.2
 date-released: "2026-10-19"
-# The concept DOI until Zenodo mints this version's, which then replaces it and is added below.
-doi: 10.5281/zenodo.23226411
+doi: 10.5281/zenodo.23479987
 identifiers:
   - type: doi
     value: 10.5281/zenodo.23226411
     description: "Concept DOI: resolves to the latest version"
+  - type: doi
+    value: 10.5281/zenodo.23479987
+    description: "Version DOI for 1.9.2"
   - type: doi
     value: 10.5281/zenodo.23426894
     description: "Version DOI for 1.9.1"
