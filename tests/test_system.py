@@ -118,14 +118,21 @@ def test_a_cgroup_v1_cpu_quota_is_read_with_its_period(tmp_path):
 
 def test_the_cpu_quota_caps_the_usable_cpus(monkeypatch):
     """`sched_getaffinity` sees a cpuset but not a quota, so -t used to be the whole machine under a
-    scheduler that limits CPU *time*."""
-    mask = len(os.sched_getaffinity(0))
+    scheduler that limits CPU *time*.
+
+    The machine is pinned at 64 CPUs rather than read, so the numbers below are the same everywhere: a
+    runner with fewer would make the cap trivially true, and macOS has no `sched_getaffinity` at all --
+    which the function handles and an earlier version of this test did not.
+    """
+    monkeypatch.setattr(os, "cpu_count", lambda: 64)
+    if hasattr(os, "sched_getaffinity"):
+        monkeypatch.setattr(os, "sched_getaffinity", lambda _pid: set(range(64)))
     monkeypatch.setattr(system, "cgroup_cpu_limit", lambda *_: 4)
-    assert system.usable_cpus() == min(4, mask)
+    assert system.usable_cpus() == 4
     monkeypatch.setattr(system, "cgroup_cpu_limit", lambda *_: 100000)
-    assert system.usable_cpus() == mask  # Never more than the affinity mask
+    assert system.usable_cpus() == 64  # Never more than the affinity mask
     monkeypatch.setattr(system, "cgroup_cpu_limit", lambda *_: None)
-    assert system.usable_cpus() >= 1
+    assert system.usable_cpus() == 64
 
 
 def test_the_files_of_a_cpu_quota_hierarchy_are_listed(tmp_path):

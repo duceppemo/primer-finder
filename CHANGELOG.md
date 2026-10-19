@@ -138,6 +138,15 @@ checked by reverting the line it covers and watching the test that covers it fai
   and can cut a dump short the way a full disk does. The fixtures pass `-m 4`: SKESA refuses less, and a
   parameter combination the real program rejects is not what the suite should exercise.
 
+> **The macOS job of this tag's own CI fails on one test, and the defect is in the test.**
+> `test_the_cpu_quota_caps_the_usable_cpus` read `os.sched_getaffinity` to work out what to expect, and
+> macOS has no such function: `usable_cpus()` checks for it and falls back to `os.cpu_count()`, so nothing
+> in `primer_finder/` is affected, and the Linux jobs, the bundled example with the real programs and the
+> sdist's own suite were all green on 642 tests. It is the same mistake as the one 1.0.0 made, caught by
+> the same job, and the commit carrying this note fixes it by pinning the machine at 64 CPUs instead of
+> reading it. Left here rather than retagged: the tag is on PyPI and Zenodo, and moving it would make the
+> published artifacts disagree with it.
+
 ## 1.9.2
 
 A twelve-part review of the whole package, one reviewer per area, found about thirty-five defects. Six of
