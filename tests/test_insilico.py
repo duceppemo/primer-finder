@@ -13,6 +13,7 @@ import pytest
 from primer_finder import PrimerFinderError
 from primer_finder.design import Assay, Oligo
 from primer_finder.insilico import (
+    LONGEST_TRIM,
     REPORT,
     Verdict,
     _side_in,
@@ -50,6 +51,90 @@ def write_report(folder: Path, rows: list[tuple[str, str]]) -> Path:
         for sample, gene in rows:
             fh.write(f"{sample}\t{gene}\t1-100\t100\n")
     return report
+
+
+def write_shaped_report(folder: Path, rows: list[dict[str, object]]) -> Path:
+    """A consolidated report with the columns the shape checks read, one row per dict."""
+    report = folder / REPORT
+    report.parent.mkdir(parents=True, exist_ok=True)
+    columns = ("Sample", "Gene", "GenomeLocation", "AmpliconSize", "Contig")
+    with report.open("w") as fh:
+        fh.write("\t".join(columns) + "\n")
+        for row in rows:
+            fh.write("\t".join(str(row.get(name, "")) for name in columns) + "\n")
+    return report
+
+
+def write_detailed(folder: Path, sample: str, rows: list[tuple[str, int, int, int, int]]) -> None:
+    """Primer alignments as insilicoPCR writes them: the genome is the query, the primer the subject, and
+    `sstart`/`send` run down where the primer aligned reversed."""
+    detailed = folder / "detailed_report" / sample
+    detailed.mkdir(parents=True, exist_ok=True)
+    header = ("qseqid\tsseqid\tslen\tlength\tqstart\tqend\tsstart\tsend\n")
+    with (detailed / f"{sample}.tsv").open("w") as fh:
+        fh.write(header)
+        for primer, qstart, qend, sstart, send in rows:
+            fh.write(f"chr\t{primer}\t20\t{abs(qend - qstart) + 1}\t{qstart}\t{qend}"
+                     f"\t{sstart}\t{send}\n")
+
+
+def test_a_row_too_long_to_be_one_product_is_not_an_amplification(tmp_path):
+    """insilicoPCR pairs every forward alignment with every reverse alignment on a contig, with no check
+    that the distance between them is a product. On one real 3.3 Mb genome that gave 21,014 rows for 28
+    assays, 71% of them pairs that cannot amplify, with spans up to 1.9 Mb; each counted as "this genome
+    amplified"."""
+    rows = [
+        {"Sample": "g1", "Gene": "a", "GenomeLocation": "1-200", "AmpliconSize": 200, "Contig": "chr"},
+        {"Sample": "g2", "Gene": "a", "GenomeLocation": "1-500000", "AmpliconSize": 500000,
+         "Contig": "chr"},
+    ]
+    write_shaped_report(tmp_path, rows)
+    assert read_report(tmp_path) == {"a": {"g1"}}
+    # and the old reading, for comparing with a report from before 1.9.2
+    assert read_report(tmp_path, check_shape=False) == {"a": {"g1", "g2"}}
+
+
+def test_two_primers_pointing_away_from_each_other_are_not_an_amplification(tmp_path):
+    """A product needs the primer at the low end of the span to have matched the genome as written and the
+    one at the high end to have matched it reversed. Both the other arrangements -- pointing away, or both
+    on one strand -- are two unrelated sites. Measured on insilicoPCR 0.6.x output for a genome built with
+    the reverse primer's site before the forward's."""
+    rows = [{"Sample": name, "Gene": "a", "GenomeLocation": "101-300", "AmpliconSize": 200,
+             "Contig": "chr"} for name in ("convergent", "divergent", "same_strand")]
+    write_shaped_report(tmp_path, rows)
+    # low end ascending, high end descending: a product
+    write_detailed(tmp_path, "convergent", [("a-F", 101, 120, 1, 20), ("a-R", 281, 300, 20, 1)])
+    # low end descending: the two point away from each other
+    write_detailed(tmp_path, "divergent", [("a-R", 101, 120, 20, 1), ("a-F", 281, 300, 1, 20)])
+    # both as written: the same strand, so no product either
+    write_detailed(tmp_path, "same_strand", [("a-F", 101, 120, 1, 20), ("a-R", 281, 300, 1, 20)])
+    assert read_report(tmp_path) == {"a": {"convergent"}}
+
+
+def test_a_row_that_cannot_be_placed_is_counted_as_an_amplification(tmp_path):
+    """It takes positive evidence to refuse a row. With no detailed report, or no alignment reaching
+    either end of the span, the amplification is counted: for an exclusion genome that is the cautious
+    direction."""
+    rows = [{"Sample": "no_detail", "Gene": "a", "GenomeLocation": "101-300", "AmpliconSize": 200,
+             "Contig": "chr"},
+            {"Sample": "elsewhere", "Gene": "a", "GenomeLocation": "101-300", "AmpliconSize": 200,
+             "Contig": "chr"},
+            {"Sample": "no_span", "Gene": "a", "GenomeLocation": "", "AmpliconSize": 200,
+             "Contig": "chr"}]
+    write_shaped_report(tmp_path, rows)
+    write_detailed(tmp_path, "elsewhere", [("a-F", 900, 919, 1, 20)])   # nowhere near the span
+    write_detailed(tmp_path, "no_span", [("a-R", 101, 120, 20, 1)])
+    assert read_report(tmp_path) == {"a": {"no_detail", "elsewhere", "no_span"}}
+
+
+def test_an_alignment_too_short_to_be_the_primer_is_not_read_at_all(tmp_path):
+    """insilicoPCR's default `-e 1e5` fills the detailed report with 7- and 8-base matches: 569,373 rows
+    for one real genome, of which 336 were bindings. None of them can be the primer that bound -- blast
+    trims at most two bases off an end -- and dropping them as the file is read is what makes reading it
+    affordable."""
+    write_detailed(tmp_path, "g1", [("a-F", 101, 120, 1, 20), ("a-F", 500, 507, 1, 8)])
+    hits = _trimmed_primer_ends(tmp_path, "g1")
+    assert [(hit[0], hit[1]) for hit in hits[("chr", "a-F")]] == [(101, 120)]
 
 
 def test_the_two_kinds_of_primer_file(tmp_path):
@@ -243,8 +328,12 @@ def test_the_trimmed_end_is_read_off_rows_the_real_program_writes(tmp_path):
     hits = _trimmed_primer_ends(tmp_path, "g0")
     assert _side_in(hits[("chr", "assay-F")], (501, 700)) == "3"   # 1-19 of 20: its last base is missing
     assert _side_in(hits[("chr", "assay-R")], (501, 700)) == "none"  # 20-1 of 20: all of it aligned
-    # The spurious 8-base hit sits outside the amplicon and is not mistaken for the primer that bound
-    assert len(hits[("chr", "assay-R")]) == 2
+    # The spurious 8-base hit cannot be the primer that bound -- blast trims at most two bases off a
+    # primer's end -- so it is dropped as the report is read rather than filtered out later. That is also
+    # what makes these reports affordable: insilicoPCR's default `-e 1e5` filled one real genome's with
+    # 569,373 rows, of which 336 were bindings.
+    assert len(hits[("chr", "assay-R")]) == 1
+    assert all(hit[2] >= 20 - LONGEST_TRIM for hits_here in hits.values() for hit in hits_here)
 
 
 def test_the_primer_that_bound_is_the_one_reaching_the_end_of_the_amplicon(tmp_path):

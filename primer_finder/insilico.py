@@ -47,6 +47,26 @@ PRIMER_NAME_COLUMNS = {"ForwardEndMismatch": "ForwardPrimers", "ReverseEndMismat
 # refused, so it is the tolerance talking and not the blind spot. See docs/wiki/Designing-assays.md.
 MISMATCH_COLUMNS = ("ForwardMismatches", "ReverseMismatches", "ProbeMismatches")
 END_COLUMNS = ("ForwardEndMismatch", "ReverseEndMismatch")
+SIZE_COLUMN = "AmpliconSize"
+# A row of the consolidated report is not an amplicon: insilicoPCR pairs **every** alignment of the
+# forward primer with every alignment of the reverse primer on a contig, with no check that the two face
+# each other or that the distance between them is a product. Measured on one 3.3 Mb Brucella genome with
+# 28 IS711-targeted assays: 21,014 rows, of which 9,623 pair two alignments on the same strand and 5,256
+# point away from each other -- 71% that PCR could not make -- with sizes from 61 bases to 1.9 Mb. One
+# assay alone gave 820 rows from its 38 forward and 38 reverse alignments.
+#
+# Every such row used to count as "this genome amplified": a false cross-reaction in an exclusion genome,
+# and in an inclusion genome a false amplification that can carry an assay over `-p`.
+#
+# The longest span that can be one product. Well above anything this tool designs for -- Primer3 is asked
+# for 70-150 bases by default -- and far below the phantom pairings, whose median was 427,962 bases. A row
+# longer than this is a pairing of two unrelated sites rather than an amplicon; one between stays counted,
+# which is the cautious direction for an exclusion genome.
+LONGEST_PRODUCT = 10_000
+# The most bases blast trims off a primer's end rather than counting as a mismatch. Measured on
+# insilicoPCR 0.6.1: one unmatched base at either end is trimmed and the primer is called bound, two are,
+# three are not reported at all. So an alignment shorter than the primer by more than this did not bind.
+LONGEST_TRIM = 2
 
 QPCR_NAME = "assays_qpcr.fasta"
 PCR_NAME = "assays_pcr.fasta"
@@ -265,10 +285,25 @@ def run(launcher: Sequence[str], genomes: Path, primers: Path, output: Path,
     return output
 
 
-def read_report(output: Path) -> dict[str, set[str]]:
-    """Which samples each assay amplified, out of insilicoPCR's consolidated report."""
+def read_report(output: Path, check_shape: bool = True) -> dict[str, set[str]]:
+    """Which samples each assay amplified, out of insilicoPCR's consolidated report.
+
+    A row is only counted when it could be a product. insilicoPCR pairs every forward-primer alignment
+    with every reverse-primer alignment on a contig (see LONGEST_PRODUCT), so most rows of a repeat-rich
+    genome are two unrelated sites rather than an amplicon. Two things rule those out, both from what the
+    reports already say:
+
+    - the span has to be short enough to be one product, which the consolidated report gives directly;
+    - the two primers have to face each other, which the detailed report gives. That one is read per
+      sample and only for the samples a row survives the first test for, so a specific assay pays almost
+      nothing and the cost falls where the answer is in doubt.
+
+    `check_shape=False` counts every row, which is what the readers did before 1.9.2.
+    """
     report = output / REPORT
     amplified: dict[str, set[str]] = {}
+    alignments: dict[str, dict[tuple[str, str], list]] = {}
+    too_long = bent = 0
     with report.open(newline="") as fh:
         # QUOTE_NONE: insilicoPCR writes the fasta description straight through, so a genome whose header
         # holds a quote character would otherwise swallow the rest of its row and every row up to the next
@@ -277,8 +312,27 @@ def read_report(output: Path) -> dict[str, set[str]]:
         _insist_on_columns(rows.fieldnames, report)
         for row in rows:
             assay, sample = (row.get(ASSAY_COLUMN) or "").strip(), (row.get(SAMPLE_COLUMN) or "").strip()
-            if assay and sample:
-                amplified.setdefault(assay, set()).add(sample)
+            if not assay or not sample:
+                continue
+            if check_shape:
+                size = _count(row, SIZE_COLUMN)
+                if size is not None and size > LONGEST_PRODUCT:
+                    too_long += 1
+                    continue
+                if sample not in alignments:
+                    alignments[sample] = _trimmed_primer_ends(output, sample)
+                contig = (row.get(CONTIG_COLUMN) or "").strip()
+                span = _span((row.get(LOCATION_COLUMN) or "").strip())
+                here = [hit for (hit_contig, _), hits in alignments[sample].items()
+                        if hit_contig == contig for hit in hits]
+                if not _convergent(span, here):
+                    bent += 1
+                    continue
+            amplified.setdefault(assay, set()).add(sample)
+    if too_long or bent:
+        log.info("%d row(s) of %s were two unrelated primer sites rather than an amplicon and are not "
+                 "counted as an amplification: %d spanned more than %d bases, %d had the two primers "
+                 "pointing the wrong way", too_long + bent, report, too_long, LONGEST_PRODUCT, bent)
     return amplified
 
 
@@ -411,9 +465,46 @@ def _trimmed_primer_ends(output: Path, sample: str) -> dict[tuple[str, str], lis
             low, high = min(on_primer), max(on_primer)
             side = {(True, True): "none", (False, True): "5", (True, False): "3",
                     (False, False): "both"}[(low <= 1, high >= primer_length)]
+            # Only an alignment that covers nearly the whole primer can be the one that bound: blast trims
+            # at most the last base or two, and a mismatch the run counts is aligned rather than trimmed.
+            # Dropping the rest is what makes reading these reports affordable -- insilicoPCR's default
+            # `-e 1e5` fills them with 7- and 8-base matches, 569,373 rows for one real genome, of which
+            # 336 keys were bindings.
+            if length < primer_length - LONGEST_TRIM:
+                continue
+            # Ascending on the primer means the primer matched the genome as written, descending means
+            # reversed. That is the only orientation insilicoPCR gives, and a product needs one of each.
+            ascending = on_primer[0] <= on_primer[1]
             key = ((row.get("qseqid") or "").strip(), (row.get("sseqid") or "").strip())
-            found.setdefault(key, []).append((min(in_genome), max(in_genome), length, side))
+            found.setdefault(key, []).append((min(in_genome), max(in_genome), length, side, ascending))
     return found
+
+
+def _convergent(span: tuple[int, int] | None, alignments: Sequence[Sequence[object]]) -> bool:
+    """Whether two of these primer alignments could have made the amplicon covering `span`.
+
+    A product needs a primer at each end of the span pointing inwards: the one at the low end matched the
+    genome as written and the one at the high end matched it reversed. Both orientations of the genome
+    record give that same shape -- when the record is the reverse complement the two primers swap ends,
+    and each swaps direction with it -- which is what makes this the test rather than "forward on the
+    left". Measured on insilicoPCR 0.6.x output for an amplicon and for the same amplicon in a
+    reverse-complemented genome.
+
+    It takes positive evidence to say no. Without a span, or with no alignment reaching either end of it
+    -- no detailed report, or a binder this dropped as too short -- the answer is True: an amplicon that
+    cannot be placed is counted as real, which is the cautious direction for an exclusion genome. The
+    answer is False only where an alignment does reach a boundary and faces the wrong way.
+    """
+    if span is None:
+        return True
+    low, high = span
+    at_low = [hit for hit in alignments if hit[0] == low]
+    at_high = [hit for hit in alignments if hit[1] == high]
+    # The primer at the low end must have matched the genome as written and the one at the high end
+    # reversed; an alignment there facing the other way is a site that points away from the span.
+    outward_low = bool(at_low) and not any(hit[4] for hit in at_low)
+    outward_high = bool(at_high) and not any(not hit[4] for hit in at_high)
+    return not (outward_low or outward_high)
 
 
 def _side_in(hits: list[tuple[int, int, int, str]], span: tuple[int, int] | None) -> str:
