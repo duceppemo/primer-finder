@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import random
 import shutil
@@ -10,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from primer_finder import PrimerFinderError, seqio
+from primer_finder import PrimerFinderError, __version__, seqio
 from primer_finder.blast import Hit
 from primer_finder.design import (
     DEFAULT_MIN_PRIMER_DIFFERENCES,
@@ -778,6 +779,80 @@ def test_a_flank_blast_would_not_pay_to_align_is_still_counted():
 # themselves, which is what kept this case out of reach.
 IRREGULAR = ("GTCAATGGCCTTAGACGTTCAGGATCCGTAACGGTTAACCGATAGCTTGCA"
              "TCCGGATTACGGCAATTGCCAAGTCTTGGAACCTGTAGCATGA")
+
+
+@pytest.mark.tools
+@pytest.mark.skipif(not all(shutil.which(program) for program in ("primer3_core", "blastn", "makeblastdb")),
+                    reason="needs primer3_core, blastn and makeblastdb on PATH")
+def test_design_end_to_end_against_the_real_primer3_and_blast(tmp_path):
+    """`design` had never met a real program anywhere in the suite: every test replaces Primer3 and blast
+    with stubs, and the fixtures elsewhere in this file are sequences the real programs reject -- real
+    blastn returns no hit for `"ACGT" * 25` (dust-masked) and real Primer3 no pair for
+    `"A" * 100 + "cgt" + "A" * 100` (GC content). So the whole round trip -- the boulder-IO request,
+    Primer3's coordinates read back, the amplicon cut from the region, the blast search for it in both
+    groups, the copy counts and the verdict columns -- rested on the stubs agreeing with themselves.
+
+    A region with ordinary base composition, two inclusion and two exclusion genomes carrying it, and
+    four known differences between the groups, two of them close enough to share one primer.
+    """
+    rng = random.Random(5)
+    def dna(length: int) -> str:
+        return "".join(rng.choice("ACGT") for _ in range(length))
+
+    region = dna(400)
+    marks = (120, 127, 250, 300)
+    swap = {"A": "G", "G": "A", "C": "T", "T": "C"}
+    theirs = "".join(swap[base] if index in marks else base
+                     for index, base in enumerate(region))
+    results = tmp_path / "results"
+    results.mkdir()
+    marked = "".join(base.lower() if index in marks else base for index, base in enumerate(region))
+    write_fasta(results / "final_kmers.fasta", [Record("ctg1", str(list(marks)), marked)])
+    backbone, tail = dna(3000), dna(2000)
+    for group, sequence in (("inclusion", region), ("exclusion", theirs)):
+        folder = tmp_path / group
+        folder.mkdir()
+        for number in (1, 2):
+            write_fasta(folder / f"{group}_{number}.fasta",
+                        [Record("chr", "", backbone + sequence + tail)])
+    (results / "run_info.json").write_text(json.dumps({
+        "version": __version__,
+        "parameters": {"inclusion": str(tmp_path / "inclusion"), "exclusion": str(tmp_path / "exclusion"),
+                       "min_inclusion": 1.0, "kmer_size": 99},
+        "absent_stretches": {},
+    }))
+
+    output = tmp_path / "assays"
+    assert run(design_settings(results, output, threads=2)) == 0
+    rows = list(csv.DictReader((output / "assays.tsv").open(), delimiter="\t"))
+    assert rows, "real Primer3 proposed nothing on an ordinary region"
+    carried = [row for row in rows if row["specific_by"] in ("absence", "difference")]
+    assert carried, "nothing could tell the groups apart, on four planted differences"
+
+    for row in carried:
+        start = int(row["forward_start"])
+        assert region[start:start + len(row["forward"])].upper() == row["forward"].upper(), row["assay"]
+        reverse_start = int(row["reverse_start"])
+        assert reverse_complement(region[reverse_start:reverse_start + len(row["reverse"])]).upper() \
+            == row["reverse"].upper(), row["assay"]
+        # the product size Primer3 reported is the span the two primers cut from the region
+        assert int(row["product_size"]) == reverse_start + len(row["reverse"]) - start, row["assay"]
+        # real blast found the amplicon in both groups: the exclusion genomes carry the region too, with
+        # the four substitutions, so these assays are specific by a difference and not by absence
+        assert row["specific_by"] == "difference", row["assay"]
+        assert row["exclusion_genomes_with_amplicon"] == "2", row["assay"]
+        assert (row["inclusion_copies_min"], row["inclusion_copies_max"]) == ("1", "1"), row["assay"]
+    # at least one assay spends a difference under a primer, which is what the find rule keeps a region
+    # for; the ones whose only difference is under the probe are set aside by --min-primer-differences
+    assert any(int(row["best_primer_variants"]) >= 1 for row in carried)
+    # and every difference an oligo is credited with is one of the four that were planted
+    for row in rows:
+        for part in ("forward", "reverse", "probe"):
+            if not row[part]:
+                continue
+            start = int(row[f"{part}_start"])
+            covered = range(start, start + len(row[part]))
+            assert int(row[f"{part}_variants"]) == sum(1 for mark in marks if mark in covered), row["assay"]
 
 
 def test_both_primer_sites_in_one_place_could_amplify():
