@@ -85,8 +85,9 @@ on a target in or beside a microsatellite, is where it would.
 
 **It costs nothing measurable.** One `dustmasker` call per search step, and a second `blastn` only for the
 stretches the masker took out — none, on this panel. Wall clock for the whole `find` run, as it stands
-against with the second look disabled: multiplex 36 s / 33 s, fastidiosa 33 s / 32 s, pauca 41 s / 40 s,
-morus 23 s / 25 s, on 16 threads. The search is asked about the stretches a genome did **not** align only
+against with the second look disabled, on 16 threads: multiplex 40 s / 39 s, fastidiosa 34 s / 32 s,
+pauca 43 s / 41 s, morus 27 s / 28 s — within the spread of repeated runs of the same target (the same
+eight runs half an hour earlier gave 36/33, 33/32, 41/40 and 23/25). The search is asked about the stretches a genome did **not** align only
 where the masker masked them, which is what keeps it from being a second search of everything a genome
 lacks — most of the query, on most genomes, since that is the point of the search.
 
