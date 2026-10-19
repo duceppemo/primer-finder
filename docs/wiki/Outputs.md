@@ -10,6 +10,7 @@ results/
 │   ├── exclusion_list.txt     the exclusion genomes, as given to KMC
 │   ├── inclusion_specific_99mers.fasta   the kmers only the inclusion group has
 │   ├── kmers.txt              the KMC dump (--keep-intermediate)
+│   ├── kmers_histogram.txt   how many kmers it should hold (--keep-intermediate)
 │   ├── inclusion_kmers.txt    the inclusion kmers before the subtraction, written only when nothing was
 │   │                          left after it (--keep-intermediate)
 │   ├── inclusion.kmc_pre/suf, exclusion.kmc_pre/suf, inclusion_specific.kmc_pre/suf

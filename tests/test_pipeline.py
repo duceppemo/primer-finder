@@ -249,7 +249,11 @@ def test_programs_are_called_with_the_right_options(stubs, settings):
     assert "-ci1 -cx1000000000" in text  # The exclusion group: every kmer, however often it occurs
     assert "kmc_tools -t1 simple" in text and "kmers_subtract" in text
     assert "minimap2 -t 1 -a --eqx" in text
-    assert "skesa --cores 1 --mem 2" in text
+    assert "skesa --cores 1 --mem 4" in text
+    # The histogram is asked for in the same pass as the dump, and before it: it says how many kmers the
+    # dump should hold, so it has to be written before the disk the dump fills
+    assert "transform" in text and " histogram " in text
+    assert text.index(" histogram ") < text.index(" dump ")
     assert "spades.py" not in text
 
 
@@ -1199,3 +1203,11 @@ def test_skesa_is_not_asked_to_run_on_less_memory_than_it_accepts(stubs, setting
     caplog.clear()
     assert run(settings(memory_gb=SKESA_MIN_MEMORY_GB, output=settings().output / "again")) == 0
     assert "SKESA refuses" not in caplog.text
+
+
+def test_a_run_whose_kmer_dump_was_cut_short_stops(stubs, settings):
+    """End to end: the count the run reports is the one that is checked, so a dump cut short by a full
+    disk cannot pass for a smaller answer."""
+    stubs(kmers=["ACGT" * 5, "TTGA" * 5, "GGCA" * 5], dump_short=1)
+    with pytest.raises(PrimerFinderError, match="was cut short"):
+        run(settings())

@@ -366,6 +366,44 @@ def test_forced_requests_aim_at_the_runs_of_differences():
     assert all("SEQUENCE_ID=ctg1~force_" in request for request in requests)
 
 
+def test_a_forced_request_is_not_spent_on_a_stretch_that_is_merely_absent():
+    """A region's marked bases are of two kinds and the sequence cannot tell them apart. An absent stretch
+    is marked in full, so it is the richest window there is and took every forced request the region had
+    -- while the differences it was kept for, which are what forcing an oligo onto a base is for, got
+    none. Here the block is 40 bases and the differences are three."""
+    region = Record("ctg1", "", "A" * 100 + "a" * 40 + "A" * 50 + "cgt" + "A" * 100)
+    block, differences = range(100, 140), range(190, 193)
+    pinned = lambda requests: {int(line.split("=")[1]) for request in requests  # noqa: E731
+                               for line in request.splitlines()
+                               if line.startswith(("SEQUENCE_FORCE_LEFT_END=", "SEQUENCE_FORCE_RIGHT_END=",
+                                                   "SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST="))}
+    # What the run recorded: the block is absent, the three bases differ
+    aimed = pinned(forced_requests(region, DEFAULT_PRODUCT_SIZE, 1, absent_stretches=[[100, 139]]))
+    assert aimed and aimed <= set(differences)
+    assert not aimed & set(block)
+    # Without that record -- a find run from before 1.9.1 -- the old aim is kept rather than guessed at,
+    # and most of what it aims at is the block: MAX_FORCED_RUNS targets, three of them inside it
+    assert pinned(forced_requests(region, DEFAULT_PRODUCT_SIZE, 1)) & set(block)
+
+
+def test_the_absent_stretches_of_a_run_reach_the_forced_requests(stubs, genomes, tmp_path):
+    """`assays_of` was given the record and `requests_for` was not, so the aim was wrong end to end."""
+    inclusion, exclusion = genomes
+    region = "A" * 100 + "a" * 40 + "A" * 50 + "cgt" + "A" * 100
+    results = tmp_path / "results"
+    results.mkdir()
+    (results / "final_kmers.fasta").write_text(f">ctg1 {list(range(100, 140)) + [190, 191, 192]}\n{region}\n")
+    (results / "run_info.json").write_text(json.dumps({
+        "parameters": {"inclusion": str(inclusion), "exclusion": str(exclusion)},
+        "absent_stretches": {"ctg1": [[100, 139]]},
+    }))
+    output = tmp_path / "assays"
+    assert run(design_settings(results, output)) == 0
+    asked = "\n".join(path.read_text() for path in (output / "primer3").glob("*_input.txt"))
+    assert "SEQUENCE_FORCE_LEFT_END=192" in asked  # the last of the three differences
+    assert "SEQUENCE_FORCE_LEFT_END=139" not in asked  # the last base of the absent block
+
+
 def test_nothing_is_forced_where_the_rest_of_the_assay_would_not_fit():
     """Primer3 does not fail fast on an impossible constraint: it searches the whole template first.
 
@@ -2028,3 +2066,18 @@ def test_two_design_runs_cannot_share_an_output_folder(stubs, finished_run, tmp_
         run(design_settings(finished_run, output))
     assert not (output / "assays.tsv").exists()
     assert run(design_settings(finished_run, output)) == 0
+
+
+def test_a_dntp_at_the_magnesium_is_said_out_loud(stubs, finished_run, tmp_path, caplog):
+    """Primer3 corrects for the *free* magnesium, divalent - dntp, and at or past it drops the correction
+    without a word: measured on one 20-mer, 65.758 C at 0.6 mM dNTP against 59.718 at 1.5 mM with 1.5 mM
+    magnesium, which is the Tm of no magnesium at all."""
+    conditions = Conditions(divalent_mm=1.5, dntp_mm=1.5)
+    assert run(design_settings(finished_run, tmp_path / "assays", conditions=conditions)) == 0
+    assert "no free magnesium is left" in caplog.text
+    # And it is in the run's own log, not only on the terminal: that is where a reader of the table looks
+    assert "no free magnesium is left" in (tmp_path / "assays" / "primer_finder_design.log").read_text()
+    caplog.clear()
+    assert run(design_settings(finished_run, tmp_path / "ok",
+                               conditions=Conditions(divalent_mm=3.0, dntp_mm=0.8))) == 0
+    assert "free magnesium" not in caplog.text

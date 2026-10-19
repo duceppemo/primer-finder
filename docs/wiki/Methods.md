@@ -15,9 +15,12 @@ KMC counts the kmers of all the files of a group together, so with `N` inclusion
 at least `N` times (`-ci N`) is, in practice, a kmer every inclusion genome carries. `-p/--min-inclusion`
 lowers that threshold to a fraction of `N`, rounded up, for the regions that most but not all of the
 inclusion genomes share. When `N × d` passes 255,
-`-cs N × d` is added as well: KMC stores a count in one byte by default and applies `-ci`/`-cx` to that
+`-cs N × d` is added as well: KMC stores a count in one byte by default and applies `-ci` to that
 saturated value, so without it `-ci 300` matches nothing at all — measured with kmc 3.2.4 on one kmer
-repeated 300 times, where `-ci 250` reports a count of 255 and `-ci 256` reports nothing. `-cx N × d` (`-d`,
+repeated 300 times and another repeated 301, where `-ci 250` and `-ci 255` keep both and report a count of
+255, and `-ci 256` and `-ci 300` keep nothing. `-cx` is the other way round and reads the true count:
+`-cx 300` keeps the 300 and drops the 301, although the dump says 255 for both, and `-cx 255` drops both.
+With `-cs 300` the same `-ci 300` keeps them and the counts are reported as 300. `-cx N × d` (`-d`,
 default 1) drops the kmers that occur more often than that, which are the repeated regions: they would give
 an assay that amplifies several places at once. The trade-off is that a kmer which happens to occur `N`
 times inside fewer genomes also passes this step — which is why step 4 checks the presence of every

@@ -440,6 +440,16 @@ watching the test that covers it fail.
   the 300 and drops the 301, `-cx255` drops both, and the dump says 255 throughout. So `-cs` is not what
   makes the kept-or-dropped decision right; it is raised only so the counts in the intermediate files mean
   what they say. No behaviour changed -- the filtering was correct at every boundary either way.
+
+  > **This entry is wrong about `-ci`, and is left as it was published with the correction beside it.**
+  > `-ci300` keeps *nothing* without `-cs`: measured a third time on those same two kmers with kmc 3.2.4,
+  > `-ci250` and `-ci255` keep both and report 255, `-ci256` and `-ci300` keep neither, and with `-cs300`
+  > the same `-ci300` keeps both and reports 300. The two options are not alike -- `-ci` is applied to the
+  > saturated count and `-cx` to the true one, which is what `-cx300` keeping the 300 while dropping the
+  > 301 shows -- so `-cs` is exactly what makes a threshold above 255 able to match, as the 1.6.0 entry
+  > below and `docs/wiki/Methods.md` say. `primer_finder/kmers.py` carries the measurement in full.
+  > Still no behaviour changed: `-cs` is raised whenever the pooled ceiling passes 255, so a `-ci` above
+  > it is never asked for without it.
 - **An sdist could not run the tests it shipped.** `MANIFEST.in` left out `CITATION.cff`,
   `recipe/meta.yaml`, the two compatibility wrappers and the `example/` scripts, all of which the suite
   reads — the version-agrees-everywhere test raised `FileNotFoundError`. Inside the sdist the suite went

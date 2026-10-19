@@ -21,7 +21,7 @@ import logging
 import re
 import time
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -517,10 +517,18 @@ def assays_of(record: seqio.Record, fields: dict[str, str],
     return assays
 
 
-def difference_targets(seq: str, span: int = MAX_PRIMER_SIZE,
-                       limit: int = 0) -> list[tuple[int, int, int]]:
+def difference_targets(seq: str, span: int = MAX_PRIMER_SIZE, limit: int = 0,
+                       absent: Collection[int] = ()) -> list[tuple[int, int, int]]:
     """The stretches of at most `span` bases that hold the most differences, as `(start, length, count)`,
     richest first, then narrowest, then leftmost, with no two of them overlapping.
+
+    `absent` names the marked positions that are *missing* from the exclusion genomes rather than
+    differing, which `find` records and the sequence cannot tell apart; they are not targets. An absent
+    stretch is marked in full, so it is almost always the richest window there is -- a 300-base block beats
+    any pair of differences -- and every forced request went to it while the differences the region was
+    actually kept for got none. It needs no pin of its own either: an oligo there is not discriminating by
+    a mismatch, it is sitting on sequence the exclusion genomes do not have, and that is decided by the
+    amplicon check rather than by where the oligo sits.
 
     `limit` stops after that many, which is what the caller wants: measuring the rest costs time and
     nothing reads it. 0 returns all of them, which only the tests ask for -- on a 20 kb region holding
@@ -539,7 +547,7 @@ def difference_targets(seq: str, span: int = MAX_PRIMER_SIZE,
 
     `span` is the longest oligo Primer3 may return, so a target of that width is one an oligo can cover.
     """
-    left = [position for position, base in enumerate(seq) if base.islower()]
+    left = [position for position, base in enumerate(seq) if base.islower() and position not in absent]
     targets: list[tuple[int, int, int]] = []
     while left and (not limit or len(targets) < limit):
         windows = []
@@ -554,8 +562,8 @@ def difference_targets(seq: str, span: int = MAX_PRIMER_SIZE,
 
 
 def forced_requests(record: seqio.Record, product_size: str, how_many: int,
-                    gc_clamp: int = DEFAULT_GC_CLAMP,
-                    conditions: Conditions | None = None) -> list[str]:
+                    gc_clamp: int = DEFAULT_GC_CLAMP, conditions: Conditions | None = None,
+                    absent_stretches: Sequence[Sequence[int]] = ()) -> list[str]:
     """Primer3 records aimed at the differences, up to three per target.
 
     A target is a stretch an oligo could cover that holds as many differences as possible -- see
@@ -580,12 +588,13 @@ def forced_requests(record: seqio.Record, product_size: str, how_many: int,
     requests = []
     length = len(record.seq)
     smallest_product = minimum_product(product_size)
+    absent = {position for first, last in absent_stretches for position in range(first, last + 1)}
     if all(base.islower() for base in record.seq):
         # Every base differs, so there is no difference to aim at: such a region is specific by absence,
         # the exclusion genomes having nothing like it, and pinning an end on an arbitrary base of it only
         # spends requests -- the slowest kind, since a pinned probe makes Primer3 search the whole template
         return requests
-    for start, run, _ in difference_targets(record.seq, limit=MAX_FORCED_RUNS):
+    for start, run, _ in difference_targets(record.seq, limit=MAX_FORCED_RUNS, absent=absent):
         left_end = start + run - 1
         # A left primer ending here needs its own length behind it, and the amplicon has to fit from where
         # that primer *starts* -- up to MAX_PRIMER_SIZE - 1 bases before its 3' end, not from the 3' end
@@ -703,13 +712,14 @@ def with_room(regions: Sequence[seqio.Record], product_size: str) -> tuple[list[
 
 
 def requests_for(record: seqio.Record, product_size: str, how_many: int, force_ends: bool,
-                 gc_clamp: int = DEFAULT_GC_CLAMP,
-                 conditions: Conditions | None = None) -> list[tuple[str, float]]:
+                 gc_clamp: int = DEFAULT_GC_CLAMP, conditions: Conditions | None = None,
+                 absent_stretches: Sequence[Sequence[int]] = ()) -> list[tuple[str, float]]:
     """Every Primer3 request for one region, with how long each may take."""
     requests = [(build_request(record, product_size, how_many, gc_clamp=gc_clamp, conditions=conditions),
                  PRIMER3_TIMEOUT)]
     if force_ends:
-        for request in forced_requests(record, product_size, how_many, gc_clamp, conditions):
+        for request in forced_requests(record, product_size, how_many, gc_clamp, conditions,
+                                       absent_stretches):
             slow = "SEQUENCE_INTERNAL_OVERLAP_JUNCTION_LIST" in request
             requests.append((request, PROBE_TIMEOUT if slow else PRIMER3_TIMEOUT))
     return requests
@@ -724,7 +734,9 @@ def design(regions: Iterable[seqio.Record], work_dir: Path, product_size: str = 
 
     Two kinds of request go in: a plain one, which lets Primer3 pick the best chemistry anywhere in the
     region, and one per run of differences with a primer's 3' end or the probe forced onto it. The second
-    kind is what produces allele-specific assays; it often returns nothing, which is not an error.
+    kind is what produces allele-specific assays; it often returns nothing, which is not an error. The
+    stretches `find` recorded as *absent* from the exclusion genomes are not aimed at: they are marked like
+    differences and are usually larger, so they took every forced request a region had.
 
     Each request is run on its own, several at a time, with a time limit. Primer3 can spend minutes on a
     request whose answer is hard to find, and one that runs out of time is dropped with a note rather than
@@ -747,7 +759,8 @@ def design(regions: Iterable[seqio.Record], work_dir: Path, product_size: str = 
     work: list[tuple[int, seqio.Record, str, float]] = []
     for index, record in enumerate(regions):
         for number, (request, timeout) in enumerate(
-                requests_for(record, product_size, how_many, force_ends, gc_clamp, conditions)):
+                requests_for(record, product_size, how_many, force_ends, gc_clamp, conditions,
+                             (absent_stretches or {}).get(record.name, ()))):
             work.append((f"{index:04d}_{number:02d}", record, request, timeout))
 
     def one(name: str, record: seqio.Record, request: str, timeout: float) -> list[Assay] | None:
@@ -1354,6 +1367,24 @@ def genome_folders(settings: DesignSettings) -> tuple[Path, Path]:
     return folders[0], folders[1]
 
 
+def warn_if_no_free_magnesium(conditions: Conditions) -> None:
+    """Say so when --dntp cancels --divalent, which silently changes every temperature in the table.
+
+    The dNTPs chelate the magnesium, so what Primer3 corrects a melting temperature for is the *free*
+    magnesium, divalent - dntp. At or past the magnesium there is none, and Primer3 drops the divalent
+    correction rather than reporting anything. Measured on one 20-mer with primer3 2.6.1, at 50 mM
+    monovalent and 1.5 mM divalent: the Tm is 65.758 at 0.6 mM dNTP, 62.565 at 1.4, and 59.718 at 1.5 and
+    at 3.0 -- which is exactly the Tm of --divalent 0. Six degrees, with every hairpin and dimer
+    temperature moving with it, and the oligo Primer3 then chooses changes too.
+    """
+    if conditions.dntp_mm < conditions.divalent_mm:
+        return
+    log.warning("--dntp %g is at or above --divalent %g, so no free magnesium is left for Primer3 to "
+                "correct a melting temperature for: it drops the divalent correction, and every Tm, "
+                "hairpin and dimer temperature below is the one it would predict for --divalent 0. On a "
+                "20-mer that is about 6 degrees.", conditions.dntp_mm, conditions.divalent_mm)
+
+
 def warn_if_last_resort(regions: Sequence[seqio.Record]) -> int:
     """Say so, loudly, when the regions came from a find run's last-resort pass.
 
@@ -1428,6 +1459,7 @@ def _design(settings: DesignSettings, final: Path, inclusion: Path, exclusion: P
     keep_previous_log(settings.output / LOG_NAME)
     add_log_file(settings.output / LOG_NAME)
     log.info("primer-finder %s, designing assays", __version__)
+    warn_if_no_free_magnesium(settings.conditions)
 
     found_regions = list(seqio.iter_records(final))
     if not found_regions:

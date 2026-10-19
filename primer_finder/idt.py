@@ -22,6 +22,18 @@ TYPE_COLUMN, SEQUENCE_COLUMN, AMPLICON_COLUMN = "type", "sequence", "amplicon"
 
 CELL = re.compile(r"([A-Z]+)(\d+)")
 
+# A number written with a grouping separator, which both the comma and the point can be: three digits
+# after the separator is what tells "1,234" and "1.234" from the decimal "123.0", since an amplicon size
+# has no thousandth of a base. A plain number, with or without a decimal part, is the second pattern.
+GROUPED_NUMBER = re.compile(r"\d{1,3}(?:[.,]\d{3})+(?!\d)")
+PLAIN_NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
+
+# What a base may be: the four, plus the IUPAC ambiguity codes and U for an RNA oligo.
+BASES = frozenset("ACGTURYSWKMBDHVN")
+# IDT writes a dye, a quencher or a modified base between slashes -- /56-FAM/, /3IABkFQ/, /i6-FAM/ -- and
+# those are not bases. They are left out of the sequence, which is what an amplification check needs.
+MODIFICATION = re.compile(r"/[^/]*/")
+
 
 def convert(table: Path, output: Path, prefix: str = "") -> int:
     """Write the assays of an IDT sheet (.xlsx, .csv or .tsv) as a fasta file. Returns how many assays."""
@@ -64,14 +76,14 @@ def to_records(rows: list[dict[str, str]], prefix: str = "") -> list[Record]:
         assay = {}
         amplicon = ""
 
-    for row in rows:
+    for line, row in enumerate(rows, start=2):  # Row 1 of the sheet is the header
         kind = row.get(TYPE_COLUMN, "").strip().lower()
         sequence = row.get(SEQUENCE_COLUMN, "").strip()
         size = row.get(AMPLICON_COLUMN, "").strip()
         if kind in SUFFIXES and sequence:
             if kind in assay:  # The oligos of the next assay start here
                 flush()
-            assay[kind] = sequence
+            assay[kind] = oligo_sequence(sequence, kind, line)
         if size:
             amplicon = _whole_number(size)
     flush()
@@ -79,15 +91,39 @@ def to_records(rows: list[dict[str, str]], prefix: str = "") -> list[Record]:
 
 
 def _whole_number(value: str) -> str:
-    """"123", "123.0", "123 bp" and "1,234" all give the number; anything else is kept as it is.
+    """"123", "123.0", "123 bp", "1,234" and "1.234" all give the number; anything else is kept as it is.
 
-    The thousands separator matters: without it "1,234" matched only the "1" and the oligo was named after
-    a 1 bp amplicon.
+    The grouping separator matters: without it "1,234" matched only the "1" and the oligo was named after
+    a 1 bp amplicon. "1.234" is the same 1,234 bases written by an Excel whose decimal separator is the
+    comma -- the locale this converter already reads semicolon-separated CSV for -- and it used to give 1
+    the same way, through `float("1.234")`. Three digits after the separator is what distinguishes them.
     """
-    match = re.search(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?", value)
-    if not match:
+    grouped = GROUPED_NUMBER.search(value)
+    if grouped:
+        return str(int(grouped.group().replace(",", "").replace(".", "")))
+    plain = PLAIN_NUMBER.search(value)
+    if not plain:
         return value
-    return str(int(float(match.group().replace(",", ""))))
+    return str(int(float(plain.group().replace(",", "."))))
+
+
+def oligo_sequence(raw: str, kind: str, row: int) -> str:
+    """The bases of one oligo as the fasta should hold them, or an error saying what the cell held.
+
+    Nothing checked these: whatever the cell held was written into the fasta, and a sheet holding a note,
+    a formula's error value or an order code in the sequence column produced a fasta that blast and
+    insilicoPCR read as a sequence -- quietly, since neither refuses a record it cannot make sense of.
+    """
+    sequence = "".join(MODIFICATION.sub("", raw).split())  # Excel wraps a long sequence over lines
+    bad = sorted({character for character in sequence.upper() if character not in BASES})
+    if not sequence or bad:
+        raise PrimerFinderError(
+            f"Row {row} of the sheet gives the {kind} as {raw!r}, which is not a sequence"
+            + (f": {', '.join(repr(character) for character in bad)} is not a base" if bad
+               else " (it holds no base at all)")
+            + ". An IDT modification between slashes, such as /56-FAM/, is not counted as one."
+        )
+    return sequence
 
 
 def read_table(path: Path) -> list[dict[str, str]]:

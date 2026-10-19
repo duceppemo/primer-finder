@@ -45,6 +45,15 @@ four richest, non-overlapping ones are aimed at. See
 [below](#spending-the-differences-on-one-oligo) for why that is the unit rather than a run of consecutive
 differences.
 
+A region's marked bases are of two kinds, and only one of them is a target. Most *differ* from the
+exclusion genomes; a stretch may instead be **missing** from all of them, which `find` records in
+`run_info.json` because the sequence cannot tell them apart. An absent stretch is marked in full, so it is
+almost always the richest window a region holds — a 300-base block beats any pair of differences — and it
+took every forced request the region had, leaving the differences it was kept for unaimed at. It is not
+aimed at now: an oligo there is not discriminating by a mismatch but sitting on sequence the exclusion
+genomes do not have, which the amplicon check decides and `specific_by absence` reports, wherever in the
+region the oligos land. A run recorded before 1.9.1 has no such record and is aimed at as before.
+
 The forced requests often come back empty, which is not an error: no oligo of the required length and
 melting temperature may fit there. **A forced request cannot produce a bad oligo** — the constraints below
 are part of every request, forced or not, apart from the GC clamp (which cannot be, see below), and Primer3

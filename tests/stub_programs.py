@@ -4,6 +4,7 @@ Each stub writes the files the real program would write. The `stubs` fixture put
 every program on PATH; what they produce is read from the PRIMER_FINDER_STUBS environment variable (JSON):
 
     kmers            the kmers "kmc_tools transform ... dump" writes (an empty list writes an empty file)
+    dump_short       how many of them to leave out of the dump, as a full disk does, reporting success
     shared_kmers     the kmers the inclusion database holds, if not the same as `kmers`
     contigs          {name: sequence} for the assembler to write
     sam              [[query name, flag, cigar], ...] for minimap2 to write
@@ -66,9 +67,9 @@ DEFAULT_SSEQ = ("ACGTA" + "A" + "GTACGT" + "T" + "CGTACGT" + "ACGT" * 20)  # Mis
 # Every key the stubs understand. A scenario asking for anything else is a mistyped fixture, and silently
 # ignoring it has produced tests that passed while exercising nothing -- so it is an error instead.
 KNOWN_KEYS = frozenset({
-    "kmers", "shared_kmers", "genome_kmers", "contigs", "sam", "presence", "presence_evalue",
-    "presence_spans",
-    "exclusion_hits",
+    "kmers", "shared_kmers", "dump_short", "genome_kmers", "contigs", "sam", "presence",
+    "presence_evalue",
+    "presence_spans", "exclusion_hits",
     "fail", "kill", "exit_code",
     "amplicon_hits", "amplicon_mismatch", "amplicon_qstart", "amplicon_covers", "amplicon_insertion",
     "amplicon_split", "amplicon_evalue",
@@ -146,7 +147,8 @@ def kmc(argv: list[str]) -> int:
 
 
 def kmc_tools(argv: list[str]) -> int:
-    """kmc_tools -t.. simple <a> <b> kmers_subtract <db>   |   kmc_tools -t.. transform <db> dump <file>"""
+    """kmc_tools -t.. simple <a> <b> kmers_subtract <db>
+    |   kmc_tools -t.. transform <db> [histogram <file>] dump <file>"""
     if "kmers_subtract" in argv:
         database = Path(argv[argv.index("kmers_subtract") + 1])
         minuend, subtrahend = Path(argv[argv.index("simple") + 1]), Path(argv[argv.index("simple") + 2])
@@ -156,18 +158,24 @@ def kmc_tools(argv: list[str]) -> int:
         _write_db(database, None if held is None else
                   sorted(set(held) - set(removed or [])))
         return 0
-    if "dump" in argv:
-        out_file = Path(argv[argv.index("dump") + 1])
+    if "dump" in argv or "histogram" in argv:
         # The inclusion database is dumped too, to tell the two causes of an empty result apart. Unless a
         # scenario says otherwise, both dumps hold the same kmers.
         database = Path(argv[argv.index("transform") + 1])
         recorded = _read_db(database)
-        if recorded is not None:
-            out_file.write_text("".join(f"{kmer}\t2\n" for kmer in recorded))
-            return 0
-        key = "kmers" if database.name.endswith("_specific") else "shared_kmers"
-        kmers = value(key, value("kmers", DEFAULT_KMERS))
-        out_file.write_text("".join(f"{kmer}\t2\n" for kmer in kmers))
+        if recorded is None:
+            key = "kmers" if database.name.endswith("_specific") else "shared_kmers"
+            recorded = value(key, value("kmers", DEFAULT_KMERS))
+        if "histogram" in argv:
+            # One line per count, as the real one writes it: every stubbed kmer is seen twice
+            histogram = Path(argv[argv.index("histogram") + 1])
+            histogram.write_text(f"2\t{len(recorded)}\n" if recorded else "")
+        if "dump" in argv:
+            # `dump_short` is what a full disk does: the real kmc_tools writes what it can, says nothing
+            # and exits 0
+            keep = len(recorded) - value("dump_short", 0)
+            out_file = Path(argv[argv.index("dump") + 1])
+            out_file.write_text("".join(f"{kmer}\t2\n" for kmer in recorded[:max(0, keep)]))
         return 0
     return 1  # pragma: no cover
 

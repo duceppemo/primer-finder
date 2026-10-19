@@ -167,7 +167,7 @@ primer-finder design results/ -o assays/ -t 16 --insilico-pcr /path/to/insilicoP
 | `--max-dimer-tm` | 47 °C | Reject an oligo that pairs with itself, or with its partner, at or above this. |
 | `--monovalent` | 50 mM | Monovalent cations in the reaction, for the melting temperatures. |
 | `--divalent` | 3 mM | Magnesium in the reaction. |
-| `--dntp` | 0.8 mM | Total dNTPs (0.2 mM of each). |
+| `--dntp` | 0.8 mM | Total dNTPs (0.2 mM of each). Primer3 corrects a melting temperature for the *free* magnesium, `--divalent` minus this, so a value at or above `--divalent` leaves none and drops the correction altogether — about 6 °C on a 20-mer. The run says so rather than leaving it to be noticed. |
 | `--primer-conc` | 250 nM | Primer concentration. |
 | `--probe-conc` | 200 nM | Probe concentration. |
 | `--min-primer-differences` | 2 | Differences one **primer** must cover (0 turns the filter off), for an assay resting on differences rather than on absence — what the find step selected the region for. The probe does not count, however many it covers: it is longer and hotter, so two mismatches under it are no evidence it will not bind. Below this an assay is listed but carried no further. 1 still asks for a difference under a primer, so an assay whose only differences are under its probe is set aside at any setting. `--min-oligo-differences` is accepted as the old name. |
@@ -198,6 +198,12 @@ It reads `.xlsx` and `.xlsm` (no Excel or extra library needed) and `.csv`, `.ts
 Every format Excel saves is accepted: "CSV UTF-8" (with its byte-order mark), the legacy Windows "CSV",
 "Unicode Text" (UTF-16), and the semicolon-separated CSV of locales where the comma is the decimal
 separator. Of a workbook, the **first sheet** is read; if there are several, the run says which one it took.
+A sequence is checked before it is written: IDT's modification codes between slashes (`/56-FAM/`,
+`/3IABkFQ/`) are not bases and are left out, a sequence Excel wrapped over two lines is joined, and a cell
+holding anything else — a note, an order code, a formula's `#N/A` — stops the conversion naming the row,
+rather than going into the fasta for blast and insilicoPCR to read as a sequence. An amplicon size written
+`1,234` or `1.234` is 1,234 bases either way; `123.0` is still 123.
+
 Each assay becomes up to three records:
 
 ```

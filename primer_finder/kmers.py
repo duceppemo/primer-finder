@@ -95,15 +95,19 @@ def subtract(minuend: Path, subtrahend: Path, db_prefix: Path, threads: int) -> 
 
 def dump(db_prefix: Path, dump_file: Path, threads: int,
          count_shared: Callable[[], int] | None = None) -> Path:
-    """Write a KMC database as text: one kmer and its count per line.
+    """Write a KMC database as text: one kmer and its count per line, with its histogram beside it.
 
     An empty result has two quite different causes and they want different advice, so `count_shared` --
     how many kmers the inclusion group had before the subtraction -- decides which is given. Blaming the
     exclusion group when the inclusion genomes never shared a kmer in the first place sends the reader
     after the wrong problem. It is called only when the result is empty: counting means dumping the whole
     inclusion database, which is not worth doing on a run that found something.
+
+    The histogram is asked for in the same pass and **before** the dump, because it is what says how many
+    kmers the dump should hold (`require_whole_dump`) and it has to be on disk before the dump fills it.
     """
-    tools.run(["kmc_tools", f"-t{threads}", "transform", db_prefix, "dump", dump_file])
+    tools.run(["kmc_tools", f"-t{threads}", "transform", db_prefix,
+               "histogram", histogram_path(dump_file), "dump", dump_file])
     if not dump_file.exists() or dump_file.stat().st_size == 0:
         if count_shared is not None and count_shared() == 0:
             raise PrimerFinderError(
@@ -117,6 +121,57 @@ def dump(db_prefix: Path, dump_file: Path, threads: int,
             "kmer through that most of the inclusion genomes share."
         )
     return dump_file
+
+
+def histogram_path(dump_file: Path) -> Path:
+    """Where the dump's histogram sits: beside it, under its own name."""
+    return dump_file.with_name(f"{dump_file.stem}_histogram.txt")
+
+
+def kmers_in_histogram(histogram_file: Path) -> int:
+    """How many distinct kmers a `kmc_tools histogram` accounts for: a **lower bound** on what the
+    database holds.
+
+    One line per count, "<count>\t<how many kmers have it>", and the default ceiling is 10,000 buckets:
+    measured on a database holding one kmer 10,500 times and five others once, the histogram accounts for
+    5 of the 6 -- a kmer counted above the ceiling is left out rather than put in the last bucket. That is
+    what makes it usable as a floor and useless as an exact count.
+
+    It does agree with the dump wherever the counters do. With `kmc -ci300` and the default one-byte
+    counter -- the case where KMC's own statistics claim a unique kmer the dump does not hold -- both the
+    histogram and the dump are empty (measured, kmc 3.2.4).
+    """
+    total = 0
+    try:
+        text = histogram_file.read_text()
+    except OSError:  # Not written at all: then it claims nothing, and nothing is refused on its account
+        return 0
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[1].isdigit():
+            total += int(parts[1])
+    return total
+
+
+def require_whole_dump(dump_file: Path, written: int) -> None:
+    """Refuse a dump holding fewer kmers than the database it came from.
+
+    `kmc_tools transform dump` ignores write errors and exits 0. Measured with kmc_tools 3.2.4: dumping a
+    1,969-kmer database to `/dev/full`, where every write fails with ENOSPC, writes nothing, prints its
+    progress to 100% and exits 0. So a disk that fills during this step gave a silently shorter kmer set
+    -- fewer regions, every one of them real, and nothing anywhere to say that the rest were lost. This is
+    a one-sided test: the histogram under-counts a database holding a kmer more than 10,000 times and
+    never over-counts, so more kmers than it accounts for is ordinary and fewer can only mean the dump is
+    short.
+    """
+    expected = kmers_in_histogram(histogram_path(dump_file))
+    if written < expected:
+        raise PrimerFinderError(
+            f"{dump_file} holds {written} kmer(s) where the KMC database it was dumped from holds at "
+            f"least {expected}: the dump was cut short. `kmc_tools dump` reports success even when it "
+            f"cannot write, so the usual cause is a full disk. Check the free space on "
+            f"{dump_file.parent} and run again."
+        )
 
 
 def count_in_db(db_prefix: Path, dump_file: Path, threads: int) -> int:
@@ -142,14 +197,27 @@ def require_db(db_prefix: Path, message: str) -> Path:
 
 
 def dump_to_fasta(dump_file: Path, fasta_file: Path) -> int:
-    """Convert a KMC dump to a fasta file of numbered kmers. Returns how many were written."""
+    """Convert a KMC dump to a fasta file of numbered kmers. Returns how many were written.
+
+    Every kmer in a dump is the same length, so one that is not is a line the dump was cut off in the
+    middle of -- which `kmc_tools` can leave behind without saying anything (see `require_whole_dump`).
+    """
     count = 0
+    width = 0
     with dump_file.open() as src, fasta_file.open("w") as dst:
         for line in src:
             line = line.strip()
             if not line:
                 continue
-            dst.write(f">kmer_{count}\n{line.split()[0]}\n")
+            kmer = line.split()[0]
+            width = width or len(kmer)
+            if len(kmer) != width:
+                raise PrimerFinderError(
+                    f"{dump_file} holds a {len(kmer)}-base kmer among {width}-base ones "
+                    f"(\"{kmer}\"), so it was cut off in the middle of a line. `kmc_tools dump` reports "
+                    f"success even when it cannot write; check the free space on {dump_file.parent}."
+                )
+            dst.write(f">kmer_{count}\n{kmer}\n")
             count += 1
     if count == 0:  # pragma: no cover - dump() already refuses an empty dump
         raise PrimerFinderError("The KMC dump holds no kmer")

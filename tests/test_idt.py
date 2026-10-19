@@ -53,6 +53,20 @@ def test_an_amplicon_size_with_a_thousands_separator():
     assert to_records(rows)[0].name == "0_1234bp-F"
 
 
+def test_a_size_grouped_with_a_point_is_not_read_as_a_decimal():
+    """An Excel whose decimal separator is the comma writes 1,234 bases as "1.234" -- the locale this
+    converter already reads semicolon CSV for -- and `float("1.234")` made that a 1 bp amplicon. Three
+    digits after the separator tells them apart: a size has no thousandth of a base."""
+    rows = [row | {"amplicon": "1.234"} for row in ROWS]
+    assert to_records(rows)[0].name == "0_1234bp-F"
+    rows = [row | {"amplicon": "12.345.678"} for row in ROWS]
+    assert to_records(rows)[0].name == "0_12345678bp-F"
+    # And a decimal is still a decimal, with either separator
+    for written in ("120.0", "120,0", "120 bp"):
+        rows = [row | {"amplicon": written} for row in ROWS]
+        assert to_records(rows)[0].name == "0_120bp-F", written
+
+
 def test_rows_that_are_not_oligos_are_ignored():
     rows = [{"type": "Plate", "sequence": "ACGT", "amplicon": ""}, *ROWS]
     assert len(to_records(rows)) == 3
@@ -319,3 +333,25 @@ def test_only_the_first_sheet_is_read_and_it_is_said(tmp_path, caplog):
             archive.writestr(name, data)
     assert convert(table, tmp_path / "out.fasta") == 1
     assert "several sheets (Sheet1, Notes); reading the first one" in caplog.text
+
+
+def test_an_oligo_that_is_not_a_sequence_is_refused():
+    """Whatever the cell held went into the fasta, and neither blast nor insilicoPCR refuses a record it
+    cannot make sense of, so a note or a formula error in the sequence column was read as an oligo."""
+    for written in ("#N/A", "see attached", "ACGT ACXT", ""):
+        rows = [row | {"sequence": written} if row["type"] == "Probe" else row for row in ROWS]
+        if not written:  # An empty cell is a row that is not an oligo, which is ordinary
+            assert [record.name for record in to_records(rows)] == ["0_120bp-F", "0_120bp-R"]
+            continue
+        with pytest.raises(PrimerFinderError, match="which is not a sequence"):
+            to_records(rows)
+
+
+def test_an_idt_modification_is_not_part_of_the_sequence():
+    """A probe is ordered with its dye and quencher in the sequence: /56-FAM/ACGT.../3IABkFQ/."""
+    rows = [row | {"sequence": "/56-FAM/TTTTGGGG/3IABkFQ/"} if row["type"] == "Probe" else row
+            for row in ROWS]
+    assert [record.seq for record in to_records(rows)] == ["AAAACCCC", "TTTTGGGG", "CCCCAAAA"]
+    # A sequence Excel wrapped over two lines is one sequence
+    rows = [row | {"sequence": "AAAA\nCCCC"} if row["type"] == "Forward Primer" else row for row in ROWS]
+    assert to_records(rows)[0].seq == "AAAACCCC"

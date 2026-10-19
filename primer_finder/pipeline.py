@@ -303,6 +303,9 @@ def find_specific_kmers(settings: Settings, inclusion: list[Path], exclusion: li
     )
     kmer_fasta = folder / f"inclusion_specific_{settings.kmer_size}mers.fasta"
     count = kmers.dump_to_fasta(dump_file, kmer_fasta)
+    # Here rather than inside `dump`, so that the kmers are counted once: a dump of the inclusion group
+    # of a large panel is gigabytes of text, and reading it twice to check its length is reading it twice
+    kmers.require_whole_dump(dump_file, count)
     log.info("Found %d inclusion-specific %d-mers", count, settings.kmer_size)
     return kmer_fasta, count
 
@@ -727,7 +730,7 @@ def clean_up(settings: Settings) -> None:
     for name in ("inclusion", "exclusion", "inclusion_specific"):
         for suffix in (".kmc_pre", ".kmc_suf"):
             (folder / KMER_FOLDER / (name + suffix)).unlink(missing_ok=True)
-    for name in ("kmers.txt", "inclusion_kmers.txt"):
+    for name in ("kmers.txt", "kmers_histogram.txt", "inclusion_kmers.txt"):
         (folder / KMER_FOLDER / name).unlink(missing_ok=True)
     (folder / CANDIDATE_FOLDER / "mapping.sam").unlink(missing_ok=True)
     shutil.rmtree(folder / BLAST_FOLDER / "inclusion_db", ignore_errors=True)

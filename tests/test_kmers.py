@@ -91,3 +91,32 @@ def test_kmc_is_never_asked_for_more_threads_than_it_takes(tmp_path, stubs):
           min_count=1, max_count=1)
     asked = [line for line in calls.read_text().splitlines() if line.startswith("kmc ")]
     assert asked and all(f"-t{MAX_KMC_THREADS}" in line for line in asked), asked
+
+
+def test_a_dump_shorter_than_its_database_is_refused(tmp_path):
+    """`kmc_tools transform dump` ignores write errors and exits 0 -- dumping 1,969 kmers to /dev/full
+    writes nothing, prints its progress to 100% and reports success -- so a disk that fills here used to
+    give a silently shorter kmer set."""
+    from primer_finder.kmers import histogram_path, kmers_in_histogram, require_whole_dump
+
+    dump_file = tmp_path / "kmers.txt"
+    dump_file.write_text("ACGTACGTAC\t2\nTTGATTGATT\t2\n")
+    histogram_path(dump_file).write_text("2\t5\n")
+    assert kmers_in_histogram(histogram_path(dump_file)) == 5
+    with pytest.raises(PrimerFinderError, match="was cut short"):
+        require_whole_dump(dump_file, 2)
+    # More kmers than the histogram accounts for is ordinary: a kmer counted more than 10,000 times is
+    # left out of it altogether, so it is a floor and never a ceiling
+    require_whole_dump(dump_file, 6)
+    # And no histogram at all claims nothing, rather than refusing the run
+    histogram_path(dump_file).unlink()
+    require_whole_dump(dump_file, 2)
+
+
+def test_a_dump_cut_off_mid_kmer_is_refused(tmp_path):
+    """The other shape of a short write: the last line is half a kmer, which would reach the assembler as
+    a kmer of its own."""
+    dump_file, fasta = tmp_path / "kmers.txt", tmp_path / "kmers.fasta"
+    dump_file.write_text("ACGTACGTAC\t2\nTTGATT")
+    with pytest.raises(PrimerFinderError, match="cut off in the middle of a line"):
+        dump_to_fasta(dump_file, fasta)
