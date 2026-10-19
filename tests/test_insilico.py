@@ -111,6 +111,82 @@ def test_two_primers_pointing_away_from_each_other_are_not_an_amplification(tmp_
     assert read_report(tmp_path) == {"a": {"convergent"}}
 
 
+def test_two_primers_both_matching_reversed_are_not_an_amplification(tmp_path):
+    """The other half of the rule. A row whose low-end alignment faces outwards is refused by the first
+    test and one whose high-end alignment does by the second; both-descending needs the first, and a
+    reviewer showed that removing it left every test passing."""
+    write_shaped_report(tmp_path, [{"Sample": "both_down", "Gene": "a", "GenomeLocation": "101-300",
+                                    "AmpliconSize": 200, "Contig": "chr"}])
+    write_detailed(tmp_path, "both_down", [("a-F", 101, 120, 20, 1), ("a-R", 281, 300, 20, 1)])
+    assert read_report(tmp_path) == {}
+
+
+def test_a_primer_that_aligns_both_ways_at_one_site_still_amplifies(tmp_path):
+    """A palindromic primer aligns at its site in both directions, so the boundary carries an ascending
+    and a descending alignment. One facing the right way is enough -- asking that *every* alignment there
+    face the right way refuses a real amplicon, and on one real report 314 low and 313 high boundaries
+    carry both directions."""
+    write_shaped_report(tmp_path, [{"Sample": "pal", "Gene": "a", "GenomeLocation": "101-300",
+                                    "AmpliconSize": 200, "Contig": "chr"}])
+    write_detailed(tmp_path, "pal", [("a-F", 101, 120, 1, 20), ("a-F", 101, 120, 20, 1),
+                                     ("a-R", 281, 300, 20, 1), ("a-R", 281, 300, 1, 20)])
+    assert read_report(tmp_path) == {"a": {"pal"}}
+
+
+def test_a_size_that_is_not_a_number_counts_as_an_amplification(tmp_path):
+    """The cautious direction for an exclusion genome: a size column this cannot read is no reason to
+    decide the row is not a product."""
+    rows = [{"Sample": name, "Gene": "a", "GenomeLocation": "101-300", "AmpliconSize": size,
+             "Contig": "chr"}
+            for name, size in (("blank", ""), ("float", "200.0"), ("junk", "abc"), ("negative", "-5"))]
+    write_shaped_report(tmp_path, rows)
+    assert read_report(tmp_path) == {"a": {"blank", "float", "junk", "negative"}}
+
+
+def test_a_detailed_report_that_cannot_be_read_does_not_stop_the_run(tmp_path, caplog):
+    """insilicoPCR writes these, in a folder the user controls, and `read_report` now opens one for every
+    sample with a plausible row -- so an unreadable or binary one would have thrown away a whole design
+    run after the in silico PCR had already been paid for."""
+    write_shaped_report(tmp_path, [{"Sample": "g1", "Gene": "a", "GenomeLocation": "101-300",
+                                    "AmpliconSize": 200, "Contig": "chr"}])
+    detailed = tmp_path / "detailed_report" / "g1"
+    detailed.mkdir(parents=True)
+    (detailed / "g1.tsv").write_bytes(b"\xff\xfe\x00binary, not text\n")
+    with caplog.at_level("WARNING"):
+        assert read_report(tmp_path) == {"a": {"g1"}}      # counted: evidence we do not have
+    assert "could not be read" in caplog.text
+
+
+def test_a_phantom_pairing_does_not_excuse_an_assay_as_the_blind_spot(tmp_path):
+    """`read_terminal_only` had no shape test, so a pairing that cannot amplify but happens to carry a 3'
+    trim was counted as the model's blind spot -- which excuses the assay and ranks it above assays
+    refused on evidence. The real exact amplification in the other genome must still be the verdict."""
+    rows = [{"Sample": "phantom", "Gene": "a", "GenomeLocation": "101-299", "AmpliconSize": 199,
+             "Contig": "chr", "ForwardEndMismatch": -1, "ReverseEndMismatch": 0},
+            {"Sample": "real", "Gene": "a", "GenomeLocation": "101-300", "AmpliconSize": 200,
+             "Contig": "chr", "ForwardEndMismatch": 0, "ReverseEndMismatch": 0}]
+    report = tmp_path / REPORT
+    report.parent.mkdir(parents=True, exist_ok=True)
+    columns = ("Sample", "Gene", "GenomeLocation", "AmpliconSize", "Contig", "ForwardPrimers",
+               "ReversePrimers", "ForwardMismatches", "ReverseMismatches", "ProbeMismatches",
+               "ForwardEndMismatch", "ReverseEndMismatch")
+    with report.open("w") as fh:
+        fh.write("\t".join(columns) + "\n")
+        for row in rows:
+            row.setdefault("ForwardPrimers", "a-F")
+            row.setdefault("ReversePrimers", "a-R")
+            for name in ("ForwardMismatches", "ReverseMismatches", "ProbeMismatches"):
+                row.setdefault(name, 0)
+            fh.write("\t".join(str(row.get(name, "")) for name in columns) + "\n")
+    # The phantom's alignments point away from each other -- the reverse primer's site sits at the low
+    # end facing outwards -- and its forward alignment is 19 of 20 bases, i.e. exactly what a 3' trim
+    # looks like, which is what used to excuse the assay.
+    write_detailed(tmp_path, "phantom", [("a-R", 101, 120, 20, 1), ("a-F", 281, 299, 1, 19)])
+    write_detailed(tmp_path, "real", [("a-F", 101, 120, 1, 19), ("a-R", 281, 300, 20, 1)])
+    assert read_report(tmp_path) == {"a": {"real"}}
+    assert read_terminal_only(tmp_path) == {}
+
+
 def test_a_row_that_cannot_be_placed_is_counted_as_an_amplification(tmp_path):
     """It takes positive evidence to refuse a row. With no detailed report, or no alignment reaching
     either end of the span, the amplification is counted: for an exclusion genome that is the cautious

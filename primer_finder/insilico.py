@@ -15,6 +15,7 @@ Its two rules that shape what is written here:
 from __future__ import annotations
 
 import csv
+import io
 import logging
 import os
 import shutil
@@ -316,16 +317,12 @@ def read_report(output: Path, check_shape: bool = True) -> dict[str, set[str]]:
                 continue
             if check_shape:
                 size = _count(row, SIZE_COLUMN)
+                contig = (row.get(CONTIG_COLUMN) or "").strip()
+                span = _span((row.get(LOCATION_COLUMN) or "").strip())
                 if size is not None and size > LONGEST_PRODUCT:
                     too_long += 1
                     continue
-                if sample not in alignments:
-                    alignments[sample] = _trimmed_primer_ends(output, sample)
-                contig = (row.get(CONTIG_COLUMN) or "").strip()
-                span = _span((row.get(LOCATION_COLUMN) or "").strip())
-                here = [hit for (hit_contig, _), hits in alignments[sample].items()
-                        if hit_contig == contig for hit in hits]
-                if not _convergent(span, here):
+                if not _is_a_product(output, sample, contig, span, size, alignments):
                     bent += 1
                     continue
             amplified.setdefault(assay, set()).add(sample)
@@ -381,7 +378,10 @@ def read_terminal_only(output: Path) -> dict[str, set[str]]:
     exact: set[tuple[str, str]] = set()
     unreadable = 0
     untellable = 0
-    trimmed: dict[str, dict[tuple[str, str], list[tuple[int, int, int, str]]]] = {}
+    shapeless = 0
+    # One sample's primer alignments: the shape test and the trimmed-end test both read them, and the
+    # report is grouped by sample, so one entry serves both.
+    alignments: dict[str, dict[tuple[str, str], list]] = {}
     with (output / REPORT).open(newline="") as fh:
         rows = csv.DictReader(fh, delimiter="\t", quoting=csv.QUOTE_NONE)
         if rows.fieldnames is not None and not any(name in rows.fieldnames for name in END_COLUMNS):
@@ -392,6 +392,16 @@ def read_terminal_only(output: Path) -> dict[str, set[str]]:
         for row in rows:
             assay, sample = (row.get(ASSAY_COLUMN) or "").strip(), (row.get(SAMPLE_COLUMN) or "").strip()
             if not assay or not sample:
+                continue
+            contig = (row.get(CONTIG_COLUMN) or "").strip()
+            span = _span((row.get(LOCATION_COLUMN) or "").strip())
+            # The same test `read_report` applies: a row that cannot be a product is not an amplicon
+            # here either. Without it a phantom pairing that happens to carry a 3' trim flipped a real
+            # exact cross-reaction into "undecided (3' end)" -- excusing an assay as the model's blind
+            # spot on the strength of two unrelated primer sites -- and a phantom *exact* row still
+            # masked a real trimmed amplicon, which is what this check was added for.
+            if not _is_a_product(output, sample, contig, span, _count(row, SIZE_COLUMN), alignments):
+                shapeless += 1
                 continue
             counted = [_count(row, name) for name in MISMATCH_COLUMNS]
             ends = [_count(row, name) for name in END_COLUMNS]
@@ -406,11 +416,7 @@ def read_terminal_only(output: Path) -> dict[str, set[str]]:
             # Something was trimmed, but the report does not say which end of the primer: a difference at
             # the 5' end reads exactly the same here, and that one does not hinder extension, so the
             # amplification is real. Which end it was has to come from the detailed report.
-            if sample not in trimmed:
-                trimmed[sample] = _trimmed_primer_ends(output, sample)
-            ends_here = trimmed[sample]
-            contig = (row.get(CONTIG_COLUMN) or "").strip()
-            span = _span((row.get(LOCATION_COLUMN) or "").strip())
+            ends_here = alignments.setdefault(sample, _trimmed_primer_ends(output, sample))
             sides = set()
             for name, end in zip(END_COLUMNS, ends, strict=True):
                 if end >= 0:
@@ -424,6 +430,9 @@ def read_terminal_only(output: Path) -> dict[str, set[str]]:
                 # as a real amplification is the cautious way to be wrong.
                 untellable += "unknown" in sides
                 exact.add((assay, sample))
+    if shapeless:
+        log.info("%d row(s) of %s could not be one product and were left out of the 3'-end difference "
+                 "tally", shapeless, output / REPORT)
     if unreadable:
         log.warning("%d row(s) of %s give a mismatch count that is not a whole number and were left out of "
                     "the 3'-end difference tally", unreadable, output / REPORT)
@@ -454,7 +463,17 @@ def _trimmed_primer_ends(output: Path, sample: str) -> dict[tuple[str, str], lis
     if not detailed.is_file():
         return {}
     found: dict[tuple[str, str], list[tuple[int, int, int, str]]] = {}
-    with detailed.open(newline="") as fh:
+    try:
+        with detailed.open(newline="") as fh:
+            text = fh.read()
+    except (OSError, UnicodeDecodeError) as problem:
+        # A file written by another program, in a folder the user controls: unreadable or not text is
+        # evidence we do not have, not a reason to lose a whole design run after insilicoPCR has already
+        # run. Every caller treats "no alignments" as "cannot tell", which counts the amplicon.
+        log.warning("%s could not be read (%s), so which end of a primer was trimmed in %s is not known",
+                    detailed, problem, sample)
+        return {}
+    with io.StringIO(text, newline="") as fh:
         for row in csv.DictReader(fh, delimiter="\t", quoting=csv.QUOTE_NONE):
             try:
                 length, primer_length = int(row["length"]), int(row["slen"])
@@ -478,6 +497,28 @@ def _trimmed_primer_ends(output: Path, sample: str) -> dict[tuple[str, str], lis
             key = ((row.get("qseqid") or "").strip(), (row.get("sseqid") or "").strip())
             found.setdefault(key, []).append((min(in_genome), max(in_genome), length, side, ascending))
     return found
+
+
+def _is_a_product(output: Path, sample: str, contig: str, span: tuple[int, int] | None,
+                  size: int | None, cache: dict[str, dict[tuple[str, str], list]]) -> bool:
+    """Whether a consolidated-report row could be one product, by the two tests the reports allow.
+
+    Both readers ask this. `read_terminal_only` had no such test until 1.9.2, so a phantom pairing that
+    happened to carry a 3' trim excused an assay as the model's blind spot, and a phantom *exact* row
+    masked a real trimmed amplicon.
+
+    `cache` holds one sample's primer alignments. The consolidated report is written grouped by sample, so
+    one entry is all that is ever wanted: keeping every sample's reached tens of GB on the 951- and
+    1,290-genome panels of the Brucella records.
+    """
+    if size is not None and size > LONGEST_PRODUCT:
+        return False
+    if sample not in cache:
+        cache.clear()
+        cache[sample] = _trimmed_primer_ends(output, sample)
+    here = [hit for (hit_contig, _), hits in cache[sample].items()
+            if hit_contig == contig for hit in hits]
+    return _convergent(span, here)
 
 
 def _convergent(span: tuple[int, int] | None, alignments: Sequence[Sequence[object]]) -> bool:

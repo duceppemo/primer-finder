@@ -1306,7 +1306,14 @@ def genome_folders(settings: DesignSettings) -> tuple[Path, Path]:
     recorded: dict[str, object] = {}
     info_file = settings.results / "run_info.json"
     if info_file.is_file():
-        recorded = json.loads(info_file.read_text()).get("parameters", {}) or {}
+        try:
+            recorded = json.loads(info_file.read_text()).get("parameters", {}) or {}
+        except (AttributeError, TypeError, ValueError) as problem:
+            # Reading the record must not be what stops the run, least of all when the folders were given
+            # on the command line and the record is not needed at all. `absent_stretches_of` is tolerant
+            # of the same file for the same reason.
+            log.warning("%s cannot be read (%s), so what it recorded about the genome folders is not "
+                        "used", info_file, problem)
     elif settings.inclusion is None or settings.exclusion is None:
         raise PrimerFinderError(
             f"{info_file} is missing, so the genome folders are not known. Give them with -i and -e."
@@ -1314,12 +1321,21 @@ def genome_folders(settings: DesignSettings) -> tuple[Path, Path]:
     folders: list[Path] = []
     for group, given, flag in (("inclusion", settings.inclusion, "-i"),
                                ("exclusion", settings.exclusion, "-e")):
-        written = str(recorded.get(group) or "").strip()
-        # An empty or absent field is "not recorded". `Path("")` is `Path(".")`, which is a directory, so
-        # it used to pass every check and make the working directory stand in for both groups.
+        value = recorded.get(group)
+        written = value.strip() if isinstance(value, str) else ""
+        # An empty, absent or non-string field is "not recorded". `Path("")` is `Path(".")`, which is a
+        # directory, so an empty one used to pass every check and make the working directory stand in for
+        # both groups.
         kept = Path(written) if written else None
-        if kept is not None and not kept.is_absolute():
-            kept = (settings.results.parent / kept).resolve()
+        if kept is not None:
+            # A record from before 1.9.2 holds the path as typed, i.e. relative to wherever `find` was
+            # run from. That is the run folder's parent when `-o` was a bare name, and the working
+            # directory when it was something like `-o results/run1` -- the commoner layout, which an
+            # earlier version of this resolution broke. Try both, and resolve either way so that the same
+            # folder reached by `..` or through a link is not reported as a different one.
+            against = [settings.results.parent / kept, Path.cwd() / kept] if not kept.is_absolute() else []
+            found = next((path.resolve() for path in against if path.is_dir()), None)
+            kept = found or (against[0].resolve() if against else kept.resolve())
         folder = given or kept
         if folder is None:
             raise PrimerFinderError(
