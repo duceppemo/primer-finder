@@ -467,6 +467,54 @@ def test_a_region_whose_specificity_is_a_block_no_exclusion_genome_holds_is_repo
     assert marked == 60, marked  # The 60 bases between the two aligned ends
 
 
+def test_a_region_no_exclusion_genome_holds_records_the_whole_of_itself_as_absent(stubs, settings):
+    """`design` reads a region's marked bases and cannot tell a difference from a base that is simply not
+    there, so `find` records which are which. A region no exclusion genome hits at all is absent in its
+    entirety, and until this was recorded `design` read every one of its bases as a mismatch: on a
+    289-base region of the IS711 panel, a 20-base 3'-terminal mismatch run over a primer whose template
+    is in none of the genomes."""
+    stubs(sam=[["ctg1", 4, "*"]], exclusion_hits={"exclusion_1": [], "exclusion_2": []})
+    scenario = settings()
+    assert run(scenario) == 0
+    info = json.loads((scenario.output / "run_info.json").read_text())
+    assert info["absent_stretches"] == {"ctg1": [[0, 99]]}   # the whole 100-base contig
+    assert "ctg1" in final_records(scenario.output)
+
+
+def test_only_a_region_the_absence_carries_is_called_one_that_rests_on_it(stubs, settings, caplog):
+    """The warning says the regions "are specific because a stretch of them is missing". A region whose
+    differences alone meet the rule is not one of them, however much of it is also unaligned -- counting
+    it named the wrong regions as the fragile ones."""
+    whole = DIFFERS_AT_5_AND_12
+    aligned = whole[:50]
+    changed = list(aligned)
+    changed[5], changed[12] = "G", "G"        # two differences, 7 apart: enough on their own
+    hits = [["ctg1", 1, 50, 1e-30, aligned, "".join(changed)]]
+    stubs(contigs={"ctg1": whole}, sam=[["ctg1", 0, "40=1X7=1X50="]],
+          exclusion_hits={"exclusion_1": hits, "exclusion_2": hits})
+    scenario = settings()
+    with caplog.at_level("WARNING"):
+        assert run(scenario) == 0
+    info = json.loads((scenario.output / "run_info.json").read_text())
+    assert info["absent_stretches"] == {"ctg1": [[50, 99]]}   # still recorded, for design
+    assert "specific because a stretch of them is missing" not in caplog.text
+
+
+def test_a_region_the_absence_does_carry_is_warned_about(stubs, settings, caplog):
+    """The same shape with one difference instead of two: now the absent tail is what keeps the region,
+    so the exclusion group's size is worth saying."""
+    whole = DIFFERS_AT_5_AND_12
+    aligned = whole[:50]
+    changed = list(aligned)
+    changed[5] = "G"                           # one difference: not enough on its own
+    hits = [["ctg1", 1, 50, 1e-30, aligned, "".join(changed)]]
+    stubs(contigs={"ctg1": whole}, sam=[["ctg1", 0, "40=1X7=1X50="]],
+          exclusion_hits={"exclusion_1": hits, "exclusion_2": hits})
+    with caplog.at_level("WARNING"):
+        assert run(settings()) == 0
+    assert "specific because a stretch of them is missing from all 2 exclusion genome(s)" in caplog.text
+
+
 def test_the_absent_stretches_are_recorded_for_the_design_command(stubs, settings):
     """`design` reads the marked positions off the sequence and cannot tell a base that differs from one
     that is missing. This is the only channel that tells it, so the run has to write it."""

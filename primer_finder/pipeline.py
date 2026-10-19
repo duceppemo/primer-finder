@@ -584,6 +584,14 @@ def keep_absent_from_exclusion(
     for name, record in candidates.items():
         result = results.get(name, blast.ExclusionResult())
         if result.genomes_hit == 0:  # Absent from every exclusion genome: specific on its own
+            # The whole of it is the absent stretch, and saying so is what stops `design` reading the
+            # region's marked bases as mismatches. Until 1.9.2 this branch recorded nothing, so a region
+            # no exclusion genome holds came out of `design` claiming a difference at every base: on a
+            # 289-base region of the IS711 validation panel, `forward_variants 20`, `forward_terminal_run
+            # 20` and a `primer_variant_weight` of 30 over a primer whose template is not there at all.
+            # That is the misreport 1.9.1 set out to end; it only covered the partly-absent regions.
+            absent_by_region[name] = [[0, len(record.seq) - 1]]
+            resting_on_absence.append(name)
             records.append(seqio.Record(record.name, f"{record.desc} {mark}".strip(), record.seq)
                            if mark else record)
             continue
@@ -592,10 +600,15 @@ def keep_absent_from_exclusion(
         # backbone -- a repeat-targeted marker, most often -- was dropped for having no differences, while
         # the mapping step two steps earlier had called the same contig a candidate on that very block.
         absent = blast.unaligned_positions(result, len(record.seq))
+        differences = sorted(blast.shared_variants(result))
         if absent:
-            resting_on_absence.append(name)
             absent_by_region[name] = runs_of(absent)
-        positions = sorted(set(blast.shared_variants(result)) | set(absent))
+            # "Resting on" means the absence is what carries it. A region whose differences alone meet the
+            # rule does not rest on anything, and counting it made the warning name the wrong regions as
+            # the fragile ones.
+            if not blast.enough_variants(differences, min_differences):
+                resting_on_absence.append(name)
+        positions = sorted(set(differences) | set(absent))
         if blast.enough_variants(positions, min_differences):
             tag = next((part for part in record.desc.split() if part.startswith(INCLUSION_TAG)), "")
             desc = " ".join(part for part in (f"{positions}", tag, mark) if part)
