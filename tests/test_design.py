@@ -2005,3 +2005,26 @@ def test_an_assay_missing_an_inclusion_genome_counts_when_the_run_allowed_it(stu
     info = json.loads((output / "design_info.json").read_text())
     assert info["parameters"]["min_inclusion"] == 0.5
     assert info["counts"]["selective"]["qpcr"]["at_threshold"] >= info["counts"]["selective"]["qpcr"]["complete"]
+
+
+def test_a_mistyped_insilico_pcr_path_is_refused_before_any_of_the_work(stubs, finished_run, tmp_path):
+    """What --insilico-pcr points at was first looked at after Primer3 and both amplicon searches had
+    run, so a typo threw away the whole design run at its last step."""
+    output = tmp_path / "assays"
+    with pytest.raises(PrimerFinderError, match="No such file"):
+        run(design_settings(finished_run, output, insilico_pcr=tmp_path / "insilicoPCR-typo"))
+    assert not (output / "primer3").exists(), "Primer3 ran before the path was looked at"
+    assert not (output / "assays.tsv").exists()
+
+
+def test_two_design_runs_cannot_share_an_output_folder(stubs, finished_run, tmp_path):
+    """Both would stage genomes into the same folders -- which are emptied before they are filled -- and
+    build their amplicon databases on top of each other."""
+    from primer_finder import system
+
+    output = tmp_path / "assays"
+    with system.lock_output(output, "design"), \
+            pytest.raises(PrimerFinderError, match="Another primer-finder design is using"):
+        run(design_settings(finished_run, output))
+    assert not (output / "assays.tsv").exists()
+    assert run(design_settings(finished_run, output)) == 0

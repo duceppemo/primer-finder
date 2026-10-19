@@ -30,6 +30,15 @@ def programs_for(assembler: str) -> set[str]:
 # unlike SKESA's --min_contig it cannot be lowered by asking.
 SPADES_FLOOR = 200
 
+# The least memory SKESA will start on, measured: `--mem 1` and `--mem 2` both exit 1 with "Memory
+# provided is insufficient to do runs in 10 cycles for the read coverage", whatever the input -- it gives
+# its kmer counting a third of what it is given and wants a gigabyte of that -- while at `--mem 3` the
+# same 1,949-kmer input reports "Memory available (GB): 0.999959" and assembles. So `-a skesa` with `-m 2`
+# always ends in the fallback below, and `default_memory_gb()` has its own floor of 2: on a small machine,
+# or under a tight control group, the default assembler cannot run at all. The run is told so at the
+# start, where it can still be answered, rather than finding out at the assembly step.
+SKESA_MIN_MEMORY_GB = 3
+
 # Below how many assembled bases per kmer the chosen assembler is treated as having collapsed rather than
 # merely done less well, and the unitig walk is used instead. Measured over 21 runs on three validation
 # panels (validation/results/2026-10-14_v1.7.0_unitig/bases_per_kmer.txt): SKESA assembled 0.000, 0.000

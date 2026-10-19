@@ -31,10 +31,10 @@ stops on an error, since an exclusion KMC database for a few hundred genomes is 
 gave up is the one nobody goes back to tidy. Pass `--keep-intermediate` when the step that failed is to be
 examined. `run_info.json` is only written by a run that reaches the end.
 
-A run into a folder that already holds results moves the earlier `final_kmers.fasta` and `run_info.json`
-aside to `final_kmers.fasta.previous` and `run_info.json.previous` before it starts, so a re-run that
-fails partway cannot leave an older answer behind looking like this one's. One generation only, and the
-log is not kept with them.
+A run into a folder that already holds results moves the earlier `final_kmers.fasta`, `run_info.json` and
+`primer_finder.log` aside to `*.previous` before it starts, so a re-run that fails partway cannot leave an
+older answer behind looking like this one's. One generation only. `.primer_finder.lock` is the folder's
+claim on this run, and it stays behind empty-handed once the run ends.
 
 ## final_kmers.fasta
 

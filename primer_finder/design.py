@@ -25,8 +25,8 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from primer_finder import PrimerFinderError, __version__, blast, insilico, seqio, tools
-from primer_finder.pipeline import LAST_RESORT_TAG, _inside, add_log_file
+from primer_finder import PrimerFinderError, __version__, blast, insilico, seqio, system, tools
+from primer_finder.pipeline import LAST_RESORT_TAG, _inside, add_log_file, keep_previous_log
 
 log = logging.getLogger(__name__)
 
@@ -1412,7 +1412,20 @@ def run(settings: DesignSettings) -> int:
                 f"folder outside {settings.output}."
             )
     tools.require([PROGRAM, "makeblastdb", "blastn"])
+    if settings.insilico_pcr is not None:
+        # Looked at now rather than at the end. Until this, what --insilico-pcr pointed at was first
+        # resolved after Primer3 and both amplicon searches had run, so a mistyped path -- or a portable
+        # release whose `java` is missing -- threw the whole design run away at its last step.
+        insilico.resolve(settings.insilico_pcr)
+    with system.lock_output(settings.output, "design"):
+        return _design(settings, final, inclusion, exclusion, started)
+
+
+def _design(settings: DesignSettings, final: Path, inclusion: Path, exclusion: Path,
+            started: float) -> int:
+    """The body of `run`, once the settings are checked and the output folder is this run's alone."""
     settings.output.mkdir(parents=True, exist_ok=True)
+    keep_previous_log(settings.output / LOG_NAME)
     add_log_file(settings.output / LOG_NAME)
     log.info("primer-finder %s, designing assays", __version__)
 

@@ -20,6 +20,7 @@ from primer_finder import (
     kmers,
     mapping,
     seqio,
+    system,
     tools,
 )
 from primer_finder.mapping import MAX_PRIMER_SPAN
@@ -88,6 +89,9 @@ def run(settings: Settings) -> int:
     before it has written anything must not tidy the folder: the same `-o` may hold the results of an
     earlier run, and `clean_up` deletes by fixed path, so a typo in `-i` used to take the previous run's
     `--keep-intermediate` files with it.
+
+    The folder is then claimed for this run, before anything in it is written or moved, so that two runs
+    cannot share it; and the earlier log is moved aside before this run's log replaces it.
     """
     inclusion, exclusion, reference = check(settings)
     try:
@@ -101,14 +105,23 @@ def run(settings: Settings) -> int:
     # Both of these can fail on a folder an earlier run wrote -- a read-only folder, or a `.previous`
     # path that is a directory -- and failing inside the block below would run `clean_up` on that earlier
     # run's `--keep-intermediate` files, which is the very thing the ordering here exists to prevent.
-    add_log_file(settings.output / LOG_NAME)
-    replace_previous_results(settings)
-    try:
-        return _run(settings, inclusion, exclusion, reference)
-    finally:
-        # On the way out either way: a run that ends at "no contig differs enough" used to leave its KMC
-        # databases behind, and an exclusion database for a few hundred genomes is a gigabyte
-        clean_up(settings)
+    if settings.assembler == "skesa" and settings.memory_gb < assemble.SKESA_MIN_MEMORY_GB:
+        # Said here, before any of the work, rather than left to the assembly step: there the fallback
+        # reported "nothing usable came out of skesa", which reads as a judgement on the kmers
+        log.warning("SKESA refuses to start on the %d GB of -m/--memory, whatever the kmers are, so the "
+                    "assembly will fall back to the unitig walk (it needs at least %d GB). Raise -m if "
+                    "the machine has the memory, or -a unitig to ask for the walk outright.",
+                    settings.memory_gb, assemble.SKESA_MIN_MEMORY_GB)
+    with system.lock_output(settings.output):
+        keep_previous_log(settings.output / LOG_NAME)
+        add_log_file(settings.output / LOG_NAME)
+        replace_previous_results(settings)
+        try:
+            return _run(settings, inclusion, exclusion, reference)
+        finally:
+            # On the way out either way: a run that ends at "no contig differs enough" used to leave its
+            # KMC databases behind, and an exclusion database for a few hundred genomes is a gigabyte
+            clean_up(settings)
 
 
 def _run(settings: Settings, inclusion: list[Path], exclusion: list[Path], reference: Path) -> int:
@@ -654,6 +667,26 @@ def lower_positions(seq: str, positions: list[int]) -> str:
     return "".join(bases)
 
 
+def keep_previous_log(path: Path) -> None:
+    """Move an earlier run's log aside before this run's log replaces it, one generation.
+
+    `add_log_file` opens the log for writing, which empties it, so until this the record of whatever ran
+    in this folder before was destroyed by the act of starting -- including by a run that then went no
+    further, since `replace_previous_results` can refuse one. The results are kept one generation
+    (`PREVIOUS_SUFFIX`) and the log was not, which left the previous `final_kmers.fasta.previous` with no
+    log to say what produced it.
+    """
+    if not (path.exists() or path.is_symlink()):
+        return
+    aside = path.with_name(path.name + PREVIOUS_SUFFIX)
+    try:
+        path.replace(aside)
+    except OSError as error:  # A directory in the way, or a folder that cannot be written to
+        raise PrimerFinderError(
+            f"Cannot move the earlier run's {path.name} aside to {aside}: {error}"
+        ) from error
+
+
 def replace_previous_results(settings: Settings) -> None:
     """Remove the answer an earlier run left in this folder, before producing a new one.
 
@@ -668,14 +701,14 @@ def replace_previous_results(settings: Settings) -> None:
     found = [path for path in stale if path.exists() or path.is_symlink()]
     if found:
         log.warning("An earlier run's results are in %s (%s). This run replaces them; the old ones are "
-                    "kept with a %s suffix, one generation only, and the log is not kept. A run is not "
+                    "kept with a %s suffix, one generation only, its log included. A run is not "
                     "resumable: this one starts again from the kmers", settings.output,
                     ", ".join(path.name for path in found), PREVIOUS_SUFFIX)
     for path in found:
         # Moved aside rather than deleted. What this has to prevent is a *failed* re-run leaving an older
         # answer behind for `design` to use as though it were this run's; it does not have to destroy
         # the answer to do that. Only one generation is kept: a third run overwrites what the second
-        # moved aside, and the log is not moved with them.
+        # moved aside. The log goes the same way, in `keep_previous_log`, before it is reopened.
         aside = path.with_name(path.name + PREVIOUS_SUFFIX)
         try:
             path.replace(aside)

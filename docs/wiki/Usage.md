@@ -50,7 +50,7 @@ while read -r genome; do ln -sf "$genome" exclusion/; done < exclusion.list
 | `-e`, `--exclusion` | required | Folder of genomes the assay must not amplify. |
 | `-o`, `--output` | required | Folder for the results; it is created if needed. It must be outside both input folders, and its path must not contain a space (a BLAST limitation). |
 | `-t`, `--threads` | every CPU | CPUs for KMC, the assembler, minimap2, and how many genomes are blasted at a time. Each blast search is given one CPU and `-t` of them run at once, rather than the other way round: `-num_threads` splits the *query*, and each search here is one small genome, so there is almost nothing to split. Measured at a fixed budget of 48 CPUs, 48 searches of one CPU beat 24 of two by 1.6x and 6 of eight by 6.8x, with no optimum in between. |
-| `-m`, `--memory` | 85% of the memory | Memory in GB, passed to KMC and the assembler. KMC refuses less than 2 GB, so it is given at least 2 whatever this says, and the default is never below 2. |
+| `-m`, `--memory` | 85% of the memory | Memory in GB, passed to KMC and the assembler. KMC refuses less than 2 GB, so it is given at least 2 whatever this says, and the default is never below 2. SKESA refuses to *start* on less than 3 GB, whatever the kmers are, so below that the assembly falls back to the unitig walk and says so. |
 | `-k`, `--kmer_size`, `--kmer-size` | 99 | Kmer size for KMC, 1-256. A shorter kmer finds **fewer** regions, not more, and at 51 and below whole runs start coming back empty — see [Methods](Methods#1-the-kmers-only-the-inclusion-group-has-kmc) for the measurement. Longer is more sensitive to assembly errors. |
 | `--min-region` | the kmer size | The shortest candidate region to report. An assembler stops at 200 bases of its own accord, which would hide every specific stretch shorter than that — and those are commonest where the two groups are closely related. SKESA and `-a unitig` can be asked for less; `-a spades` warns and still stops at 200. |
 | `-d`, `--duplication` | 1 | How often a kmer may occur, per inclusion genome **on average**: the ceiling is on its total count across the whole group, so a marker carried in several copies needs this at its *mean* copy number rather than its highest. 1 discards anything repeated. Raise it deliberately to target a repeat — see [the record](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-16_v1.8.1_repeats/SUMMARY.md) — and note that a repeated target is harder to design a clean assay on, which is why 1 is the default. |
@@ -131,7 +131,18 @@ since its KMC databases are the largest thing it leaves behind.
 A run into a folder that already holds `final_kmers.fasta` or `run_info.json` moves those aside to
 `*.previous`, with a warning, as it commits to replacing them. That is so a re-run that fails partway
 cannot leave an older answer behind looking like this run's. Only one generation is kept — a third run
-overwrites what the second moved aside — and the log is not moved with them.
+overwrites what the second moved aside — and the log goes the same way, to `primer_finder.log.previous`,
+before the new one is opened.
+
+**One run per output folder.** A run claims its `-o` folder for as long as it lasts, and a second run
+given the same folder is refused, naming the process that holds it. Two runs sharing a folder count kmers
+into the same KMC database and blast against the same one, so each reads some of the other's work. The
+claim is a lock on `.primer_finder.lock` in the folder, which the system drops when the process ends, so a
+run killed part way leaves nothing to clear out by hand. `primer-finder design` does the same with its own
+output folder.
+
+`-m` below 3 GB is also worth knowing about: SKESA, the default assembler, refuses to start on less
+whatever the kmers are, so such a run assembles with the unitig walk instead and says so at the start.
 
 ## Designing assays on the regions
 

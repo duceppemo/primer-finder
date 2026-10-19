@@ -71,7 +71,7 @@ def test_an_unknown_command_is_refused(capsys):
 def test_a_full_run_from_the_command_line(stubs, genomes, tmp_path):
     inclusion, exclusion = genomes
     out = tmp_path / "out"
-    assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(out), "-t", "1", "-m", "2"]) == 0
+    assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(out), "-t", "1", "-m", "4"]) == 0
     info = json.loads((out / "run_info.json").read_text())
     assert info["command_line"][0] == "primer-finder"
     assert "--version" not in info["command_line"]
@@ -147,7 +147,7 @@ def test_the_old_scripts_still_work(stubs, genomes, tmp_path):
     inclusion, exclusion = genomes
     result = subprocess.run(
         [sys.executable, str(ROOT / "primer_finder.py"), "-i", str(inclusion), "-e", str(exclusion),
-         "-o", str(tmp_path / "out"), "-t", "1", "-m", "2"],
+         "-o", str(tmp_path / "out"), "-t", "1", "-m", "4"],
         capture_output=True, text=True, cwd=ROOT,
     )
     assert result.returncode == 0, result.stderr
@@ -170,7 +170,7 @@ def test_the_threshold_is_read_as_a_fraction(stubs, genomes, tmp_path, given, ex
     inclusion, exclusion = genomes
     out = tmp_path / f"out{given}"
     assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(out), "-p", given,
-                 "-t", "1", "-m", "2"]) == 0
+                 "-t", "1", "-m", "4"]) == 0
     parameters = json.loads((out / "run_info.json").read_text())["parameters"]
     assert parameters["min_inclusion"] == expected
 
@@ -189,7 +189,7 @@ def test_the_long_and_short_threshold_options_agree(stubs, genomes, tmp_path):
     for number, option in enumerate(("-p", "--min-inclusion")):
         out = tmp_path / f"out{number}"
         assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(out), option, "0.5",
-                     "-t", "1", "-m", "2"]) == 0
+                     "-t", "1", "-m", "4"]) == 0
         assert json.loads((out / "run_info.json").read_text())["parameters"]["min_inclusion"] == 0.5
 
 
@@ -211,7 +211,7 @@ def test_a_find_option_reaches_the_run(stubs, genomes, tmp_path, options, name, 
     inclusion, exclusion = genomes
     out = tmp_path / "out"
     assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(out),
-                 "-t", "1", "-m", "2", *options]) == 0
+                 "-t", "1", "-m", "4", *options]) == 0
     assert json.loads((out / "run_info.json").read_text())["parameters"][name] == expected
 
 
@@ -231,11 +231,11 @@ def test_the_no_last_resort_option_reaches_the_run(stubs, genomes, tmp_path):
     stubs(exclusion_hits={"exclusion_1": one_difference, "exclusion_2": one_difference})
     rescued, refused = tmp_path / "rescued", tmp_path / "refused"
     assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(rescued),
-                 "-t", "1", "-m", "2"]) == 0
+                 "-t", "1", "-m", "4"]) == 0
     info = json.loads((rescued / "run_info.json").read_text())
     assert info["last_resort"] is True and info["counts"]["final"] == 1
     assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(refused),
-                 "-t", "1", "-m", "2", "--no-last-resort"]) == 0
+                 "-t", "1", "-m", "4", "--no-last-resort"]) == 0
     info = json.loads((refused / "run_info.json").read_text())
     assert info["last_resort"] is False and info["counts"]["final"] == 0
 
@@ -244,10 +244,10 @@ def test_the_keep_intermediate_option_reaches_the_run(stubs, genomes, tmp_path):
     """Nothing in the record says whether it was given, so the files it keeps are what pins it."""
     inclusion, exclusion = genomes
     kept, tidied = tmp_path / "kept", tmp_path / "tidied"
-    assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(kept), "-t", "1", "-m", "2",
+    assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(kept), "-t", "1", "-m", "4",
                  "--keep-intermediate"]) == 0
     assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(tidied), "-t", "1",
-                 "-m", "2"]) == 0
+                 "-m", "4"]) == 0
     # `clean_up` empties `1_kmers` rather than removing it, so the databases are what to look for
     assert (kept / "1_kmers" / "inclusion.kmc_pre").is_file()
     assert not (tidied / "1_kmers" / "inclusion.kmc_pre").exists()
@@ -258,7 +258,7 @@ def test_the_reference_option_reaches_the_run(stubs, genomes, tmp_path):
     inclusion, exclusion = genomes
     chosen = sorted(exclusion.glob("*.fasta"))[-1]
     out = tmp_path / "out"
-    assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(out), "-t", "1", "-m", "2",
+    assert main(["-i", str(inclusion), "-e", str(exclusion), "-o", str(out), "-t", "1", "-m", "4",
                  "-r", str(chosen)]) == 0
     assert Path(json.loads((out / "run_info.json").read_text())["reference"]).name == chosen.name
 

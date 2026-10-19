@@ -245,7 +245,7 @@ def test_programs_are_called_with_the_right_options(stubs, settings):
     scenario = settings(kmer_size=31, duplication=2)
     run(scenario)
     text = calls.read_text()
-    assert "kmc -k31 -t1 -m2 -fm -ci2 -cx4" in text  # Two inclusion genomes, -d 2
+    assert "kmc -k31 -t1 -m4 -fm -ci2 -cx4" in text  # Two inclusion genomes, -d 2
     assert "-ci1 -cx1000000000" in text  # The exclusion group: every kmer, however often it occurs
     assert "kmc_tools -t1 simple" in text and "kmers_subtract" in text
     assert "minimap2 -t 1 -a --eqx" in text
@@ -735,14 +735,14 @@ def test_empty_input_folder(stubs, tmp_path, genomes):
     empty = tmp_path / "empty"
     empty.mkdir()
     with pytest.raises(PrimerFinderError, match="no file with an accepted extension"):
-        run(Settings(inclusion=empty, exclusion=exclusion, output=tmp_path / "out", threads=1, memory_gb=2))
+        run(Settings(inclusion=empty, exclusion=exclusion, output=tmp_path / "out", threads=1, memory_gb=4))
 
 
 def test_missing_input_folder(stubs, tmp_path, genomes):
     _, exclusion = genomes
     with pytest.raises(PrimerFinderError, match="inclusion folder does not exist"):
         run(Settings(inclusion=tmp_path / "gone", exclusion=exclusion, output=tmp_path / "out",
-                     threads=1, memory_gb=2))
+                     threads=1, memory_gb=4))
 
 
 def test_a_file_that_is_not_a_fasta_is_refused(stubs, settings, genomes):
@@ -806,7 +806,7 @@ def test_two_genomes_with_the_same_file_name(stubs, genomes, tmp_path):
           presence={"sampleA/contigs": ["ctg1", "ctg2"], "sampleB/contigs": ["ctg1"]})
     output = tmp_path / "out"
     assert run(Settings(inclusion=inclusion, exclusion=exclusion, output=output,
-                        threads=2, memory_gb=2, keep_intermediate=True)) == 0
+                        threads=2, memory_gb=4, keep_intermediate=True)) == 0
     rows = (output / "4_blast" / "inclusion_blast_hits.tsv").read_text().splitlines()
     assert rows[0].split("\t") == ["contig", "sampleA/contigs.fasta", "sampleB/contigs.fasta"]
     assert rows[1:] == ["ctg1\t1.000\t1.000", "ctg2\t1.000\t0.000"]
@@ -843,7 +843,7 @@ def test_input_folders_may_hold_a_space(stubs, genomes, tmp_path):
     shutil.copytree(inclusion, spaced)
     output = tmp_path / "out"
     assert run(Settings(inclusion=spaced, exclusion=exclusion, output=output,
-                        threads=1, memory_gb=2)) == 0
+                        threads=1, memory_gb=4)) == 0
     assert (output / "final_kmers.fasta").exists()
     blasted = [line for line in calls.read_text().splitlines()
                if line.startswith(("blastn", "makeblastdb"))]
@@ -864,7 +864,7 @@ def four_inclusion(stubs, genomes, tmp_path):
           sam=[["ctg1", 0, "40=1X7=1X50="], ["ctg2", 0, "40=1X7=1X50="]],
           presence={"g1": ["ctg1", "ctg2"], "g2": ["ctg1", "ctg2"], "g3": ["ctg1"], "g4": []})
     return lambda **changes: Settings(inclusion=inclusion, exclusion=exclusion,
-                                      output=tmp_path / "out", threads=1, memory_gb=2, **changes)
+                                      output=tmp_path / "out", threads=1, memory_gb=4, **changes)
 
 
 @pytest.mark.parametrize(
@@ -872,7 +872,7 @@ def four_inclusion(stubs, genomes, tmp_path):
     [(1.0, 8, 8), (0.9, 8, 8), (0.75, 8, 6), (0.5, 3, 2), (0.01, 8, 1), (1.0, 1, 1)],
 )
 def test_required_genomes_rounds_up(tmp_path, fraction, genomes_given, expected):
-    settings = Settings(inclusion=tmp_path, exclusion=tmp_path, output=tmp_path, threads=1, memory_gb=2,
+    settings = Settings(inclusion=tmp_path, exclusion=tmp_path, output=tmp_path, threads=1, memory_gb=4,
                         min_inclusion=fraction)
     assert required_genomes(settings, [tmp_path] * genomes_given) == expected
 
@@ -958,7 +958,7 @@ def test_a_threshold_outside_the_range_is_refused(stubs, settings, fraction):
     ],
 )
 def test_required_genomes_is_not_thrown_off_by_floating_point(tmp_path, fraction, genomes_given, expected):
-    settings = Settings(inclusion=tmp_path, exclusion=tmp_path, output=tmp_path, threads=1, memory_gb=2,
+    settings = Settings(inclusion=tmp_path, exclusion=tmp_path, output=tmp_path, threads=1, memory_gb=4,
                         min_inclusion=fraction)
     assert required_genomes(settings, [tmp_path] * genomes_given) == expected
 
@@ -970,7 +970,7 @@ def test_required_genomes_matches_exact_arithmetic(tmp_path):
 
     for cents in range(1, 101):
         settings = Settings(inclusion=tmp_path, exclusion=tmp_path, output=tmp_path, threads=1,
-                            memory_gb=2, min_inclusion=cents / 100)
+                            memory_gb=4, min_inclusion=cents / 100)
         for number in (1, 3, 7, 8, 12, 50, 97, 100, 250):
             expected = max(1, math.ceil(Fraction(cents, 100) * number))
             assert required_genomes(settings, [tmp_path] * number) == expected, (cents, number)
@@ -979,7 +979,7 @@ def test_required_genomes_matches_exact_arithmetic(tmp_path):
 def test_a_fraction_too_small_to_round_still_asks_for_one_genome(tmp_path):
     """-p 1e-12 of 4 genomes rounds to nothing; one genome is the floor, or a region in none of them
     would pass."""
-    settings = Settings(inclusion=tmp_path, exclusion=tmp_path, output=tmp_path, threads=1, memory_gb=2,
+    settings = Settings(inclusion=tmp_path, exclusion=tmp_path, output=tmp_path, threads=1, memory_gb=4,
                         min_inclusion=1e-12)
     assert required_genomes(settings, [tmp_path] * 4) == 1
     assert required_genomes(settings, [tmp_path]) == 1
@@ -1014,7 +1014,7 @@ def test_one_inclusion_genome_and_a_low_threshold(stubs, genomes, tmp_path):
     (inclusion / "only.fasta").write_text(">chr\n" + "ACGT" * 50 + "\n")
     stubs(contigs={"ctg1": "ACGT" * 25}, sam=[["ctg1", 0, "40=1X7=1X50="]], presence={"only": ["ctg1"]})
     output = tmp_path / "out"
-    assert run(Settings(inclusion=inclusion, exclusion=exclusion, output=output, threads=1, memory_gb=2,
+    assert run(Settings(inclusion=inclusion, exclusion=exclusion, output=output, threads=1, memory_gb=4,
                         min_inclusion=0.5)) == 0
     assert "inclusion=" not in (output / "final_kmers.fasta").read_text()
 
@@ -1158,3 +1158,44 @@ def test_the_exclusion_step_still_matches_contigs_when_a_tag_is_in_the_header(st
     # It reached the exclusion step with the tag on its header, and was dropped there
     assert "inclusion=3/4" in (scenario.output / "4_blast" / "all_inclusion_contigs.fasta").read_text()
     assert list(iter_records(scenario.output / "final_kmers.fasta")) == []
+
+
+def test_an_earlier_runs_log_is_kept_one_generation(stubs, settings):
+    """The log was opened for writing before anything else, so starting a second run in the folder
+    destroyed the record of the first -- including when that second run then went no further."""
+    first = settings()
+    assert run(first) == 0
+    log = first.output / "primer_finder.log"
+    was = log.read_text()
+    assert "primer-finder" in was
+    # A run refused at the "previous results" step: it changes nothing else, and it used to take the log
+    (first.output / "final_kmers.fasta.previous").mkdir()
+    with pytest.raises(PrimerFinderError, match="Cannot move the earlier run's final_kmers.fasta aside"):
+        run(settings(output=first.output))
+    assert (first.output / "primer_finder.log.previous").read_text() == was
+
+
+def test_two_runs_cannot_share_an_output_folder(stubs, settings):
+    """They would count kmers into the same KMC database and blast against the same one, and each would
+    read some of the other's files as its own work."""
+    from primer_finder import system
+
+    scenario = settings()
+    # Held as a run already using the folder would hold it
+    with system.lock_output(scenario.output), \
+            pytest.raises(PrimerFinderError, match="Another primer-finder run is using"):
+        run(scenario)
+    assert not (scenario.output / "final_kmers.fasta").exists()
+    assert run(scenario) == 0  # And once that run has finished, the folder is free
+
+
+def test_skesa_is_not_asked_to_run_on_less_memory_than_it_accepts(stubs, settings, caplog):
+    """SKESA exits 1 on --mem 2 whatever the input, so -m 2 always ended in the fallback -- which said
+    "nothing usable came out of skesa", as though the kmers were at fault."""
+    from primer_finder.assemble import SKESA_MIN_MEMORY_GB
+
+    assert run(settings(memory_gb=SKESA_MIN_MEMORY_GB - 1)) == 0
+    assert "SKESA refuses to start on the 2 GB" in caplog.text
+    caplog.clear()
+    assert run(settings(memory_gb=SKESA_MIN_MEMORY_GB, output=settings().output / "again")) == 0
+    assert "SKESA refuses" not in caplog.text

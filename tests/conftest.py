@@ -76,6 +76,6 @@ def settings(genomes, tmp_path):
         "exclusion": exclusion,
         "output": tmp_path / "out",
         "threads": 1,
-        "memory_gb": 2,
+        "memory_gb": 4,  # SKESA, the default assembler, refuses to start on less (assemble.SKESA_MIN_MEMORY_GB)
     }
     return lambda **changes: Settings(**{**defaults, **changes})
