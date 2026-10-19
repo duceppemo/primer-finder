@@ -1,5 +1,98 @@
 # Changelog
 
+## 1.9.2
+
+A twelve-part review of the whole package, one reviewer per area, found about thirty-five defects. Six of
+them produced a wrong answer silently, and three of those were introduced in 1.9.0 and 1.9.1. Everything
+below was reproduced before it was fixed, and every fix was checked by reverting the line it covers and
+watching the test that covers it fail.
+
+### Fixed
+
+- **A region absent from every exclusion genome had every one of its bases read as a mismatch.** The
+  1.9.1 change that separated absent bases from differences recorded the absent stretches only where some
+  exclusion genome hit the contig; a region none of them hit took an earlier exit and recorded nothing. On
+  a 289-base region of the IS711 validation panel, `design` reported `forward_variants 20`,
+  `forward_terminal_run 20` and a `primer_variant_weight` of 30 -- forty times the unknown-base weight,
+  assigned for exclusion bases that were never seen -- over a primer whose template is in none of the
+  genomes. 1,386 of that run's 10,414 regions were of this shape. It also skewed the order *among*
+  absence-based assays, whose tie-breakers favour whichever region claims more differences.
+
+- **A genome whose file name held a space, a colon or a backslash killed the run at step 4**, after the
+  kmer counting, the assembly and the mapping had all finished. The folder blast runs in carried the
+  genome's file stem; makeblastdb reopens its database by absolute path and splits it on whitespace, and
+  blastn searches a `:`-separated list of paths. Naming an assembly after a strain is ordinary, and
+  `docs/wiki/FAQ.md` promised that input names may hold spaces. The stem is sanitised now, measured per
+  character against both programs.
+
+- **A compressed genome whose name is not lowercase `.gz` left its group in silence.** `.fasta.GZ` from a
+  Windows rename, `.fasta.bz2` or `.fna.xz`: the file was opened as text, no `>` was found, and the
+  "looks like fasta but has the wrong extension" warning therefore never named it. A genome missing from
+  the *exclusion* group is the dangerous direction, since its kmers then read as specific to the
+  inclusion group -- which is what that warning exists to prevent.
+
+- **A named pipe with an accepted extension hung the run for ever**, with no output at all, not even the
+  version banner: every such path is opened to check it is fasta, and opening a pipe with no writer never
+  returns.
+
+- **`design` could run against the wrong genomes and say nothing.** `run_info.json` recorded `-i` and `-e`
+  as typed, and `design` resolves them against its own working directory, so for the ordinary
+  `project/{data,results}` layout it either stopped or used whatever folders of those names sat beside it.
+  One reviewer hit it by accident and staged four genomes the run had never seen. The paths are recorded
+  resolved now, a relative one from an older record is resolved against the run folder and then the
+  working directory, an empty field no longer means "the working directory", and `-i`/`-e` that differ
+  from the record are reported.
+
+- **The in silico PCR verdict counted products that cannot exist.** insilicoPCR pairs every forward-primer
+  alignment with every reverse-primer alignment on a contig, and every row counted as "this genome
+  amplified". On one 3.3 Mb genome with 28 IS711 assays its report holds 21,014 rows, of which 9,623 pair
+  two alignments on the same strand and 5,256 point away from each other -- 71% that PCR cannot make, with
+  spans from 61 bases to 1.9 Mb. A row is now counted only where it could be one product: the span fits
+  one, and the primers face each other. Reading that report also went from 2.5 s and a 30 MB cache per
+  sample to 1.6 s and 13 MB, which matters on the 951- and 1,290-genome panels.
+
+- **An unearned "absence" where blast's e-value floor cannot see.** `-evalue 1e-10` is a floor of 32 to 34
+  bases *whatever the query length*, so for a 70-150 base amplicon the primer-sized pieces that decide
+  the answer are invisible: a 90-base amplicon with a 30-base deletion between the primers returns no hits
+  at all. The genome then read as having nothing to amplify -- the strongest claim this tool makes, which
+  ranks above every difference-based assay and is exempt from `--min-primer-differences` -- while it holds
+  both primer sites and would make a shorter product. A genome with no copy is now looked at again at a
+  looser e-value, asking whether the two primer sites are there in one place, the right way round and
+  close enough to be a product. Like the flank check beside it, this can only ever remove an absence.
+
+- **The small-exclusion-group warning named the wrong regions**, counting every region with an unaligned
+  stretch -- including those whose own differences meet the rule -- and never counting a region no
+  exclusion genome hits, which rests on the absence entirely. Both counts are now reported, because
+  `design` aims its oligos at the marked bases and an absent block is marked in full.
+
+- `run_info.json`'s genome lists recorded symlink targets, so a panel of links into a shared assembly
+  store was recorded under the store's names while the log and the presence table showed the panel's.
+
+### Added
+
+- **The presence table says how much of each region each genome holds**, as a fraction, where it held `1`
+  or `0`. A region counts as present on any hit at all, which is deliberate -- the design step checks each
+  amplicon it proposes against every genome -- but holding a region and holding forty bases of it looked
+  identical. A run that keeps a region some genome holds only part of now says so, counting bases. The
+  presence search also asks blast for every subject rather than the best one, since a draft assembly
+  splits a region between two of its contigs exactly where a repeat is.
+
+- `design` reports an assay whose amplicon no inclusion genome holds (`inclusion_copies_max 0`): it would
+  amplify nothing, and it is what pointing `-i` at the wrong genomes looks like.
+
+### Internal
+
+- **The test suite could not see the tool's central claim.** Swapping the operands of the kmer subtraction
+  left 182 tests passing, and handing the exclusion file list to the inclusion database left 174 passing,
+  because the stub KMC ignored its `@list` and the stub `kmc_tools` decided what to dump from the output
+  file name. The stubs now model per-genome kmers, and the two mutations fail.
+- No genome was ever judged *not* to hold an amplicon through blast's own output, so `specific_by absence`
+  was wired to blast by nothing. Three tests reach that path now.
+- `design` never met a real program: one test runs it against the real Primer3 and the real blast on a
+  region with ordinary base composition, which catches a misread right-primer coordinate and an inverted
+  absence verdict.
+- 612 tests, up from 571.
+
 ## 1.9.1
 
 ### Fixed
