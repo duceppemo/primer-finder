@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,7 @@ from primer_finder.blast import (
     make_db,
     parse_hits,
     presence_in_genomes,
+    safe_stem,
     shared_variants,
     unaligned_positions,
     variant_bases,
@@ -70,6 +72,31 @@ def test_parse_hits_without_the_alignment_fields(tmp_path):
     path.write_text("ctg1\t1\t20\t1e-30\n")
     hits = parse_hits(path, PRESENCE_FIELDS)
     assert (hits[0].query, hits[0].qseq, hits[0].qstart, hits[0].qend) == ("ctg1", "", 1, 20)
+
+
+def test_a_genome_name_blast_cannot_use_does_not_reach_the_database_folder():
+    """makeblastdb reopens its own output by absolute path and splits it on whitespace, so a space in the
+    folder it runs in makes it fail -- and the folder used to carry the genome's file stem. Naming an
+    assembly after a strain is ordinary, and it cost the whole run at step 4."""
+    assert safe_stem(Path("/x/Brucella abortus 2308.fasta")) == "Brucella_abortus_2308"
+    assert safe_stem(Path('/x/B"abortus.fasta')) == "B_abortus"
+    assert safe_stem(Path("/x/B'abortus.fasta")) == "B'abortus"       # a quote blast does accept
+    assert safe_stem(Path("/x/plain.fasta")) == "plain"
+    for name in ("a b.fasta", 'a"b.fasta', "a\tb.fasta"):
+        folder = genome_folder(Path("/work"), 3, Path("/x") / name)
+        assert folder.name == "0003_a_b", folder
+        assert not any(character in folder.name for character in '" \t\n'), folder
+
+
+@pytest.mark.tools
+@pytest.mark.skipif(not shutil.which("makeblastdb"), reason="needs makeblastdb on PATH")
+def test_a_database_is_built_for_a_genome_whose_name_holds_a_space(tmp_path):
+    """The real program, which is the only thing that can show this: the stub cannot fail on its cwd."""
+    genome = tmp_path / "Brucella abortus 2308.fasta"
+    genome.write_text(">chr\n" + "ACGTACCGGTTA" * 40 + "\n")
+    database = make_db(genome, genome_folder(tmp_path / "work", 0, genome))
+    assert database.parent.name == "0000_Brucella_abortus_2308"
+    assert (database.parent / f"{DB_NAME}.nin").is_file() or (database.parent / f"{DB_NAME}.nal").is_file()
 
 
 def test_covered_fraction_merges_the_pieces_instead_of_adding_them():

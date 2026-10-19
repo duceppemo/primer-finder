@@ -252,10 +252,29 @@ def parallel(work: Iterable[tuple], function, threads: int) -> list:
         return list(executor.map(lambda arguments: function(*arguments), work))
 
 
+# Characters a blast database folder must not hold. makeblastdb writes the database, then reopens it by
+# its absolute path and splits that path on whitespace, so a space anywhere above the database -- in the
+# genome's own file name, which used to be carried into this folder's name -- makes it exit 2 with "No
+# alias or index file found for nucleotide database". A quote does the same. Measured with makeblastdb
+# 2.17.0+: a space and a `"` fail, while `'`, a tab and a newline are accepted.
+UNSAFE_IN_DB_PATH = '" \t\n\r\f\v'
+
+
+def safe_stem(genome: Path) -> str:
+    """The genome's file stem with the characters a blast database path cannot hold replaced.
+
+    Naming assemblies after a strain -- `B. abortus 2308.fasta` -- is ordinary, and it used to cost the
+    whole run: the folder blast runs in carried the stem, so step 4 died at the first makeblastdb after
+    the kmer counting, assembly and mapping had all finished.
+    """
+    return "".join("_" if character in UNSAFE_IN_DB_PATH else character for character in base_name(genome))
+
+
 def genome_folder(work_dir: Path, index: int, genome: Path) -> Path:
     """A folder of its own for each genome: two genomes in different subfolders can have the same file
-    name, so the position in the list is what makes it unique."""
-    return work_dir / f"{index:04d}_{base_name(genome)}"
+    name, so the position in the list is what makes it unique. The name is kept for reading a debug log
+    by, which is why it is sanitised rather than dropped."""
+    return work_dir / f"{index:04d}_{safe_stem(genome)}"
 
 
 def covered_fraction(hits: Iterable[Hit], length: int) -> float:

@@ -193,10 +193,12 @@ def check(settings: Settings) -> tuple[list[Path], list[Path], Path]:
     # makeblastdb reopens the database it has just written by its absolute path, and BLAST splits paths on
     # whitespace, so a blast database cannot live under a folder whose name holds a space. The input
     # folders may: every genome is linked into the output folder before blast sees it.
-    if any(character.isspace() for character in str(output)):
+    if any(character in blast.UNSAFE_IN_DB_PATH for character in str(output)):
         raise PrimerFinderError(
-            f"The output folder path contains a space, which BLAST cannot use: {settings.output}. "
-            "Choose an output folder whose path has no space (the input folders may have one)."
+            f"The output folder path contains a space or a quote, which BLAST cannot use: "
+            f"{settings.output}. Choose an output folder whose path has neither (the input paths and the "
+            "genome file names may have both: each genome is linked into a folder named after its "
+            "position in the list)."
         )
     for group, folder in (("inclusion", settings.inclusion), ("exclusion", settings.exclusion)):
         root = folder.resolve()

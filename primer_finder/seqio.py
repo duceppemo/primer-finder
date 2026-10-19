@@ -50,7 +50,7 @@ def open_text(path: Path | str):
     strain names in their headers, and a header is only a label here.
     """
     path = Path(path)
-    if path.suffix == ".gz":
+    if path.suffix.lower() == ".gz":
         return gzip.open(path, "rt", errors="replace")
     return path.open("r", errors="replace")
 
@@ -135,9 +135,43 @@ def count_records(path: Path | str) -> int:
     return count
 
 
+# The first bytes of the compressed formats a genome arrives in. A file in one of these is a genome by
+# any reasonable reading, and it used to leave the group in silence: `is_fasta` opened it as text, found
+# no `>`, and the "looks like fasta, wrong extension" warning therefore never named it.
+COMPRESSION_MAGIC = {
+    b"\x1f\x8b": "gzip", b"BZh": "bzip2", b"\xfd7zXZ\x00": "xz", b"PK\x03\x04": "zip",
+    b"\x04\x22M\x18": "lz4", b"\x28\xb5/\xfd": "zstandard",
+}
+
+
+def _is_ordinary(path: Path | str) -> bool:
+    """Whether a path is a regular file, following links. Anything else cannot hold a genome."""
+    try:
+        return stat.S_ISREG(os.stat(path).st_mode)
+    except OSError:
+        return False
+
+
+def compressed_as(path: Path | str) -> str | None:
+    """The compression format a file's first bytes say it is in, if any."""
+    try:
+        if not stat.S_ISREG(os.stat(path).st_mode):
+            return None
+        with open(path, "rb") as fh:
+            head = fh.read(8)
+    except OSError:
+        return None
+    return next((name for magic, name in COMPRESSION_MAGIC.items() if head.startswith(magic)), None)
+
+
 def is_fasta(path: Path | str) -> bool:
     """True if the file starts with a fasta header (an empty or unreadable file is not a fasta)."""
     try:
+        # Only an ordinary file is opened. Opening a named pipe with nothing on the other end never
+        # returns, and this is called on every path with an accepted extension -- a FIFO called
+        # `pipe.fasta` in a genome folder used to hang the run at discovery with no output at all.
+        if not stat.S_ISREG(os.stat(path).st_mode):
+            return False
         with open_text(path) as fh:
             for line in fh:
                 if line.strip():
@@ -199,6 +233,16 @@ def require_genomes(folder: Path, group: str) -> list[Path]:
             f"The {group} folder has no file with an accepted extension "
             f"({', '.join(EXTENSIONS)}): {folder}"
         )
+    # A path that is not an ordinary file is refused on its own terms: "no header on the first line" is
+    # not true of a named pipe, and a pipe is the one that used to hang the run rather than fail it.
+    odd = [str(genome) for genome in genomes if not _is_ordinary(genome)]
+    if odd:
+        listed = ", ".join(sorted(odd)[:MOST_LISTED])
+        extra = f", and {len(odd) - MOST_LISTED} more" if len(odd) > MOST_LISTED else ""
+        raise PrimerFinderError(
+            f"{len(odd)} path(s) in the {group} folder are not ordinary files, so they cannot be read as "
+            f"a genome (a named pipe, a socket, a device or a broken link): {listed}{extra}"
+        )
     bad = [str(genome) for genome in genomes if not is_fasta(genome)]
     if bad:
         listed = ", ".join(sorted(bad)[:MOST_LISTED])
@@ -214,9 +258,9 @@ def require_genomes(folder: Path, group: str) -> list[Path]:
     if skipped:
         listed = ", ".join(skipped[:MOST_LISTED])
         extra = f", and {len(skipped) - MOST_LISTED} more" if len(skipped) > MOST_LISTED else ""
-        log.warning("%d file(s) in the %s folder look like fasta but do not end in %s, so they are NOT "
-                    "part of the %s group: %s%s", len(skipped), group, " or ".join(EXTENSIONS), group,
-                    listed, extra)
+        log.warning("%d file(s) in the %s folder look like a genome -- fasta, or compressed data -- but "
+                    "do not end in %s, so they are NOT part of the %s group: %s%s", len(skipped), group,
+                    " or ".join(EXTENSIONS), group, listed, extra)
     # `find_genomes` already dropped the second path to a genome; this only says so.
     duplicates = len(walk_genomes(folder)) - len(genomes)
     if duplicates > 0:
@@ -246,7 +290,7 @@ def _other_fasta_files(folder: Path | str, found: Sequence[Path]) -> list[Path]:
                 # end never returns, and this walks whatever happens to be in the folder.
                 if not stat.S_ISREG(os.stat(path).st_mode):
                     continue
-                if is_fasta(path):
+                if is_fasta(path) or compressed_as(path):
                     others.append(path)
             except (OSError, RuntimeError):  # Unreadable, a dangling link, a symlink loop
                 continue

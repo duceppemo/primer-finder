@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import bz2
 import gzip
 import os
 import subprocess
@@ -15,6 +16,7 @@ from primer_finder.seqio import (
     MOST_LISTED,
     Record,
     base_name,
+    compressed_as,
     count_records,
     find_genomes,
     is_fasta,
@@ -102,6 +104,64 @@ def test_find_genomes_counts_a_genome_once_however_many_names_it_has(tmp_path):
     (tmp_path / "c.fasta").symlink_to(tmp_path / "b.fasta")
     assert [path.name for path in walk_genomes(tmp_path)] == ["b.fasta", "c.fasta"]
     assert [path.name for path in find_genomes(tmp_path)] == ["b.fasta"]
+
+
+def test_a_compressed_genome_with_an_unaccepted_name_is_reported_not_dropped(tmp_path, caplog):
+    """The dangerous direction. A genome left out of the exclusion group has its kmers read as specific to
+    the inclusion group, and a compressed file used to leave in total silence: `is_fasta` opened it as
+    text, found no `>`, and the "looks like fasta" warning never named it. `.GZ` comes from Windows,
+    `.bz2` and `.zip` from older archives."""
+    folder = tmp_path / "exclusion"
+    folder.mkdir()
+    for name in ("g1.fasta", "g2.fasta"):
+        (folder / name).write_text(">chr\nACGT\n")
+    with gzip.open(folder / "g3.fasta.GZ", "wt") as fh:      # accepted extension, wrong case
+        fh.write(">chr\nACGT\n")
+    (folder / "g4.fasta.bz2").write_bytes(bz2.compress(b">chr\nACGT\n"))
+    (folder / "g5.fna.zip").write_bytes(b"PK\x03\x04" + b"\x00" * 20)
+    (folder / "notes.txt").write_text("nothing to see\n")    # not a genome: still no warning
+    with caplog.at_level("WARNING"):
+        found = require_genomes(folder, "exclusion")
+    assert [path.name for path in found] == ["g1.fasta", "g2.fasta"]
+    for name in ("g3.fasta.GZ", "g4.fasta.bz2", "g5.fna.zip"):
+        assert name in caplog.text, name
+    assert "notes.txt" not in caplog.text
+
+
+def test_compressed_as_names_the_format_from_the_first_bytes(tmp_path):
+    path = tmp_path / "x"
+    for data, expected in ((bz2.compress(b"hello"), "bzip2"),
+                           (b"PK\x03\x04junk", "zip"),
+                           (b"\xfd7zXZ\x00junk", "xz"),
+                           (b">chr\nACGT\n", None)):
+        path.write_bytes(data)
+        assert compressed_as(path) == expected, data[:4]
+    with gzip.open(path, "wb") as fh:
+        fh.write(b">chr\nACGT\n")
+    assert compressed_as(path) == "gzip"
+    assert compressed_as(tmp_path / "gone") is None
+
+
+def test_a_named_pipe_with_an_accepted_extension_is_refused_not_waited_on(tmp_path):
+    """`require_genomes` reads every path with an accepted extension to check it is fasta, and opening a
+    named pipe with nothing on the other end never returns: the run used to hang at discovery with no
+    output at all, not even its version banner. A subprocess with a timeout, since the failure is a hang."""
+    folder = tmp_path / "inclusion"
+    folder.mkdir()
+    (folder / "g1.fasta").write_text(">chr\nACGT\n")
+    os.mkfifo(folder / "pipe.fasta")
+    done = subprocess.run(
+        [sys.executable, "-c",
+         "import sys; from primer_finder import PrimerFinderError;"
+         "from primer_finder.seqio import require_genomes;"
+         "from pathlib import Path;"
+         "\ntry:\n print(len(require_genomes(Path(sys.argv[1]), 'inclusion')))"
+         "\nexcept PrimerFinderError as exc:\n print('refused:', exc)",
+         str(folder)],
+        capture_output=True, text=True, timeout=30, cwd=Path(__file__).resolve().parent.parent)
+    assert done.returncode == 0, done.stderr
+    assert "not ordinary files" in done.stdout, done.stdout
+    assert "pipe.fasta" in done.stdout
 
 
 def test_a_named_pipe_in_a_genome_folder_does_not_stop_the_run(tmp_path):
