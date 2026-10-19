@@ -316,6 +316,8 @@ def genome_folder(work_dir: Path, index: int, genome: Path) -> Path:
 MAX_PRODUCT_GAP = 2000
 # Blast's pieces may overlap a little where it ends one alignment and starts the next
 MAX_PIECE_OVERLAP = 30
+
+
 def subject_bounds(hit: Hit) -> tuple[int, int, bool]:
     """Where a hit sits on the subject, lowest coordinate first, and whether it is on the plus strand."""
     forward = hit.sstart <= hit.send
@@ -323,7 +325,8 @@ def subject_bounds(hit: Hit) -> tuple[int, int, bool]:
 
 
 def chains_of(hits: Sequence[Hit]) -> list[list[Hit]]:
-    """Group one amplicon's hits in one genome into chains, one per copy the genome holds.
+    """Group one query's hits in one genome into chains, one per copy the genome holds. The query is an
+    amplicon where `design` asks, and a candidate region where `in_one_piece` does.
 
     Blast does not always report a copy as one alignment. Once the cost of gapping through an indel
     exceeds what the rest of the alignment is worth, it stops and reports the pieces either side as
