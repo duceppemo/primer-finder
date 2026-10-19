@@ -181,6 +181,29 @@ def test_keep_intermediate(stubs, settings):
     assert (scenario.output / "4_blast" / "exclusion_db" / "0000_exclusion_1" / "hits.tsv").exists()
 
 
+def test_the_kmers_kept_are_the_inclusion_ones_the_exclusion_group_lacks(stubs, settings, tmp_path):
+    """The claim the whole tool rests on, and nothing held it: with the stub KMC ignoring its `@list` and
+    its operands, swapping `kmers_subtract`'s two databases -- or handing the exclusion list to the
+    inclusion database -- left the suite green. Here each genome holds its own kmers, so the arithmetic is
+    visible: both groups share `shared`, only the inclusion group has `wanted`, and only the exclusion
+    group has `theirs`."""
+    inclusion = tmp_path / "in"
+    exclusion = tmp_path / "ex"
+    for folder, names in ((inclusion, ("i1", "i2")), (exclusion, ("e1", "e2"))):
+        folder.mkdir()
+        for name in names:
+            (folder / f"{name}.fasta").write_text(">chr\n" + "ACGT" * 50 + "\n")
+    stubs(genome_kmers={"i1": ["shared", "wanted"], "i2": ["shared", "wanted"],
+                        "e1": ["shared", "theirs"], "e2": ["shared", "theirs"]},
+          contigs={"ctg1": DIFFERS_AT_5_AND_12}, sam=[["ctg1", 0, "40=1X7=1X50="]])
+    scenario = settings(inclusion=inclusion, exclusion=exclusion)
+    assert run(scenario) == 0
+    kept = (scenario.output / "1_kmers" / "inclusion_specific_99mers.fasta").read_text()
+    assert [line for line in kept.splitlines() if not line.startswith(">")] == ["wanted"]
+    info = json.loads((scenario.output / "run_info.json").read_text())
+    assert info["counts"]["kmers"] == 1
+
+
 def test_programs_are_called_with_the_right_options(stubs, settings):
     calls = stubs()
     scenario = settings(kmer_size=31, duplication=2)

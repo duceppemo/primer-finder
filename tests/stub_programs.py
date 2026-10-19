@@ -7,6 +7,7 @@ every program on PATH; what they produce is read from the PRIMER_FINDER_STUBS en
     shared_kmers     the kmers the inclusion database holds, if not the same as `kmers`
     contigs          {name: sequence} for the assembler to write
     sam              [[query name, flag, cigar], ...] for minimap2 to write
+    genome_kmers     {genome stem: [kmer, ...]} what each genome holds, so that KMC's operands are read
     presence         {genome: [contig, ...]} the contigs blastn finds in each inclusion genome
     presence_spans   {genome: {contig: [[qstart, qend], ...]}} which part of a contig it finds there
     exclusion_hits   {genome: [[query, qstart, qend, evalue, qseq, sseq], ...]} for the exclusion genomes
@@ -64,7 +65,8 @@ DEFAULT_SSEQ = ("ACGTA" + "A" + "GTACGT" + "T" + "CGTACGT" + "ACGT" * 20)  # Mis
 # Every key the stubs understand. A scenario asking for anything else is a mistyped fixture, and silently
 # ignoring it has produced tests that passed while exercising nothing -- so it is an error instead.
 KNOWN_KEYS = frozenset({
-    "kmers", "shared_kmers", "contigs", "sam", "presence", "presence_evalue", "presence_spans",
+    "kmers", "shared_kmers", "genome_kmers", "contigs", "sam", "presence", "presence_evalue",
+    "presence_spans",
     "exclusion_hits",
     "fail", "kill", "exit_code",
     "amplicon_hits", "amplicon_mismatch", "amplicon_qstart", "amplicon_covers", "amplicon_insertion",
@@ -94,12 +96,51 @@ def argument(argv: list[str], flag: str, default: str = "") -> str:
     return argv[argv.index(flag) + 1] if flag in argv else default
 
 
+MARKER = "stub kmers:"
+
+
+def _joined(argv: list[str], prefix: str, default: int) -> int:
+    """KMC writes its numbers onto the flag: `-ci2`, not `-ci 2`."""
+    part = next((part for part in argv if part.startswith(prefix)), None)
+    return int(part[len(prefix):]) if part else default
+
+
+def _write_db(database: Path, kmers: list[str] | None) -> None:
+    """The two files KMC writes. With `genome_kmers` in the scenario they carry what the database holds,
+    so that the operands of the subtraction are read rather than guessed from the file name."""
+    body = "" if kmers is None else MARKER + " " + " ".join(kmers) + "\n"
+    for suffix in (".kmc_pre", ".kmc_suf"):
+        database.with_name(database.name + suffix).write_text(body)
+
+
+def _read_db(database: Path) -> list[str] | None:
+    """What a stub database holds, or None for one written without `genome_kmers`."""
+    path = database.with_name(database.name + ".kmc_pre")
+    text = path.read_text() if path.is_file() else ""
+    return text[len(MARKER):].split() if text.startswith(MARKER) else None
+
+
 def kmc(argv: list[str]) -> int:
-    """kmc -k.. -t.. -m.. -fm -ci.. -cx.. @list <db> <work_dir>"""
+    """kmc -k.. -t.. -m.. -fm -ci.. -cx.. @list <db> <work_dir>
+
+    With `genome_kmers` {genome stem: [kmer, ...]} in the scenario, the @list is read and `-ci`/`-cx` are
+    applied to the pooled count across the listed files, as KMC applies them. Without it the database is
+    empty and the dump comes from the `kmers`/`shared_kmers` keys, as before.
+    """
     positional = [part for part in argv if not part.startswith(("-", "@"))]
     database = Path(positional[0])
-    for suffix in (".kmc_pre", ".kmc_suf"):
-        database.with_name(database.name + suffix).touch()
+    per_genome = value("genome_kmers", None)
+    if per_genome is None:
+        _write_db(database, None)
+        return 0
+    listed = next((part[1:] for part in argv if part.startswith("@")), "")
+    paths = [line for line in Path(listed).read_text().split("\n") if line.strip()] if listed else []
+    counts: dict[str, int] = {}
+    for path in paths:
+        for kmer in per_genome.get(Path(path).name.split(".")[0], []):
+            counts[kmer] = counts.get(kmer, 0) + 1
+    least, most = _joined(argv, "-ci", 1), _joined(argv, "-cx", 1_000_000_000)
+    _write_db(database, sorted(kmer for kmer, count in counts.items() if least <= count <= most))
     return 0
 
 
@@ -107,14 +148,22 @@ def kmc_tools(argv: list[str]) -> int:
     """kmc_tools -t.. simple <a> <b> kmers_subtract <db>   |   kmc_tools -t.. transform <db> dump <file>"""
     if "kmers_subtract" in argv:
         database = Path(argv[argv.index("kmers_subtract") + 1])
-        for suffix in (".kmc_pre", ".kmc_suf"):
-            database.with_name(database.name + suffix).touch()
+        minuend, subtrahend = Path(argv[argv.index("simple") + 1]), Path(argv[argv.index("simple") + 2])
+        # The operands, in the order given: kmers_subtract keeps what the first holds and the second does
+        # not. Reading them is what makes a swap visible -- it used to leave every test passing.
+        held, removed = _read_db(minuend), _read_db(subtrahend)
+        _write_db(database, None if held is None else
+                  sorted(set(held) - set(removed or [])))
         return 0
     if "dump" in argv:
         out_file = Path(argv[argv.index("dump") + 1])
         # The inclusion database is dumped too, to tell the two causes of an empty result apart. Unless a
         # scenario says otherwise, both dumps hold the same kmers.
         database = Path(argv[argv.index("transform") + 1])
+        recorded = _read_db(database)
+        if recorded is not None:
+            out_file.write_text("".join(f"{kmer}\t2\n" for kmer in recorded))
+            return 0
         key = "kmers" if database.name.endswith("_specific") else "shared_kmers"
         kmers = value(key, value("kmers", DEFAULT_KMERS))
         out_file.write_text("".join(f"{kmer}\t2\n" for kmer in kmers))
