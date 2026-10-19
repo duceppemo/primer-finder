@@ -1,0 +1,318 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 480" width="1180" height="480"
+     role="img" aria-labelledby="wf-title wf-desc">
+  <title id="wf-title">The primer-finder workflow</title>
+  <desc id="wf-desc">Two commands. primer-finder -i inclusion/ -e exclusion/ -o results/ finds the
+regions: KMC counts the kmers of each group and subtracts the exclusion ones, SKESA, SPAdes or a unitig walk
+assembles what is left, minimap2 keeps the contigs whose differences are close enough to sit under one
+primer, and blast confirms each candidate is in every inclusion genome and in none of the exclusion ones,
+giving final_kmers.fasta. Then primer-finder design results/ -o assays/ puts Primer3 primers and a probe on
+those differences, checks with blast what makes each assay selective, optionally amplifies them in silico
+against both groups, and writes assays.tsv.</desc>
+
+  <style>
+    .f      { font-family: "DejaVu Sans", "Helvetica Neue", Arial, sans-serif; }
+    .mono   { font-family: "DejaVu Sans Mono", "SFMono-Regular", Menlo, Consolas, monospace; }
+
+    .card   { fill: #64748b; fill-opacity: .07; stroke: #94a3b8; stroke-opacity: .55; stroke-width: 1.5; }
+    .card-o { stroke-dasharray: 7 5; }
+    .chipb  { fill: #1d6fb8; fill-opacity: .08; stroke: #1d6fb8; stroke-opacity: .40; stroke-width: 1.5; }
+    .chipg  { fill: #2f8f5b; fill-opacity: .08; stroke: #2f8f5b; stroke-opacity: .40; stroke-width: 1.5; }
+    .chips  { fill: #94a3b8; fill-opacity: .10; stroke: #94a3b8; stroke-opacity: .50; stroke-width: 1.5; }
+
+    .bb     { fill: #1d6fb8; }
+    .bg     { fill: #2f8f5b; }
+    .bnum   { fill: #ffffff; font-weight: 700; font-size: 12px; }
+
+    .ct     { fill: #334155; font-weight: 700; font-size: 15.5px; }
+    .cs     { fill: #64748b; font-size: 11.5px; }
+    .cc     { fill: #7a8699; font-size: 11.5px; }
+    .lblb   { fill: #1d6fb8; font-weight: 700; font-size: 13px; letter-spacing: .3px; }
+    .lblg   { fill: #2f8f5b; font-weight: 700; font-size: 13px; letter-spacing: .3px; }
+    .cmd    { fill: #64748b; font-size: 13.5px; }
+    .fname  { fill: #7a8699; font-size: 12px; }
+    .chipt  { fill: #1d6fb8; font-weight: 700; font-size: 14px; }
+    .chiptg { fill: #2f8f5b; font-weight: 700; font-size: 14px; }
+    .chipts { fill: #475569; font-weight: 700; font-size: 14px; }
+
+    .rule   { stroke: #cbd5e1; stroke-width: 1.5; }
+    .hair   { stroke: #94a3b8; stroke-opacity: .5; stroke-width: 1.2; }
+    .arw    { stroke: #94a3b8; stroke-width: 1.8; stroke-linecap: round; }
+    .arwh   { fill: #94a3b8; }
+    .link   { fill: none; stroke: #94a3b8; stroke-opacity: .85; stroke-width: 1.6;
+              stroke-dasharray: 2.5 4.5; }
+
+    .bar    { fill: #94a3b8; }
+    .barg   { fill: #2f8f5b; }
+    .baro   { fill: none; stroke: #94a3b8; stroke-width: 1.5; }
+    .hole   { fill: none; stroke: #94a3b8; stroke-width: 1.5; stroke-dasharray: 4 4; }
+    .diff   { fill: #c9781f; }
+    .ok     { fill: none; stroke: #2f8f5b; stroke-width: 2.3; stroke-linecap: round;
+              stroke-linejoin: round; }
+    .no     { fill: none; stroke: #94a3b8; stroke-width: 2.1; stroke-linecap: round; }
+
+    @media (prefers-color-scheme: dark) {
+      .ct     { fill: #e6edf3; }
+      .cs, .cc, .cmd, .fname { fill: #9aa8bc; }
+      .lblb, .chipt  { fill: #58a6ff; }
+      .lblg, .chiptg { fill: #3fb27a; }
+      .chipts { fill: #c3cedb; }
+      .rule   { stroke: #3b4654; }
+      .barg   { fill: #3fb27a; }
+      .ok     { stroke: #3fb27a; }
+      .diff   { fill: #d98a2b; }
+      .chipb  { stroke: #58a6ff; fill: #58a6ff; }
+      .chipg  { stroke: #3fb27a; fill: #3fb27a; }
+      .bb     { fill: #2f81cf; }
+      .bg     { fill: #2f8f5b; }
+    }
+  </style>
+
+  <!-- ───────────────────────── lane 1: find the regions ───────────────────────── -->
+  <text class="f lblb" x="40" y="30">find the regions</text>
+  <text class="mono cmd" x="178" y="30">primer-finder -i inclusion/ -e exclusion/ -o results/</text>
+  <line class="rule" x1="619" y1="25" x2="1174" y2="25"/>
+
+  <!-- the two folders of genomes -->
+  <g>
+    <rect class="chipb" x="40" y="73" width="128" height="46" rx="10"/>
+    <text class="mono chipt" x="54" y="94">inclusion/</text>
+    <text class="f cc"      x="54" y="110">must amplify</text>
+
+    <rect class="chips" x="40" y="137" width="128" height="46" rx="10"/>
+    <text class="mono chipts" x="54" y="158">exclusion/</text>
+    <text class="f cc"        x="54" y="174">must not amplify</text>
+
+    <path class="link" style="stroke-dasharray:none" d="M168 96 C180 96 179 128 188 128"/>
+    <path class="link" style="stroke-dasharray:none" d="M168 160 C180 160 179 128 188 128"/>
+    <path class="arwh" d="M186 123 L196 128 L186 133 Z"/>
+  </g>
+
+  <!-- 1. kmers -->
+  <g transform="translate(196 60)">
+    <rect class="card" x="0" y="0" width="177" height="136" rx="12"/>
+    <circle class="bb" cx="24" cy="26" r="11"/>
+    <text class="f bnum" x="24" y="30.5" text-anchor="middle">1</text>
+    <text class="f ct" x="43" y="31">kmers</text>
+    <text class="f cs" x="16" y="48">KMC</text>
+    <g transform="translate(28.5 58)">
+      <g class="bar">
+        <rect x="0" y="0"  width="34" height="7" rx="3.5"/><rect x="72" y="0"  width="48" height="7" rx="3.5"/>
+        <rect x="0" y="10" width="34" height="7" rx="3.5"/><rect x="72" y="10" width="48" height="7" rx="3.5"/>
+      </g>
+      <g class="barg">
+        <rect x="38" y="0"  width="30" height="7" rx="3.5"/>
+        <rect x="38" y="10" width="30" height="7" rx="3.5"/>
+      </g>
+      <line class="hair" x1="0" y1="23.5" x2="120" y2="23.5"/>
+      <g class="bar" opacity=".78">
+        <rect x="0" y="30" width="34" height="7" rx="3.5"/><rect x="72" y="30" width="48" height="7" rx="3.5"/>
+        <rect x="0" y="40" width="34" height="7" rx="3.5"/><rect x="72" y="40" width="48" height="7" rx="3.5"/>
+      </g>
+      <g class="hole">
+        <rect x="38.5" y="30.5" width="29" height="6" rx="3"/>
+        <rect x="38.5" y="40.5" width="29" height="6" rx="3"/>
+      </g>
+    </g>
+    <text class="f cc" x="88.5" y="125" text-anchor="middle">count, then subtract</text>
+  </g>
+
+  <!-- 2. assemble -->
+  <g transform="translate(397 60)">
+    <rect class="card" x="0" y="0" width="177" height="136" rx="12"/>
+    <circle class="bb" cx="24" cy="26" r="11"/>
+    <text class="f bnum" x="24" y="30.5" text-anchor="middle">2</text>
+    <text class="f ct" x="43" y="31">assemble</text>
+    <text class="f cs" x="16" y="48">SKESA &#183; SPAdes &#183; unitig</text>
+    <g transform="translate(28.5 58)">
+      <g class="bar">
+        <rect x="0"  y="0"  width="44" height="7" rx="3.5"/>
+        <rect x="18" y="9"  width="44" height="7" rx="3.5"/>
+        <rect x="36" y="18" width="44" height="7" rx="3.5"/>
+        <rect x="54" y="27" width="44" height="7" rx="3.5"/>
+      </g>
+      <rect class="barg" x="0" y="40" width="120" height="8" rx="4"/>
+    </g>
+    <text class="f cc" x="88.5" y="125" text-anchor="middle">one sequence per region</text>
+  </g>
+
+  <!-- 3. candidates -->
+  <g transform="translate(598 60)">
+    <rect class="card" x="0" y="0" width="177" height="136" rx="12"/>
+    <circle class="bb" cx="24" cy="26" r="11"/>
+    <text class="f bnum" x="24" y="30.5" text-anchor="middle">3</text>
+    <text class="f ct" x="43" y="31">candidates</text>
+    <text class="f cs" x="16" y="48">minimap2</text>
+    <g transform="translate(28.5 58)">
+      <rect class="barg" x="0" y="2"  width="120" height="8" rx="4"/>
+      <rect class="bar"  x="0" y="30" width="120" height="8" rx="4" opacity=".78"/>
+      <g class="diff">
+        <rect x="46" y="10" width="4" height="20"/>
+        <rect x="62" y="10" width="4" height="20"/>
+      </g>
+      <path class="no" style="stroke:#c9781f;stroke-width:1.6" d="M44 46 V42 H68 V46"/>
+    </g>
+    <text class="f cc" x="88.5" y="125" text-anchor="middle">&#8804; 25 bp apart</text>
+  </g>
+
+  <!-- 4. confirm -->
+  <g transform="translate(799 60)">
+    <rect class="card" x="0" y="0" width="177" height="136" rx="12"/>
+    <circle class="bb" cx="24" cy="26" r="11"/>
+    <text class="f bnum" x="24" y="30.5" text-anchor="middle">4</text>
+    <text class="f ct" x="43" y="31">confirm</text>
+    <text class="f cs" x="16" y="48">blast, every genome</text>
+    <g transform="translate(32.5 58)">
+      <g class="bar">
+        <rect x="0" y="2"  width="86" height="6" rx="3"/>
+        <rect x="0" y="11" width="86" height="6" rx="3"/>
+        <rect x="0" y="20" width="86" height="6" rx="3"/>
+      </g>
+      <g class="ok">
+        <path d="M95 5 l3.5 3.5 l7.5 -8"/>
+        <path d="M95 14 l3.5 3.5 l7.5 -8"/>
+        <path d="M95 23 l3.5 3.5 l7.5 -8"/>
+      </g>
+      <line class="hair" x1="0" y1="31" x2="112" y2="31"/>
+      <g class="bar" opacity=".78">
+        <rect x="0" y="36" width="86" height="6" rx="3"/>
+        <rect x="0" y="47" width="86" height="6" rx="3"/>
+      </g>
+      <g class="no">
+        <path d="M95.5 35 l8 8 M103.5 35 l-8 8"/>
+        <path d="M95.5 46 l8 8 M103.5 46 l-8 8"/>
+      </g>
+    </g>
+    <text class="f cc" x="88.5" y="125" text-anchor="middle">in all, in none</text>
+  </g>
+
+  <!-- the answer -->
+  <rect class="chipb" x="1004" y="97" width="170" height="62" rx="12"/>
+  <text class="mono chipt" x="1089" y="123" text-anchor="middle">final_kmers.fasta</text>
+  <text class="f cc"       x="1089" y="141" text-anchor="middle">the candidate regions</text>
+
+  <!-- arrows along lane 1 -->
+  <g>
+    <line class="arw" x1="377" y1="128" x2="387" y2="128"/>
+    <path class="arwh" d="M387 123 L397 128 L387 133 Z"/>
+    <line class="arw" x1="578" y1="128" x2="588" y2="128"/>
+    <path class="arwh" d="M588 123 L598 128 L588 133 Z"/>
+    <line class="arw" x1="779" y1="128" x2="789" y2="128"/>
+    <path class="arwh" d="M789 123 L799 128 L789 133 Z"/>
+    <line class="arw" x1="980" y1="128" x2="994" y2="128"/>
+    <path class="arwh" d="M994 123 L1004 128 L994 133 Z"/>
+  </g>
+
+  <!-- what each step leaves in the output folder -->
+  <g class="mono fname" text-anchor="middle">
+    <text x="284.5" y="216">1_kmers/</text>
+    <text x="485.5" y="216">2_assembly/</text>
+    <text x="686.5" y="216">3_candidates/</text>
+    <text x="887.5" y="216">4_blast/</text>
+  </g>
+
+  <!-- the folder handed from one command to the other -->
+  <path class="link" d="M1089 159 V226 q0 14 -14 14 H34 q-14 0 -14 14 V358 q0 12 12 12"/>
+  <path class="arwh" d="M30 365 L40 370 L30 375 Z"/>
+
+  <!-- ───────────────────────── lane 2: design the assays ───────────────────────── -->
+  <text class="f lblg" x="40" y="272">design the assays</text>
+  <text class="mono cmd" x="196" y="272">primer-finder design results/ -o assays/</text>
+  <line class="rule" x1="540" y1="267" x2="1174" y2="267"/>
+
+  <rect class="chipb" x="40" y="347" width="128" height="46" rx="10"/>
+  <text class="mono chipt" x="54" y="368">results/</text>
+  <text class="f cc"       x="54" y="384">the regions above</text>
+
+  <!-- 5. primers and probe -->
+  <g transform="translate(196 302)">
+    <rect class="card" x="0" y="0" width="243" height="136" rx="12"/>
+    <circle class="bg" cx="24" cy="26" r="11"/>
+    <text class="f bnum" x="24" y="30.5" text-anchor="middle">5</text>
+    <text class="f ct" x="43" y="31">primers &#38; probe</text>
+    <text class="f cs" x="16" y="48">Primer3</text>
+    <g transform="translate(46.5 58)">
+      <rect class="bar" x="0" y="26" width="150" height="5" rx="2.5" opacity=".78"/>
+      <path class="bb" d="M4 12 H44 l8 6 l-8 6 H4 Z"/>
+      <rect class="barg" x="60" y="12" width="34" height="12" rx="3"/>
+      <path class="bb" d="M146 12 H110 l-8 6 l8 6 H146 Z"/>
+      <g class="diff">
+        <rect x="18"  y="33" width="3.5" height="7"/>
+        <rect x="26"  y="33" width="3.5" height="7"/>
+        <rect x="120" y="33" width="3.5" height="7"/>
+      </g>
+    </g>
+    <text class="f cc" x="121.5" y="125" text-anchor="middle">aimed at the differences</text>
+  </g>
+
+  <!-- 6. selectivity -->
+  <g transform="translate(464 302)">
+    <rect class="card" x="0" y="0" width="243" height="136" rx="12"/>
+    <circle class="bg" cx="24" cy="26" r="11"/>
+    <text class="f bnum" x="24" y="30.5" text-anchor="middle">6</text>
+    <text class="f ct" x="43" y="31">selectivity</text>
+    <text class="f cs" x="16" y="48">blast, both groups</text>
+    <g transform="translate(46.5 58)">
+      <rect class="bar" x="0" y="4" width="150" height="7" rx="3.5" opacity=".78"/>
+      <g class="diff">
+        <rect x="62" y="0" width="3.5" height="15"/>
+        <rect x="70" y="0" width="3.5" height="15"/>
+      </g>
+      <g class="bar" opacity=".78">
+        <rect x="0"  y="30" width="56" height="7" rx="3.5"/>
+        <rect x="96" y="30" width="54" height="7" rx="3.5"/>
+      </g>
+      <rect class="hole" x="58.5" y="30.5" width="35" height="6" rx="3"/>
+    </g>
+    <text class="f cc" x="121.5" y="125" text-anchor="middle">a difference, or an absence</text>
+  </g>
+
+  <!-- 7. in silico PCR -->
+  <g transform="translate(733 302)">
+    <rect class="card card-o" x="0" y="0" width="243" height="136" rx="12"/>
+    <circle class="bg" cx="24" cy="26" r="11"/>
+    <text class="f bnum" x="24" y="30.5" text-anchor="middle">7</text>
+    <text class="f ct" x="43" y="31">in silico PCR</text>
+    <text class="f cs" x="16" y="48">insilicoPCR, optional</text>
+    <g transform="translate(46.5 58)">
+      <g class="barg">
+        <rect x="0"  y="4" width="12" height="7" rx="3"/><rect x="16" y="4" width="12" height="7" rx="3"/>
+        <rect x="32" y="4" width="12" height="7" rx="3"/><rect x="48" y="4" width="12" height="7" rx="3"/>
+        <rect x="64" y="4" width="12" height="7" rx="3"/><rect x="80" y="4" width="12" height="7" rx="3"/>
+      </g>
+      <path class="ok" d="M104 8 l4 4 l8.5 -9"/>
+      <g class="baro" opacity=".85">
+        <rect x="0.75"  y="30.75" width="10.5" height="5.5" rx="2.75"/>
+        <rect x="16.75" y="30.75" width="10.5" height="5.5" rx="2.75"/>
+        <rect x="32.75" y="30.75" width="10.5" height="5.5" rx="2.75"/>
+        <rect x="48.75" y="30.75" width="10.5" height="5.5" rx="2.75"/>
+        <rect x="64.75" y="30.75" width="10.5" height="5.5" rx="2.75"/>
+        <rect x="80.75" y="30.75" width="10.5" height="5.5" rx="2.75"/>
+      </g>
+      <path class="no" d="M105 29 l9 9 M114 29 l-9 9"/>
+    </g>
+    <text class="f cc" x="121.5" y="125" text-anchor="middle">every genome of both groups</text>
+  </g>
+
+  <!-- the assays -->
+  <rect class="chipg" x="1004" y="339" width="170" height="62" rx="12"/>
+  <text class="mono chiptg" x="1089" y="365" text-anchor="middle">assays.tsv</text>
+  <text class="f cc"        x="1089" y="383" text-anchor="middle">the assays, best first</text>
+
+  <!-- arrows along lane 2 -->
+  <g>
+    <line class="arw" x1="172" y1="370" x2="186" y2="370"/>
+    <path class="arwh" d="M186 365 L196 370 L186 375 Z"/>
+    <line class="arw" x1="443" y1="370" x2="454" y2="370"/>
+    <path class="arwh" d="M454 365 L464 370 L454 375 Z"/>
+    <line class="arw" x1="711" y1="370" x2="723" y2="370"/>
+    <path class="arwh" d="M723 365 L733 370 L723 375 Z"/>
+    <line class="arw" x1="980" y1="370" x2="994" y2="370"/>
+    <path class="arwh" d="M994 365 L1004 370 L994 375 Z"/>
+  </g>
+
+  <g class="mono fname" text-anchor="middle">
+    <text x="317.5" y="458">primer3/</text>
+    <text x="585.5" y="458">amplicons/</text>
+    <text x="854.5" y="458">insilico_pcr/</text>
+  </g>
+</svg>
