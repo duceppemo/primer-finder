@@ -1,5 +1,143 @@
 # Changelog
 
+## 1.9.3
+
+The smaller findings of the twelve-part review whose large ones 1.9.2 released, and the two that needed a
+design decision rather than a patch. Everything below was measured before it was changed, and every fix was
+checked by reverting the line it covers and watching the test that covers it fail.
+
+### Fixed
+
+- **A search could not find what its own masking takes out of the query.** `blastn` masks low-complexity
+  stretches of the query by default, and a masked stretch is not found however exactly a genome holds it.
+  Measured on nine 200-base shapes planted in the same 6 kb genome and held by it exactly: an `AAT`
+  repeat, a homopolymer, a 5- and a 10-base period, and a *random two-letter* sequence all return **no hit
+  at all**, while random ACGT and an 80% AT-rich sequence are found; of a contig half ordinary and half
+  `AAT`, exactly the second half is masked.
+
+  In the exclusion search that is the strongest claim this tool makes, made wrongly: a stretch no
+  exclusion genome aligns is read as missing from the whole group, which ranks above every
+  difference-based assay and is exempt from `--min-primer-differences`, and minimap2 leaves such a contig
+  unmapped too, so nothing else in the run contradicts it. In the presence search it reads the other way
+  and is just as wrong -- a region every inclusion genome carries is held by none of them. End to end, on
+  two groups sharing a 200-base AT element that differs at one base: with no second look the run *stops*
+  at "no candidate contig is present in all the inclusion genomes"; with one in the presence search only,
+  all 101 bases of the region are recorded as absent from every exclusion genome.
+
+  Both searches now ask `dustmasker` -- blast's own masker, which agreed with `blastn` on all nine shapes
+  -- which stretches of the query are masked, and search those again with `-dust no`. Only the stretches a
+  genome did not align *and* the masker took out, so this can only ever remove an absence, never create
+  one, and a second search of everything a genome lacks never happens. On the four published *Xylella*
+  targets it changes nothing at all, at no measurable cost
+  (`validation/results/2026-10-19_v1.9.3_masking/`).
+
+- **Two runs sharing an output folder overwrote each other in silence.** They count kmers into the same
+  `1_kmers/inclusion.kmc_suf`, assemble into the same contigs file and blast against the same database, so
+  each reads some of the other's work and the answer belongs to neither. A run now claims its folder with
+  an `flock` and a second one is refused, naming the pid and host that hold it; the kernel drops the claim
+  however the process ends, so a killed run leaves nothing to clear out by hand.
+
+- **Starting a run destroyed the previous run's log.** The results are moved aside one generation
+  (`*.previous`) and the log was not, although it is the only record of what produced them -- and the log
+  is opened for writing before the step that can still refuse the run. It is moved aside with the rest now.
+
+- **A forced Primer3 request was spent on a stretch that is merely absent.** A region's marked bases are
+  of two kinds, and 1.9.1 taught the assay reader to tell them apart but not the request builder. An
+  absent stretch is marked in full, so it is almost always the richest window a region holds -- a 300-base
+  block beats any pair of differences -- and it took all four forced requests, leaving the differences the
+  region was *kept* for unaimed at. It needs no pin: an oligo there discriminates by sitting on sequence
+  the exclusion genomes do not have, which the amplicon check decides wherever the oligos land.
+
+- **A full disk gave a silently shorter kmer set.** `kmc_tools transform dump` ignores write errors and
+  exits 0: dumping a 1,969-kmer database to `/dev/full`, where every write fails with ENOSPC, writes
+  nothing, prints its progress to 100% and reports success (kmc_tools 3.2.4). The run then reported fewer
+  inclusion-specific kmers, every one of them real, with nothing to say the rest were lost. The histogram
+  is now asked for in the same pass and before the dump, and the kmers written are counted against it; a
+  last line cut in half is caught by its length.
+
+- **`--dntp` at or above `--divalent` threw away the magnesium correction without a word.** The dNTPs
+  chelate the magnesium, so Primer3 corrects for the free magnesium, `divalent - dntp`, and at or past it
+  drops the correction. Measured on one 20-mer with primer3 2.6.1 at 50 mM monovalent and 1.5 mM divalent:
+  65.758 C at 0.6 mM dNTP, 62.565 at 1.4, and 59.718 at both 1.5 and 3.0 -- which is exactly the Tm of
+  `--divalent 0`. Six degrees, every hairpin and dimer temperature with it, and the oligo Primer3 chooses
+  changes too.
+
+- **`primer-finder idt` wrote whatever the sequence column held.** A note, an order code or a formula's
+  `#N/A` went into the fasta, and neither blast nor insilicoPCR refuses a record it cannot make sense of.
+  Sequences are checked against the IUPAC bases now, IDT's modification codes between slashes
+  (`/56-FAM/`, `/3IABkFQ/`) are left out as the bases they are not, and a sequence Excel wrapped over two
+  lines is joined. An amplicon size written `1.234` also read as 1 bp through `float()`: that is 1,234
+  bases written by an Excel whose decimal separator is the comma -- the locale this converter already
+  reads semicolon CSV for -- and three digits after the separator is what tells it from the decimal
+  `123.0`.
+
+- **`-a skesa` with `-m` below 3 GB could never work, and said so only at the assembly step.** SKESA exits
+  1 on `--mem 1` and `--mem 2` whatever the input -- it gives its kmer counting a third of what it is
+  given and wants a gigabyte of that -- while at `--mem 3` the same 1,949-kmer input reports "Memory
+  available (GB): 0.999959" and assembles. `-m` has its own floor of 2, so on a small machine or under a
+  tight control group the default assembler could never run, and what the run said was "nothing usable
+  came out of skesa", which reads as a judgement on the kmers. The warning is now at the start, where it
+  can still be answered, and names `-m` as the cause.
+
+- **A mistyped `--insilico-pcr` threw the design run away at its last step.** What it points at was first
+  resolved after Primer3 and both amplicon searches had finished. It is checked with the other programs
+  now, before any of the work.
+
+- **`usable_cpus()` read the affinity mask but not a CPU quota.** A scheduler may set either, and under a
+  quota of four CPUs' worth of time on a 64-CPU node `-t` was 64 -- sixteen times oversubscribed. Both
+  cgroup versions are read, by the same hierarchy walk the memory limit already used.
+
+### Added
+
+- **`find` says when a region is in the inclusion genomes in pieces rather than whole.** A region is
+  assembled from kmers, which is not the same as a stretch some genome has: at `-d 1` the kmers inside a
+  perfect tandem repeat occur once per copy and are dropped as repeated, the walk splices what is left
+  into flank + repeat + flank, and the region carries fewer copies of the repeat than the genome does.
+  Measured on three genomes with a 25-base unit six times over: a 150-base region that is in no genome on
+  either strand, reported as present in all three. The presence fraction cannot see it -- it merges
+  intervals of the region and asks nothing about where in a genome they came from, which is what makes it
+  the right number for a draft assembly that split a region between two of its contigs -- so each genome
+  is now also asked how much of the region it holds as **one stretch**, and a region no genome holds whole
+  is named in a warning and recorded in `run_info.json` as `held_in_pieces`. Nothing is dropped for it:
+  the region is specific, and it is the product size that cannot be trusted.
+
+- **`design` reports `inclusion_product_span`**: how long the stretch between the two primer sites is in
+  the inclusion genomes, measured there rather than taken from the region. It is `product_size` wherever
+  the genomes hold the amplicon as the region spells it, and it is not where they hold an indel between
+  the primers -- which `has_the_amplicon` counts as held on purpose, that being a claim about sequence
+  rather than about a reaction. On 228 assays designed on ten real *Xylella* regions, 219 measure what
+  Primer3 priced and 9 do not: two multi-copy targets whose copies differ in length by 12 bases and by 3
+  to 4. The run says so once, naming the worst assay.
+
+- `dustmasker` joins `blastn` and `makeblastdb` as a required program. It ships with them, in the same
+  `blast` package, so nothing new has to be installed.
+
+### Documentation
+
+- **Three validation records carry an erratum.** `2026-10-08_v1.2.0`, `_v1.3.0` and `_v1.4.0` quote in
+  silico verdict counts taken with the counting 1.9.2 corrected, so each names the numbers that would not
+  be reproduced and points at the change. Records here are never rewritten and none of the numbers is
+  corrected in place: a phantom pairing in an exclusion genome costs an assay its `yes` while one in an
+  inclusion genome can carry an assay that should have been refused, so only a rerun would say.
+
+- **The 1.8.0 entry on KMC's counters below is wrong about `-ci`, and is corrected beside it rather than
+  rewritten.** Measured a third time on one kmer repeated 300 times and another 301, kmc 3.2.4: `-ci250`
+  and `-ci255` keep both and report 255, `-ci256` and `-ci300` keep neither, `-cx300` keeps the 300 and
+  drops the 301, `-cx255` drops both, and with `-cs300` the same `-ci300` keeps both and reports 300. So
+  `-ci` is applied to the saturated count and `-cx` to the true one, and `-cs` is exactly what makes a
+  threshold above 255 able to match. No behaviour was ever wrong. `docs/wiki/Methods.md` said the same
+  thing of both options and now says this.
+
+### Internal
+
+- 642 tests, up from 612. Two of the new ones run against the real programs: the masking one because no
+  stand-in can mask, and the tandem repeat one because the shape needs the whole pipeline to arise.
+- `chains_of` moved from `design.py` to `blast.py`, where both the amplicon check and the new presence
+  measure can ask it.
+- The stub programs model blast's masking, answer a sub-range query consistently, write a kmer histogram
+  and can cut a dump short the way a full disk does. The fixtures pass `-m 4`: SKESA refuses less, and a
+  parameter combination the real program rejects is not what the suite should exercise.
+
 ## 1.9.2
 
 A twelve-part review of the whole package, one reviewer per area, found about thirty-five defects. Six of

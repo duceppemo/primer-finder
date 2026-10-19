@@ -94,7 +94,7 @@ than the threshold.
 A run prints what it is doing and ends with the number of candidate regions:
 
 ```
-10:21:33 [INFO] primer-finder 1.9.2
+10:21:33 [INFO] primer-finder 1.9.3
 10:21:33 [INFO] 12 inclusion genome(s), 40 exclusion genome(s)
 10:21:33 [INFO] Counting the 99-mers shared by the 12 inclusion genomes...
 10:22:04 [INFO] Counting the 99-mers of the 40 exclusion genomes...
