@@ -1228,25 +1228,49 @@ def threshold_of(settings: DesignSettings) -> float:
 
 
 def genome_folders(settings: DesignSettings) -> tuple[Path, Path]:
-    """The two input folders: the ones given, or the ones the run recorded in run_info.json."""
-    inclusion, exclusion = settings.inclusion, settings.exclusion
-    if inclusion is None or exclusion is None:
-        info_file = settings.results / "run_info.json"
-        if not info_file.is_file():
+    """The two input folders: the ones given, or the ones the run recorded in run_info.json.
+
+    A recorded path is resolved against the run folder's parent when it is relative. Runs before 1.9.2
+    recorded `-i`/`-e` as typed, so `design` run from anywhere else resolved them against its own working
+    directory: it either stopped, or -- where a folder of that name happened to exist beside it -- used
+    the wrong genomes and said nothing, which moves every count in `assays.tsv`.
+
+    Giving `-i`/`-e` overrides the record, which is what they are for, but a mismatch is said out loud:
+    the verdicts and the copy counts are then about the genomes given, not the ones the regions came from.
+    """
+    recorded: dict[str, object] = {}
+    info_file = settings.results / "run_info.json"
+    if info_file.is_file():
+        recorded = json.loads(info_file.read_text()).get("parameters", {}) or {}
+    elif settings.inclusion is None or settings.exclusion is None:
+        raise PrimerFinderError(
+            f"{info_file} is missing, so the genome folders are not known. Give them with -i and -e."
+        )
+    folders: list[Path] = []
+    for group, given, flag in (("inclusion", settings.inclusion, "-i"),
+                               ("exclusion", settings.exclusion, "-e")):
+        written = str(recorded.get(group) or "").strip()
+        # An empty or absent field is "not recorded". `Path("")` is `Path(".")`, which is a directory, so
+        # it used to pass every check and make the working directory stand in for both groups.
+        kept = Path(written) if written else None
+        if kept is not None and not kept.is_absolute():
+            kept = (settings.results.parent / kept).resolve()
+        folder = given or kept
+        if folder is None:
             raise PrimerFinderError(
-                f"{info_file} is missing, so the genome folders are not known. Give them with -i and -e."
+                f"The {group} folder is not recorded in {info_file}, so it is not known. Give it with "
+                f"{flag}."
             )
-        info = json.loads(info_file.read_text())
-        recorded = info.get("parameters", {})
-        inclusion = inclusion or Path(recorded.get("inclusion", ""))
-        exclusion = exclusion or Path(recorded.get("exclusion", ""))
-    for group, folder in (("inclusion", inclusion), ("exclusion", exclusion)):
-        if not folder or not Path(folder).is_dir():
+        if not folder.is_dir():
             raise PrimerFinderError(
-                f"The {group} folder of that run is gone ({folder}). Give it with "
-                f"{'-i' if group == 'inclusion' else '-e'}."
+                f"The {group} folder of that run is gone ({folder}). Give it with {flag}."
             )
-    return Path(inclusion), Path(exclusion)
+        if given is not None and kept is not None and given.resolve() != kept:
+            log.warning("The %s folder given with %s (%s) is not the one the run recorded (%s). Every "
+                        "copy count and in silico verdict below is about the genomes given, not the ones "
+                        "the regions were found in.", group, flag, folder, kept)
+        folders.append(folder)
+    return folders[0], folders[1]
 
 
 def warn_if_last_resort(regions: Sequence[seqio.Record]) -> int:
@@ -1356,6 +1380,18 @@ def run(settings: DesignSettings) -> int:
     log.info("Counting the copies of each amplicon in the %d inclusion genomes...", len(inclusion_genomes))
     count_inclusion_copies(assays, inclusion_genomes, settings.output / "amplicons" / "inclusion",
                            settings.threads)
+    nowhere = [assay for assay in assays
+               if assay.inclusion_copies is not None and max(assay.inclusion_copies, default=0) == 0]
+    if nowhere:
+        # Not refused: under `-p` below 1 a region is in only that fraction of the group, so a low
+        # minimum is ordinary. A maximum of zero is not -- the amplicon is in none of them, and the assay
+        # would amplify nothing. It is what `design` pointed at genomes other than the run's own looks
+        # like, and until it was said the user saw only "17 assay(s) could tell the groups apart".
+        log.warning("%d assay(s) have an amplicon that no inclusion genome holds, so they would amplify "
+                    "nothing: inclusion_copies_max is 0 for %s. Check that -i is the inclusion group the "
+                    "regions were found in.", len(nowhere),
+                    ", ".join(assay.name for assay in nowhere[:3])
+                    + (f" and {len(nowhere) - 3} more" if len(nowhere) > 3 else ""))
     repeated = sum(1 for assay in assays if assay.min_inclusion_copies > 1)
     if repeated:
         log.info("%d assay(s) amplify a target present more than once in every inclusion genome, which "

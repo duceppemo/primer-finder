@@ -120,9 +120,14 @@ def _run(settings: Settings, inclusion: list[Path], exclusion: list[Path], refer
         "version": __version__,
         "command_line": settings.command_line,
         "parameters": {
-            "inclusion": str(settings.inclusion),
-            "exclusion": str(settings.exclusion),
-            "output": str(settings.output),
+            # Absolute, because `design` reads these back and resolves them against *its own* working
+            # directory. Recorded as typed, a run started with `-i inclusion -e exclusion` left `design`
+            # either stopping ("the inclusion folder of that run is gone") or, where a folder of that
+            # name happened to exist beside it, designing against the wrong genomes with no warning at
+            # all -- checking amplicons and running in silico PCR on a panel the run never saw.
+            "inclusion": str(settings.inclusion.resolve()),
+            "exclusion": str(settings.exclusion.resolve()),
+            "output": str(settings.output.resolve()),
             "kmer_size": settings.kmer_size,
             "duplication": settings.duplication,
             "min_inclusion": settings.min_inclusion,
@@ -132,9 +137,9 @@ def _run(settings: Settings, inclusion: list[Path], exclusion: list[Path], refer
             "threads": settings.threads,
             "memory_gb": settings.memory_gb,
         },
-        "inclusion_genomes": [str(path) for path in inclusion],
-        "exclusion_genomes": [str(path) for path in exclusion],
-        "reference": str(reference),
+        "inclusion_genomes": [str(path.resolve()) for path in inclusion],
+        "exclusion_genomes": [str(path.resolve()) for path in exclusion],
+        "reference": str(reference.resolve()),
         "programs": tools.versions(sorted({*BASE_PROGRAMS, *assemble.programs_for(settings.assembler)})),
         "counts": {},
     }

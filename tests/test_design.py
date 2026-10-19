@@ -1209,6 +1209,54 @@ def test_a_run_whose_genomes_have_moved(finished_run, tmp_path):
         genome_folders(design_settings(finished_run, tmp_path / "out"))
 
 
+def test_a_relative_folder_in_the_record_is_resolved_against_the_run(finished_run, tmp_path,
+                                                                    monkeypatch):
+    """Runs before 1.9.2 recorded -i/-e as typed. `design` resolved them against its own working
+    directory, so from anywhere else it either stopped or -- where a folder of that name happened to sit
+    beside it -- designed against the wrong genomes and said nothing."""
+    beside = finished_run.parent
+    (beside / "inc").mkdir(exist_ok=True)
+    (beside / "exc").mkdir(exist_ok=True)
+    (finished_run / "run_info.json").write_text(json.dumps(
+        {"parameters": {"inclusion": "inc", "exclusion": "exc", "min_inclusion": 1.0}}))
+    elsewhere = tmp_path / "elsewhere"
+    (elsewhere / "inc").mkdir(parents=True)        # a decoy of the same name, where design is run from
+    (elsewhere / "exc").mkdir()
+    monkeypatch.chdir(elsewhere)
+    inclusion, exclusion = genome_folders(design_settings(finished_run, tmp_path / "out"))
+    assert inclusion == (beside / "inc").resolve()
+    assert exclusion == (beside / "exc").resolve()
+
+
+def test_an_empty_folder_field_is_not_the_working_directory(finished_run, tmp_path):
+    """`Path("")` is `Path(".")`, which is a directory, so an empty field used to pass every check and
+    make the working directory stand in for both groups."""
+    (finished_run / "run_info.json").write_text(json.dumps(
+        {"parameters": {"inclusion": "", "exclusion": "", "min_inclusion": 1.0}}))
+    with pytest.raises(PrimerFinderError, match="not recorded in"):
+        genome_folders(design_settings(finished_run, tmp_path / "out"))
+
+
+def test_a_group_given_that_is_not_the_one_recorded_is_said_out_loud(finished_run, tmp_path, genomes,
+                                                                    caplog):
+    """-i and -e override the record, which is what they are for. The copy counts and the in silico
+    verdicts are then about the genomes given, not the ones the regions came from, and nothing said so:
+    17 assays were reported as telling the groups apart, 11 of them with an amplicon in none of the
+    genomes at all."""
+    _, exclusion = genomes
+    other = tmp_path / "other_inclusion"
+    other.mkdir()
+    (other / "g1.fasta").write_text(">chr\nACGT\n")
+    settings = design_settings(finished_run, tmp_path / "out")
+    settings.inclusion, settings.exclusion = other, exclusion
+    with caplog.at_level("WARNING"):
+        inclusion_used, _ = genome_folders(settings)
+    assert inclusion_used == other                       # the folder given is the one used
+    assert "inclusion folder given with -i" in caplog.text
+    assert "is not the one the run recorded" in caplog.text
+    assert "exclusion" not in caplog.text.split("inclusion folder given")[0]  # the matching one is quiet
+
+
 def test_a_run_without_run_info(finished_run, tmp_path):
     (finished_run / "run_info.json").unlink()
     with pytest.raises(PrimerFinderError, match="Give them with -i and -e"):
