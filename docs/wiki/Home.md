@@ -3,6 +3,12 @@
 primer-finder finds the sequences that tell one group of assembled genomes from another, so that a selective
 (q)PCR assay can be designed on them.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/duceppemo/primer-finder/main/docs/images/primer-finder-workflow.svg"
+       alt="The workflow. primer-finder -i inclusion/ -e exclusion/ -o results/ counts the kmers of each group with KMC and subtracts the exclusion ones, assembles what is left with SKESA, SPAdes or a unitig walk, keeps with minimap2 the contigs whose differences are close enough to sit under one primer, and confirms with blast that each candidate is in every inclusion genome and in none of the exclusion ones, giving final_kmers.fasta. primer-finder design results/ -o assays/ then puts Primer3 primers and a probe on those differences, checks with blast what makes each assay selective, optionally amplifies them in silico against both groups, and writes assays.tsv."
+       width="900">
+</p>
+
 Give it two folders of genomes — the ones the assay should amplify (**inclusion**) and the ones it must not
 (**exclusion**) — and it:
 
