@@ -1,4 +1,7 @@
-# primer-finder
+<p align="center">
+  <img src="https://raw.githubusercontent.com/duceppemo/primer-finder/main/docs/images/primer-finder-logo.svg"
+       alt="primer-finder — group-specific kmers for selective (q)PCR assays" width="680">
+</p>
 
 primer-finder finds the sequences that tell one group of assembled genomes from another, so that a selective
 (q)PCR assay can be designed on them.
