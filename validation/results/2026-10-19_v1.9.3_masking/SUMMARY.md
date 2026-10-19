@@ -121,6 +121,17 @@ assembly that broke a region between two of its own contigs. So two things are n
 good, and the product size is what cannot be trusted. That was the decision asked for and taken on
 2026-10-19: measure and report, change no verdict.
 
+### What the measured span finds on real data
+
+`primer-finder design` on the first 10 *multiplex* regions of the panel above, 228 assays: **219 measure
+the same product in the inclusion genomes as Primer3 priced, and 9 do not.** All nine sit on two regions,
+and both are multi-copy targets whose copies are not the same length — five assays on `Contig_2991` are
+priced at 87 to 145 bases and measured 12 bases longer in some of the two copies every genome has, and
+four on `Contig_953` are priced at 84 to 86 and measured 3 to 4 bases shorter in some of its four. No
+region of this panel is held in pieces, so nothing here is a splice: it is the ordinary case the column
+also covers, an indel between the primers, which `has_the_amplicon` counts as held on purpose and which
+nothing said out loud before.
+
 ## What this does and does not show
 
 - It shows what blast's masking hides, exactly, and that blast's own masker is the only thing that
