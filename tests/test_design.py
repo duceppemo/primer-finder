@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import random
+import shutil
 from itertools import permutations
 from pathlib import Path
 
@@ -14,6 +16,7 @@ from primer_finder.design import (
     DEFAULT_MIN_PRIMER_DIFFERENCES,
     DEFAULT_MISMATCHES,
     DEFAULT_PRODUCT_SIZE,
+    MAX_PRODUCT_GAP,
     MIN_AMPLICON_IDENTITY,
     STRONG_BASE_WEIGHT,
     WEAK_BASE_WEIGHT,
@@ -28,6 +31,7 @@ from primer_finder.design import (
     chains_of,
     check_against_exclusion,
     check_product_size,
+    could_amplify,
     count_inclusion_copies,
     design,
     difference_targets,
@@ -43,7 +47,7 @@ from primer_finder.design import (
     with_flanks,
     write_assays,
 )
-from primer_finder.seqio import Record, reverse_complement
+from primer_finder.seqio import Record, reverse_complement, write_fasta
 
 
 def oligo(start=100, length=20, variants=(), reverse=False) -> Oligo:
@@ -776,6 +780,60 @@ IRREGULAR = ("GTCAATGGCCTTAGACGTTCAGGATCCGTAACGGTTAACCGATAGCTTGCA"
              "TCCGGATTACGGCAATTGCCAAGTCTTGGAACCTGTAGCATGA")
 
 
+def test_both_primer_sites_in_one_place_could_amplify():
+    """What the second look asks: not "is the amplicon here" but "would these primers make a product
+    here". The amplicon begins with the forward primer's site and ends with the reverse primer's, so a
+    genome holding both in one subject, one strand, in order and close enough makes a product -- of
+    whatever size the sequence between them gives."""
+    def site(qstart, qend, sstart, send, identity=100.0):
+        return Hit(query="a", qstart=qstart, qend=qend, evalue=1e-5, length=qend - qstart + 1,
+                   identity=identity, identical=qend - qstart + 1, subject="chr", sstart=sstart,
+                   send=send)
+
+    head, tail = site(1, 20, 100, 119), site(71, 90, 160, 179)
+    assert could_amplify([head, tail], 90, 20, 20)
+    # the same locus on the other strand: both sites reversed, and in the reversed order
+    assert could_amplify([site(1, 20, 179, 160),
+                          site(71, 90, 119, 100)], 90, 20, 20)
+    assert not could_amplify([head], 90, 20, 20)                      # one site only
+    assert not could_amplify([head, site(71, 90, 160, 179, identity=70.0)], 90, 20, 20)  # the other matches poorly
+    assert not could_amplify([head, site(71, 90, 179, 160)], 90, 20, 20)  # strands
+    assert not could_amplify([head, site(71, 90, 1, 20)], 90, 20, 20)     # order
+    far = site(71, 90, 100 + MAX_PRODUCT_GAP + 50, 119 + MAX_PRODUCT_GAP + 50)
+    assert not could_amplify([head, far], 90, 20, 20)                 # too far apart to be a product
+    assert not could_amplify([], 90, 20, 20)
+
+
+@pytest.mark.tools
+@pytest.mark.skipif(not all(shutil.which(program) for program in ("blastn", "makeblastdb")),
+                    reason="needs blastn and makeblastdb on PATH")
+def test_a_genome_holding_both_primer_sites_with_an_indel_between_them_is_not_absent(tmp_path):
+    """The real program, which is the only thing that shows this. blast's e-value floor is 32 to 34 bases
+    whatever the query length, so a 90-base amplicon with a 30-base deletion between the primers returns
+    **no hits at all** -- its two pieces are 32 and 28 bases -- and the genome read as having nothing to
+    amplify, the strongest claim this tool makes, while it holds both primer sites and would make a
+    shorter product. Measured against a 3.3 Mb genome; without the second look the middle genome here
+    gives 0."""
+    rng = random.Random(17)
+    backbone = "".join(rng.choice("ACGT") for _ in range(3_300_000))
+    amplicon = "".join(rng.choice("ACGT") for _ in range(90))
+    at = 1_000_000
+
+    def genome(name: str, sequence: str) -> Path:
+        path = tmp_path / name
+        write_fasta(path, [Record("chr", "", sequence)])
+        return path
+
+    whole = genome("whole.fasta", backbone[:at] + amplicon + backbone[at:])
+    gapped = genome("gapped.fasta", backbone[:at] + amplicon[:30] + amplicon[60:] + backbone[at:])
+    neither = genome("neither.fasta", backbone)
+    one = assay(amplicon=amplicon, product_size=90,
+                forward=oligo(start=0, length=20), reverse=oligo(start=70, length=20, reverse=True))
+    one.forward.sequence, one.reverse.sequence = amplicon[:20], amplicon[-20:]
+    counts, _ = amplicon_copies([one], [whole, gapped, neither], tmp_path / "work", threads=3)
+    assert counts[one.name] == [1, 1, 0]
+
+
 def test_a_hit_too_weak_to_trust_is_not_a_copy(stubs, tmp_path, fasta):
     """blast is given an e-value cut-off and the rows it returns are checked against it again when they
     are read. Nothing pinned that for the amplicon search: every stub row carried 1e-30, so dropping the
@@ -786,8 +844,11 @@ def test_a_hit_too_weak_to_trust_is_not_a_copy(stubs, tmp_path, fasta):
     stubs(amplicon_hits={"g1": 1}, amplicon_evalue="1e-30")
     counts, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=1)
     assert counts[one.name] == [1]
+    # Above the cut-off, and covering only the middle of the amplicon: neither primer site is there, so
+    # the second look at a weaker e-value -- which exists for pieces too short for the floor, not for weak
+    # matches -- finds no pair that could amplify.
     other = assay(amplicon=amplicon, forward=oligo(start=0, length=20))
-    stubs(amplicon_hits={"g1": 1}, amplicon_evalue="1e-3")   # above the cut-off
+    stubs(amplicon_hits={"g1": 1}, amplicon_evalue="1e-3", amplicon_qstart=25, amplicon_covers=0.4)
     counts, _ = amplicon_copies([other], genomes, tmp_path / "work", threads=1)
     assert counts[other.name] == [0]
 

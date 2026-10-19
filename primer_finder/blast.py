@@ -148,8 +148,17 @@ def make_db(genome: Path, work_dir: Path) -> Path:
 SEARCH_TASK = "blastn"
 
 
-def blastn(db: Path, query: Path, out_file: Path, fields: Sequence[str], max_targets: int = 10) -> Path:
-    """Run blastn in the database's folder, writing the chosen tabular fields to `out_file`."""
+def blastn(db: Path, query: Path, out_file: Path, fields: Sequence[str], max_targets: int = 10,
+           evalue: float = MAX_EVALUE) -> Path:
+    """Run blastn in the database's folder, writing the chosen tabular fields to `out_file`.
+
+    `evalue` is a parameter because one cut-off cannot serve both questions asked here. Measured against
+    a 3.3 Mb genome, the shortest exact island this reports at 1e-10 is 32 to 34 bases **whatever the
+    query length** (32 at 70 and 90 bases, 33 at 200, 34 at 2,000 and 6,000). For "is this contig
+    present", with queries of hundreds to thousands of bases, that is right. For "does this genome hold
+    this amplicon", with a 70-150 base query, the pieces that decide the answer are primer-sized: an
+    exact 20-mer in a 90-base query is at 1e-4, which this floor can never see.
+    """
     work_dir = db.parent
     tools.run([
         "blastn",
@@ -157,7 +166,7 @@ def blastn(db: Path, query: Path, out_file: Path, fields: Sequence[str], max_tar
         "-db", db.name,
         "-query", os.path.relpath(query, work_dir),
         "-out", os.path.relpath(out_file, work_dir),
-        "-evalue", str(MAX_EVALUE),
+        "-evalue", str(evalue),
         "-max_target_seqs", str(max_targets),
         # One CPU per search, with as many searches at once as `-t` allows, rather than the other way
         # round. `-num_threads` splits the *query*, and each search here is one small genome, so there is

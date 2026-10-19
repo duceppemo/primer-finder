@@ -91,6 +91,53 @@ MAX_PRODUCT_GAP = 2000
 MAX_PIECE_OVERLAP = 30
 # Blast hits to ask for per amplicon and genome, enough to count the copies of a repeated target.
 MAX_COPIES = 100
+# A second look for the genomes that appear to hold nothing, at an e-value blast's own floor hides.
+#
+# `blast.MAX_EVALUE` of 1e-10 is a floor of 32 to 34 bases whatever the query length, so for a 70-150
+# base amplicon the pieces that decide the answer are invisible: an exact 20-mer in a 90-base query is at
+# 1e-4. Measured with real blastn against a 3.3 Mb genome, a 90-base amplicon with a 30-base deletion
+# between the primers returns **no hits at all** -- its two pieces, 32 and 28 bases, are both under the
+# floor -- so the genome read as having nothing to amplify when it holds both primer sites and would make
+# a shorter product. That is an unearned `absence`, the claim that ranks above every difference-based
+# assay and is exempt from the differences filter.
+#
+# So a genome with no copy is looked at again at this e-value, and only ever to *remove* an absence: the
+# first pass is untouched and nothing here can turn a copy into an absence.
+RESCUE_EVALUE = 1.0
+# How much of a primer's site at either end of the amplicon has to be there for the two to be a pair that
+# would amplify. Two bases, because blast trims at most that much off an alignment's end.
+PRIMER_SITE_SLACK = 2
+
+
+def could_amplify(hits: Sequence[blast.Hit], size: int, head: int, tail: int) -> bool:
+    """Whether these hits put both primer sites of the amplicon in one place, the right way round.
+
+    The amplicon begins with the forward primer's site and ends with the reverse primer's, so a genome
+    holding both -- in one subject, in the same orientation, in order, and close enough to be a product --
+    makes a product with these primers, whatever sits between them. It may not be the designed size: an
+    indel between the sites gives a shorter or longer one, which is still an amplification and still means
+    the genome is not clean.
+    """
+    for subject in {hit.subject for hit in hits}:
+        here = [hit for hit in hits if hit.subject == subject]
+        # A site that matches poorly is not a primer site: the rescue is for pieces too *short* for the
+        # e-value floor, not for weak ones.
+        good = [hit for hit in here if hit.identity >= MIN_AMPLICON_IDENTITY]
+        heads = [hit for hit in good if hit.qstart <= 1 + PRIMER_SITE_SLACK
+                 and hit.qend >= head - PRIMER_SITE_SLACK]
+        tails = [hit for hit in good if hit.qend >= size - PRIMER_SITE_SLACK
+                 and hit.qstart <= size - tail + PRIMER_SITE_SLACK]
+        for one in heads:
+            low_one, high_one, forward_one = _subject_bounds(one)
+            for other in tails:
+                low_other, high_other, forward_other = _subject_bounds(other)
+                if forward_one != forward_other:
+                    continue  # the two sites are not on one strand, so they are not one locus
+                first, second = ((low_one, high_other) if forward_one
+                                 else (low_other, high_one))
+                if 0 <= second - first <= MAX_PRODUCT_GAP:
+                    return True
+    return False
 
 BOULDER_LINE = re.compile(r"^([A-Z0-9_]+)=(.*)$")
 
@@ -1014,6 +1061,24 @@ def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: 
                             {position + offset: base
                              for position, base in blast.variant_bases(piece).items()}
                         )
+        # The genomes that appear to hold nothing get a second look, because blast's floor cannot see a
+        # primer-sized piece of a short query (see RESCUE_EVALUE). Only the assays with no copy are asked
+        # about, and the answer can only ever add one.
+        absent = [assay for assay in assays if not found.get(assay.name)]
+        if absent:
+            again = folder / "rescue.fasta"
+            seqio.write_fasta(again, [seqio.Record(assay.name, "", assay.amplicon) for assay in absent])
+            weak = blast.parse_hits(blast.blastn(db, again, folder / "rescue_hits.tsv", fields,
+                                                 max_targets=MAX_COPIES, evalue=RESCUE_EVALUE), fields)
+            by_assay: dict[str, list[blast.Hit]] = {}
+            for hit in weak:
+                if hit.evalue <= RESCUE_EVALUE:
+                    by_assay.setdefault(hit.query, []).append(hit)
+            for assay in absent:
+                pieces = by_assay.get(assay.name, [])
+                if could_amplify(pieces, sizes[assay.name], len(assay.forward.sequence),
+                                 len(assay.reverse.sequence)):
+                    found[assay.name] = 1
         return found, seen
 
     votes: dict[str, dict[int, Counter]] = {assay.name: {} for assay in assays}
