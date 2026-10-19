@@ -769,6 +769,59 @@ def test_a_flank_blast_would_not_pay_to_align_is_still_counted():
     assert has_the_amplicon(whole, 72)
 
 
+# 96 bases with no short period, so a window of the genome cannot match a flank of it by chance -- the
+# `"ACGT" * n` amplicons elsewhere in this file match their own reverse complement and every shift of
+# themselves, which is what kept this case out of reach.
+IRREGULAR = ("GTCAATGGCCTTAGACGTTCAGGATCCGTAACGGTTAACCGATAGCTTGCA"
+             "TCCGGATTACGGCAATTGCCAAGTCTTGGAACCTGTAGCATGA")
+
+
+def test_a_hit_too_weak_to_trust_is_not_a_copy(stubs, tmp_path, fasta):
+    """blast is given an e-value cut-off and the rows it returns are checked against it again when they
+    are read. Nothing pinned that for the amplicon search: every stub row carried 1e-30, so dropping the
+    check changed nothing."""
+    amplicon = IRREGULAR[:96]
+    genomes = [fasta("g1.fasta", {"chr": amplicon})]
+    one = assay(amplicon=amplicon, forward=oligo(start=0, length=20))
+    stubs(amplicon_hits={"g1": 1}, amplicon_evalue="1e-30")
+    counts, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=1)
+    assert counts[one.name] == [1]
+    other = assay(amplicon=amplicon, forward=oligo(start=0, length=20))
+    stubs(amplicon_hits={"g1": 1}, amplicon_evalue="1e-3")   # above the cut-off
+    counts, _ = amplicon_copies([other], genomes, tmp_path / "work", threads=1)
+    assert counts[other.name] == [0]
+
+
+def test_a_genome_holding_only_part_of_an_amplicon_does_not_hold_it(stubs, tmp_path, fasta):
+    """The other half of the coverage rule, and nothing reached it: every scenario the suite had ended up
+    *held*, so no genome was ever judged not to hold an amplicon through blast's own output -- the
+    `absence` verdict, which ranks above every difference-based assay and is exempt from the differences
+    filter, was wired to blast by nothing.
+
+    Here blast reaches half of the amplicon and the genome does not hold the rest: the chain is under the
+    coverage rule and the flank fold-in cannot make it up, so the genome holds no copy."""
+    amplicon = IRREGULAR[:96]
+    stubs(amplicon_hits={"g1": 1}, amplicon_covers=0.5)
+    # The first half exactly, then sequence unrelated to the half blast did not reach
+    genomes = [fasta("g1.fasta", {"chr": amplicon[:48] + "TTTTTTTTTTGGGGGGGGGGCCCCCCCCCCAAAAAAAAAA"})]
+    one = assay(amplicon=amplicon, forward=oligo(start=0, length=20))
+    counts, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=1)
+    assert counts[one.name] == [0], "half an amplicon, with the rest absent, is not a copy"
+
+
+def test_an_assay_is_specific_by_absence_only_when_blast_says_the_amplicon_is_not_there(stubs, tmp_path,
+                                                                                       fasta):
+    """And the same through the verdict the user reads. The exclusion genome holds half the amplicon, so
+    the assay is specific by absence; the inclusion genome holds all of it, so it is a copy there."""
+    amplicon = IRREGULAR[:96]
+    stubs(amplicon_hits={"inc1": 1, "exc1": 1}, amplicon_covers=0.5)
+    exclusion = [fasta("exc1.fasta", {"chr": amplicon[:48] + "TTTTTTTTTTGGGGGGGGGGCCCCCCCCCCAAAAAAAAAA"})]
+    one = assay(amplicon=amplicon, forward=oligo(start=0, length=20))
+    check_against_exclusion([one], exclusion, tmp_path / "work", threads=1)
+    assert one.exclusion_genomes_with_amplicon == 0
+    assert one.specific_by_absence
+
+
 def test_a_genome_holding_a_flank_blast_left_out_is_counted(stubs, tmp_path, fasta):
     """Through `amplicon_copies` and the genome beside the blast database, not just the two functions on
     their own: a hit covering 85% of the amplicon is under the coverage rule, and the genome holds the

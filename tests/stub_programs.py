@@ -23,6 +23,7 @@ For the amplicon searches of the design step, where blastn is asked for one quer
     amplicon_covers  the fraction of the amplicon the alignment reaches (all of it by default)
     amplicon_insertion  {position: size} bases of the amplicon the genome has nothing for
     amplicon_split   [where to break, how much genome between] report each copy as two pieces
+    amplicon_evalue  the evalue every amplicon row carries (default 1e-30)
 
 And for Primer3:
 
@@ -70,7 +71,7 @@ KNOWN_KEYS = frozenset({
     "exclusion_hits",
     "fail", "kill", "exit_code",
     "amplicon_hits", "amplicon_mismatch", "amplicon_qstart", "amplicon_covers", "amplicon_insertion",
-    "amplicon_split",
+    "amplicon_split", "amplicon_evalue",
     "primer3_pairs", "primer3_probe", "primer3_structures", "primer3_error", "primer3_sleep",
     # `stub_insilico_pcr.py` reads the same variable, so its keys are known here too
     "insilico_fail", "insilico_misses", "insilico_extra", "insilico_terminal", "insilico_counted",
@@ -302,7 +303,8 @@ def blastn(argv: list[str]) -> int:
                                          if one != "-" and one.upper() == other.upper())
                     row = {
                         "qseqid": query, "qstart": str(qstart + begin),
-                        "qend": str(qstart + end - 1), "evalue": "1e-30",
+                        "qend": str(qstart + end - 1),
+                        "evalue": str(value("amplicon_evalue", "1e-30")),
                         "length": str(len(piece)),
                         "pident": f"{100.0 * identical_here / len(piece):.3f}",
                         "nident": str(identical_here),
