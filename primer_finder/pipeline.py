@@ -137,9 +137,12 @@ def _run(settings: Settings, inclusion: list[Path], exclusion: list[Path], refer
             "threads": settings.threads,
             "memory_gb": settings.memory_gb,
         },
-        "inclusion_genomes": [str(path.resolve()) for path in inclusion],
-        "exclusion_genomes": [str(path.resolve()) for path in exclusion],
-        "reference": str(reference.resolve()),
+        # Absolute, but not resolved: a panel of links into a shared assembly store would otherwise be
+        # recorded under the store's names, where the log, the presence table's columns and KMC's own file
+        # list all show the panel's. Only the folders above need resolving, for `design` to find them.
+        "inclusion_genomes": [str(path.absolute()) for path in inclusion],
+        "exclusion_genomes": [str(path.absolute()) for path in exclusion],
+        "reference": str(reference.absolute()),
         "programs": tools.versions(sorted({*BASE_PROGRAMS, *assemble.programs_for(settings.assembler)})),
         "counts": {},
     }
@@ -472,7 +475,7 @@ ABSENCE_WANTS_GENOMES = 25
 MOSTLY_PRESENT = 0.9
 
 
-def warn_about_absence(regions: int, genomes: int) -> None:
+def warn_about_absence(regions: int, beside_differences: int, genomes: int) -> None:
     """Say what a region resting on an absent stretch is worth, given how many genomes said so.
 
     The differences rule needs 90% of the genomes covering a position to agree, so no single genome can
@@ -480,15 +483,21 @@ def warn_about_absence(regions: int, genomes: int) -> None:
     one alignment gap of 6,888 bases becomes an absence. It is a true statement about the genomes given
     and it generalises only as far as they do, which is worth saying when they are few.
     """
-    if genomes >= ABSENCE_WANTS_GENOMES:
+    if genomes >= ABSENCE_WANTS_GENOMES or not (regions or beside_differences):
         return
+    # Both counts are said. A region whose own differences meet the rule does not *rest* on its absent
+    # stretch -- but `design` aims its oligos at the marked bases, and an absent block is marked in full,
+    # so it is usually the richest target and the assays designed there rest on it even though the region
+    # did not. Naming only the first kind made the warning disappear for a region with two differences
+    # beside a 400-base absent block, on which every assay then came out specific by absence.
     log.warning(
-        "%d region(s) are specific because a stretch of them is missing from all %d exclusion genome(s). "
-        "That is a statement about those %d genomes: with a group this small such a stretch is often "
-        "present elsewhere in the species -- measured on one Listeria complex, 95%% of the stretches "
+        "%d region(s) are specific because a stretch of them is missing from all %d exclusion genome(s), "
+        "and %d more hold such a stretch beside differences of their own, which `design` will aim at "
+        "first. That is a statement about those %d genomes: with a group this small such a stretch is "
+        "often present elsewhere in the species -- measured on one Listeria complex, 95%% of the stretches "
         "reported absent against 3 genomes were held by others of its 716. Widen the exclusion group, or "
         "check these regions against more genomes before trusting the specificity.",
-        regions, genomes, genomes)
+        regions, genomes, beside_differences, genomes)
 
 
 def runs_of(positions: Sequence[int]) -> list[list[int]]:
@@ -587,6 +596,7 @@ def keep_absent_from_exclusion(
 
     records: list[seqio.Record] = []
     resting_on_absence: list[str] = []
+    absence_beside_differences: list[str] = []
     absent_by_region: dict[str, list[list[int]]] = {}
     for name, record in candidates.items():
         result = results.get(name, blast.ExclusionResult())
@@ -612,8 +622,11 @@ def keep_absent_from_exclusion(
             absent_by_region[name] = runs_of(absent)
             # "Resting on" means the absence is what carries it. A region whose differences alone meet the
             # rule does not rest on anything, and counting it made the warning name the wrong regions as
-            # the fragile ones.
-            if not blast.enough_variants(differences, min_differences):
+            # the fragile ones -- but it is still worth counting separately, since the assays designed on
+            # it will aim at the absent block.
+            if blast.enough_variants(differences, min_differences):
+                absence_beside_differences.append(name)
+            else:
                 resting_on_absence.append(name)
         positions = sorted(set(differences) | set(absent))
         if blast.enough_variants(positions, min_differences):
@@ -625,8 +638,8 @@ def keep_absent_from_exclusion(
     # base that *differs* from one that is *missing* -- and counted them alike, so an assay inside an
     # absent block came out with twenty "mismatches" under a primer carrying none.
     absent_kept = {name: runs for name, runs in absent_by_region.items() if name in kept}
-    if any(name in kept for name in resting_on_absence):
-        warn_about_absence(sum(1 for name in resting_on_absence if name in kept), len(exclusion))
+    warn_about_absence(sum(1 for name in resting_on_absence if name in kept),
+                       sum(1 for name in absence_beside_differences if name in kept), len(exclusion))
     final = settings.output / FINAL_NAME
     count = seqio.write_fasta(final, records)
     return final, count, absent_kept

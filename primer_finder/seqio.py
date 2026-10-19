@@ -139,9 +139,14 @@ def count_records(path: Path | str) -> int:
 # any reasonable reading, and it used to leave the group in silence: `is_fasta` opened it as text, found
 # no `>`, and the "looks like fasta, wrong extension" warning therefore never named it.
 COMPRESSION_MAGIC = {
-    b"\x1f\x8b": "gzip", b"BZh": "bzip2", b"\xfd7zXZ\x00": "xz", b"PK\x03\x04": "zip",
+    b"\x1f\x8b": "gzip", b"\xfd7zXZ\x00": "xz",
     b"\x04\x22M\x18": "lz4", b"\x28\xb5/\xfd": "zstandard",
 }
+# bzip2's magic is "BZh" and then the block size, a digit from 1 to 9 -- without the digit, a note
+# beginning "BZh is a strain code" read as a compressed genome. Zip is left out altogether: a
+# spreadsheet of strain metadata beside the genomes is a zip, and a zipped genome cannot be read here
+# anyway, so naming it would be noise rather than the warning this is for.
+BZIP2_MAGIC = b"BZh"
 
 
 def _is_ordinary(path: Path | str) -> bool:
@@ -161,6 +166,8 @@ def compressed_as(path: Path | str) -> str | None:
             head = fh.read(8)
     except OSError:
         return None
+    if head.startswith(BZIP2_MAGIC) and head[3:4].isdigit() and head[3:4] != b"0":
+        return "bzip2"
     return next((name for magic, name in COMPRESSION_MAGIC.items() if head.startswith(magic)), None)
 
 

@@ -181,6 +181,42 @@ def test_keep_intermediate(stubs, settings):
     assert (scenario.output / "4_blast" / "exclusion_db" / "0000_exclusion_1" / "hits.tsv").exists()
 
 
+def test_the_folders_are_recorded_so_that_design_can_find_them_from_anywhere(stubs, settings, tmp_path,
+                                                                             monkeypatch):
+    """`design` resolves what this records against its own working directory, so a relative path here
+    sent it to whatever folder of that name sat beside it. Removing every `resolve()` from the record left
+    all 603 tests passing."""
+    inclusion = tmp_path / "in"
+    exclusion = tmp_path / "ex"
+    for folder, name in ((inclusion, "i1"), (exclusion, "e1")):
+        folder.mkdir()
+        (folder / f"{name}.fasta").write_text(">chr\n" + "ACGT" * 50 + "\n")
+    monkeypatch.chdir(tmp_path)
+    scenario = settings(inclusion=Path("in"), exclusion=Path("ex"), output=Path("out"))
+    assert run(scenario) == 0
+    recorded = json.loads((scenario.output / "run_info.json").read_text())["parameters"]
+    for group in ("inclusion", "exclusion", "output"):
+        assert Path(recorded[group]).is_absolute(), (group, recorded[group])
+
+
+def test_a_genome_the_whole_group_does_not_share_is_not_kept(stubs, settings, tmp_path):
+    """The lower half of the kmer rule: `-ci` is the number of inclusion genomes required, so a kmer only
+    one of them holds is not shared. Nothing held it -- the other test gives both genomes the same kmers,
+    so the pooled count equals the group size and no threshold ever decides anything."""
+    inclusion = tmp_path / "in"
+    exclusion = tmp_path / "ex"
+    for folder, names in ((inclusion, ("i1", "i2")), (exclusion, ("e1",))):
+        folder.mkdir()
+        for name in names:
+            (folder / f"{name}.fasta").write_text(">chr\n" + "ACGT" * 50 + "\n")
+    stubs(genome_kmers={"i1": ["shared", "lonely"], "i2": ["shared"], "e1": []},
+          contigs={"ctg1": DIFFERS_AT_5_AND_12}, sam=[["ctg1", 0, "40=1X7=1X50="]])
+    scenario = settings(inclusion=inclusion, exclusion=exclusion)
+    assert run(scenario) == 0
+    kept = (scenario.output / "1_kmers" / "inclusion_specific_99mers.fasta").read_text()
+    assert [line for line in kept.splitlines() if not line.startswith(">")] == ["shared"]
+
+
 def test_the_kmers_kept_are_the_inclusion_ones_the_exclusion_group_lacks(stubs, settings, tmp_path):
     """The claim the whole tool rests on, and nothing held it: with the stub KMC ignoring its `@list` and
     its operands, swapping `kmers_subtract`'s two databases -- or handing the exclusion list to the
@@ -490,7 +526,8 @@ def test_a_region_whose_specificity_is_a_block_no_exclusion_genome_holds_is_repo
     assert marked == 60, marked  # The 60 bases between the two aligned ends
 
 
-def test_a_region_no_exclusion_genome_holds_records_the_whole_of_itself_as_absent(stubs, settings):
+def test_a_region_no_exclusion_genome_holds_records_the_whole_of_itself_as_absent(stubs, settings,
+                                                                                  caplog):
     """`design` reads a region's marked bases and cannot tell a difference from a base that is simply not
     there, so `find` records which are which. A region no exclusion genome hits at all is absent in its
     entirety, and until this was recorded `design` read every one of its bases as a mismatch: on a
@@ -498,16 +535,21 @@ def test_a_region_no_exclusion_genome_holds_records_the_whole_of_itself_as_absen
     is in none of the genomes."""
     stubs(sam=[["ctg1", 4, "*"]], exclusion_hits={"exclusion_1": [], "exclusion_2": []})
     scenario = settings()
-    assert run(scenario) == 0
+    with caplog.at_level("WARNING"):
+        assert run(scenario) == 0
     info = json.loads((scenario.output / "run_info.json").read_text())
     assert info["absent_stretches"] == {"ctg1": [[0, 99]]}   # the whole 100-base contig
     assert "ctg1" in final_records(scenario.output)
+    # and it rests on that absence entirely, which is what the small-group warning is for
+    assert "1 region(s) are specific because a stretch of them is missing" in caplog.text
 
 
-def test_only_a_region_the_absence_carries_is_called_one_that_rests_on_it(stubs, settings, caplog):
-    """The warning says the regions "are specific because a stretch of them is missing". A region whose
-    differences alone meet the rule is not one of them, however much of it is also unaligned -- counting
-    it named the wrong regions as the fragile ones."""
+def test_a_region_that_does_not_rest_on_its_absent_stretch_is_counted_apart(stubs, settings, caplog):
+    """The warning says which regions are specific *because* of an absent stretch. A region whose own
+    differences meet the rule is not one of them -- counting it as one named the wrong regions as the
+    fragile ones -- but it is still counted, separately, because `design` aims at the marked bases and an
+    absent block is marked in full, so the assays designed there do rest on it even though the region did
+    not."""
     whole = DIFFERS_AT_5_AND_12
     aligned = whole[:50]
     changed = list(aligned)
@@ -520,7 +562,8 @@ def test_only_a_region_the_absence_carries_is_called_one_that_rests_on_it(stubs,
         assert run(scenario) == 0
     info = json.loads((scenario.output / "run_info.json").read_text())
     assert info["absent_stretches"] == {"ctg1": [[50, 99]]}   # still recorded, for design
-    assert "specific because a stretch of them is missing" not in caplog.text
+    assert "0 region(s) are specific because a stretch of them is missing" in caplog.text
+    assert "1 more hold such a stretch beside differences of their own" in caplog.text
 
 
 def test_a_region_the_absence_does_carry_is_warned_about(stubs, settings, caplog):
@@ -535,7 +578,8 @@ def test_a_region_the_absence_does_carry_is_warned_about(stubs, settings, caplog
           exclusion_hits={"exclusion_1": hits, "exclusion_2": hits})
     with caplog.at_level("WARNING"):
         assert run(settings()) == 0
-    assert "specific because a stretch of them is missing from all 2 exclusion genome(s)" in caplog.text
+    assert "1 region(s) are specific because a stretch of them is missing from all 2 exclusion genome(s)" \
+        in caplog.text
 
 
 def test_the_absent_stretches_are_recorded_for_the_design_command(stubs, settings):

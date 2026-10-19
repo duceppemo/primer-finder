@@ -262,11 +262,19 @@ def parallel(work: Iterable[tuple], function, threads: int) -> list:
 
 
 # Characters a blast database folder must not hold. makeblastdb writes the database, then reopens it by
-# its absolute path and splits that path on whitespace, so a space anywhere above the database -- in the
-# genome's own file name, which used to be carried into this folder's name -- makes it exit 2 with "No
-# alias or index file found for nucleotide database". A quote does the same. Measured with makeblastdb
-# 2.17.0+: a space and a `"` fail, while `'`, a tab and a newline are accepted.
-UNSAFE_IN_DB_PATH = '" \t\n\r\f\v'
+# its absolute path, and blastn searches a `:`-separated list of database paths, so several characters in
+# the path above a database make one or the other lose it -- "No alias or index file found for nucleotide
+# database". The genome's own file name used to be carried into this folder's name, so one awkwardly named
+# assembly killed the run at step 4, after the kmer counting, the assembly and the mapping.
+#
+# Measured per character with makeblastdb and blastn 2.17.0+, in a folder named `0000_a<c>b`:
+#
+#   space, `"`, `\`   makeblastdb exits 2
+#   `:`               makeblastdb is fine, blastn exits 2 (it splits its search path on it)
+#   `'`, tab, newline, `*`, `?`, `[]`, `;`, `$`, `|`, non-ASCII spaces   all work
+#
+# The first sweep of this covered makeblastdb only, which is how `:` and `\` were missed.
+UNSAFE_IN_DB_PATH = '" :\\\t\n\r\f\v'
 
 
 def safe_stem(genome: Path) -> str:

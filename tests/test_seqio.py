@@ -21,6 +21,7 @@ from primer_finder.seqio import (
     find_genomes,
     is_fasta,
     iter_records,
+    open_text,
     read_fasta,
     require_genomes,
     walk_genomes,
@@ -118,21 +119,38 @@ def test_a_compressed_genome_with_an_unaccepted_name_is_reported_not_dropped(tmp
     with gzip.open(folder / "g3.fasta.GZ", "wt") as fh:      # accepted extension, wrong case
         fh.write(">chr\nACGT\n")
     (folder / "g4.fasta.bz2").write_bytes(bz2.compress(b">chr\nACGT\n"))
-    (folder / "g5.fna.zip").write_bytes(b"PK\x03\x04" + b"\x00" * 20)
     (folder / "notes.txt").write_text("nothing to see\n")    # not a genome: still no warning
+    # Neither of these is compressed data, and both used to be named as genomes: a zip is how a
+    # spreadsheet of strain metadata looks, and bzip2's magic is "BZh" followed by a block-size digit.
+    (folder / "strains.xlsx").write_bytes(b"PK\x03\x04" + b"\x00" * 20)
+    (folder / "codes.txt").write_text("BZh is a strain code\n")
     with caplog.at_level("WARNING"):
         found = require_genomes(folder, "exclusion")
     assert [path.name for path in found] == ["g1.fasta", "g2.fasta"]
-    for name in ("g3.fasta.GZ", "g4.fasta.bz2", "g5.fna.zip"):
+    for name in ("g3.fasta.GZ", "g4.fasta.bz2"):
         assert name in caplog.text, name
-    assert "notes.txt" not in caplog.text
+    for name in ("notes.txt", "strains.xlsx", "codes.txt"):
+        assert name not in caplog.text, name
+
+
+def test_a_gzipped_file_named_with_capitals_is_read_as_gzip(tmp_path):
+    """`.GZ` comes from Windows. Nothing proved the reader handles it: the file is named in the "not part
+    of the group" warning either way, which is a different claim."""
+    path = tmp_path / "g.FASTA.GZ"
+    with gzip.open(path, "wt") as fh:
+        fh.write(">chr\nACGTACGT\n")
+    with open_text(path) as fh:
+        assert fh.readline().startswith(">chr")
+    assert is_fasta(path)
 
 
 def test_compressed_as_names_the_format_from_the_first_bytes(tmp_path):
     path = tmp_path / "x"
     for data, expected in ((bz2.compress(b"hello"), "bzip2"),
-                           (b"PK\x03\x04junk", "zip"),
+                           (b"BZh is a strain code", None),   # the magic needs its block-size digit
+                           (b"PK\x03\x04junk", None),          # a zip is not a genome this can read
                            (b"\xfd7zXZ\x00junk", "xz"),
+                           (b"\x28\xb5/\xfdjunk", "zstandard"),
                            (b">chr\nACGT\n", None)):
         path.write_bytes(data)
         assert compressed_as(path) == expected, data[:4]
