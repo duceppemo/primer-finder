@@ -1,5 +1,26 @@
 # 2026-10-08 — primer-finder 1.4.0, spending a region's differences on one oligo
 
+> **Erratum, 2026-10-19, primer-finder 1.9.2.** Every in silico PCR count in this record was produced by a
+> reader that counted *every row* of insilicoPCR's report as an amplification of that genome. insilicoPCR
+> pairs each forward-primer alignment on a contig with each reverse-primer alignment on it, without asking
+> whether the two face each other or whether the distance between them is a product: on one 3.3 Mb genome
+> with 28 assays, 9,623 of 21,014 rows pair two alignments on the same strand and 5,256 point away from each
+> other, with spans up to 1.9 Mb. 1.9.2 counts a row only where it could be one product -- the span fits
+> one and the primers face each other -- in `12caad8`, with `6b17b99` applying the same test to the 3'-end
+> tally.
+>
+> Nothing here is withdrawn: the run happened as described, and the regions, requests and proposed-assay
+> counts do not depend on this. **The verdict counts below should not be quoted without a rerun**, and the
+> correction does not run in one direction: a phantom pairing in an exclusion genome is a false
+> cross-reaction, which makes an assay read as not selective, while one in an inclusion genome is a false
+> amplification, which can carry an assay that should have been refused.
+>
+> Affected here: the in silico PCR rows of section 3 -- 311 of 465 and 383 of 436 in qPCR mode, 220 of 465
+> and 305 of 436 in PCR mode -- and the `undecided (3' end)` counts beside them (53 to 3, and 96 to 17),
+> which `6b17b99` bears on directly: a phantom *exact* pairing masks a real amplicon that rests on a trimmed
+> 3' end, and until 1.9.2 the terminal-only reader did not apply the product test at all. Sections 1 and 2
+> do not depend on it; they are measured on the regions and on what Primer3 returned.
+
 `primer-finder find` keeps a region when its differences from an exclusion genome **could sit in one
 oligo**: a run of them, or two of them fewer than 21 matching bases apart
 ([Methods](../../../docs/wiki/Methods.md)). That is the only reason a region is a candidate. This record

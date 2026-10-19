@@ -7,6 +7,24 @@
 > [`../2026-10-08_v1.3.0/SUMMARY.md`](../2026-10-08_v1.3.0/SUMMARY.md), which also explains why a difference
 > in the last two bases of a primer cannot be seen by this check at all.
 
+> **Erratum, 2026-10-19, primer-finder 1.9.2.** Every in silico PCR count in this record was produced by a
+> reader that counted *every row* of insilicoPCR's report as an amplification of that genome. insilicoPCR
+> pairs each forward-primer alignment on a contig with each reverse-primer alignment on it, without asking
+> whether the two face each other or whether the distance between them is a product: on one 3.3 Mb genome
+> with 28 assays, 9,623 of 21,014 rows pair two alignments on the same strand and 5,256 point away from each
+> other, with spans up to 1.9 Mb. 1.9.2 counts a row only where it could be one product -- the span fits
+> one and the primers face each other -- in `12caad8`, with `6b17b99` applying the same test to the 3'-end
+> tally.
+>
+> Nothing here is withdrawn: the run happened as described, and the regions, requests and proposed-assay
+> counts do not depend on this. **The verdict counts below should not be quoted without a rerun**, and the
+> correction does not run in one direction: a phantom pairing in an exclusion genome is a false
+> cross-reaction, which makes an assay read as not selective, while one in an inclusion genome is a false
+> amplification, which can carry an assay that should have been refused.
+>
+> Affected here: the two verdict lines (374 of 417 in qPCR mode, 278 of 417 in PCR mode) and the table that
+> splits them by how many differences sit under the primers.
+
 Two things were run on the genome set of
 [`../2026-10-08_v1.1.0/SUMMARY.md`](../2026-10-08_v1.1.0/SUMMARY.md): the four published assays were
 recovered again, unchanged, and the new `design` command was run on the subsp. *multiplex* regions.

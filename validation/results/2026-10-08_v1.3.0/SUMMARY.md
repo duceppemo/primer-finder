@@ -1,5 +1,30 @@
 # 2026-10-08 — primer-finder 1.3.0, how many mismatches in silico PCR should allow
 
+> **Erratum, 2026-10-19, primer-finder 1.9.2.** Every in silico PCR count in this record was produced by a
+> reader that counted *every row* of insilicoPCR's report as an amplification of that genome. insilicoPCR
+> pairs each forward-primer alignment on a contig with each reverse-primer alignment on it, without asking
+> whether the two face each other or whether the distance between them is a product: on one 3.3 Mb genome
+> with 28 assays, 9,623 of 21,014 rows pair two alignments on the same strand and 5,256 point away from each
+> other, with spans up to 1.9 Mb. 1.9.2 counts a row only where it could be one product -- the span fits
+> one and the primers face each other -- in `12caad8`, with `6b17b99` applying the same test to the 3'-end
+> tally.
+>
+> Nothing here is withdrawn: the run happened as described, and the regions, requests and proposed-assay
+> counts do not depend on this. **The verdict counts below should not be quoted without a rerun**, and the
+> correction does not run in one direction: a phantom pairing in an exclusion genome is a false
+> cross-reaction, which makes an assay read as not selective, while one in an inclusion genome is a false
+> amplification, which can carry an assay that should have been refused.
+>
+> Affected here: everything in sections 2 and 3 that counts amplifications or verdicts -- the four
+> tolerances' selective counts, the split by what makes an assay selective, the exclusion-hit origin table,
+> the ranking table, and the `undecided (3' end)` tallies of *What the non-selective verdicts are made of*,
+> including the 256 and 140 unrefusable amplifications. The **off-target counts of 18, 30 and 50 absence-based
+> assays at `-m` 0, 1 and 2 are the most affected of all**, since an off-target hit is exactly a second
+> alignment elsewhere in the genome and so is what a phantom pairing is made from; the argument they support
+> -- that `-m 0` hides off-target amplification that a looser tolerance finds -- is not re-measured here.
+> Section 1 is unaffected: each of its synthetic genomes carries one site per primer, convergent and 124
+> bases apart, so there is no second alignment to pair with and every reported row is a product.
+
 `primer-finder design` runs the assays it proposes through
 [insilicoPCR](https://github.com/duceppemo/insilicoPCR), which takes a `-m/--mismatches` tolerance. Until
 this version primer-finder passed `0`. This record asks what that choice does, on the *Xylella* set of
