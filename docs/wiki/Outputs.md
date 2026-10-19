@@ -123,6 +123,8 @@ Everything needed to repeat or report the run:
 | `reference` | the exclusion genome the contigs were mapped to |
 | `programs` | what each program reported as its version |
 | `counts` | `kmers` (inclusion-specific kmers), `contigs` (assembled), `candidates` (after mapping), `in_all_inclusion`, `final` |
+| `absent_stretches` | per region, the marked stretches that are *missing* from every exclusion genome rather than differing from them. `design` reads this: the sequence cannot tell the two kinds of mark apart, and counting absent bases as mismatches made a primer carrying none report twenty |
+| `held_in_pieces` | the regions no inclusion genome holds as **one stretch**, with the largest fraction any of them does hold in one piece. A region is assembled from kmers, which is not the same as a stretch some genome has: see [Methods](Methods#a-region-held-in-pieces). Nothing is dropped for it, and a run with no such region has `{}` |
 | `seconds` | how long the run took |
 
 ## primer_finder.log
@@ -169,6 +171,7 @@ the ones that would amplify both groups are kept at the end for the record.
 | `best_terminal_run` | the longest run of differences ending at a primer's 3' end |
 | `inclusion_copies_min`, `inclusion_copies_max` | copies of the amplicon per inclusion genome; above 1 only for a run made with `-d 2` or more |
 | `product_size`, `penalty`, `penalty_band` | the amplicon length and Primer3's pair penalty, with the band the ranking uses |
+| `inclusion_product_span` | how long the stretch between the two primer sites is in the inclusion genomes, measured there rather than taken from the region: one number, or `low-high` where the genomes differ, and empty where no copy was found to measure. It is `product_size` wherever the genomes hold the amplicon as the region spells it, and it is not where they hold an indel between the primers — or more copies of a repeat than the region carries, which is what a region spliced across one looks like |
 | `forward`, `reverse`, `probe` | the sequences, with `_start`, `_tm`, `_gc` and `_variants` (differences covered) for each |
 | `forward_hairpin_tm`, `forward_self_dimer_tm` | and the same for `reverse` and `probe`: where Primer3 predicts the oligo folds on itself, and where it pairs with a copy of itself, in °C. `0.0` means no structure was predicted, and an assay without a probe leaves the probe cells empty; they are below `--max-hairpin-tm` and `--max-dimer-tm` respectively |
 | `pair_dimer_tm`, `pair_dimer_end_tm` | where the two primers pair with each other, over the whole oligo and at their 3' ends, in °C |

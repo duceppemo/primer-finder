@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -22,7 +23,7 @@ from primer_finder.pipeline import (
     run,
     write_presence_table,
 )
-from primer_finder.seqio import Record, iter_records
+from primer_finder.seqio import Record, iter_records, reverse_complement
 
 # The whole of the default contig, differing from it at offsets 5 and 12: two differences
 # close enough to share one primer, which is what the strict rule asks for.
@@ -44,7 +45,8 @@ def test_full_run(stubs, settings):
     assert Path(info["reference"]).name == "exclusion_1.fasta"
     assert info["parameters"]["assembler"] == "skesa"
     # Every program used must have reported a version, including the two KMC ones (no --version flag)
-    assert set(info["programs"]) == {"blastn", "kmc", "kmc_tools", "makeblastdb", "minimap2", "skesa"}
+    assert set(info["programs"]) == {"blastn", "dustmasker", "kmc", "kmc_tools", "makeblastdb",
+                                     "minimap2", "skesa"}
     assert all(version == f"{name} stub 1.0" for name, version in info["programs"].items()), info["programs"]
     # The variant positions are in the header, in contig coordinates
     assert "[5, 12]" in (scenario.output / "final_kmers.fasta").read_text()
@@ -245,6 +247,10 @@ def test_programs_are_called_with_the_right_options(stubs, settings):
     scenario = settings(kmer_size=31, duplication=2)
     run(scenario)
     text = calls.read_text()
+    # The second, unmasked look is asked for only where the masker took something out: an ordinary run
+    # searches once per genome, and a second search of everything a genome does not hold would be most
+    # of the query on most genomes
+    assert "dustmasker" in text and "-dust no" not in text
     assert "kmc -k31 -t1 -m4 -fm -ci2 -cx4" in text  # Two inclusion genomes, -d 2
     assert "-ci1 -cx1000000000" in text  # The exclusion group: every kmer, however often it occurs
     assert "kmc_tools -t1 simple" in text and "kmers_subtract" in text
@@ -814,8 +820,10 @@ def test_two_genomes_with_the_same_file_name(stubs, genomes, tmp_path):
     rows = (output / "4_blast" / "inclusion_blast_hits.tsv").read_text().splitlines()
     assert rows[0].split("\t") == ["contig", "sampleA/contigs.fasta", "sampleB/contigs.fasta"]
     assert rows[1:] == ["ctg1\t1.000\t1.000", "ctg2\t1.000\t0.000"]
-    # Each genome got a folder of its own, named after its position in the list
-    folders = sorted(path.name for path in (output / "4_blast" / "inclusion_db").iterdir())
+    # Each genome got a folder of its own, named after its position in the list; the masker's answer
+    # about the query is written once, beside them, since it is the same for every genome
+    folders = sorted(path.name for path in (output / "4_blast" / "inclusion_db").iterdir()
+                     if path.is_dir())
     assert folders == ["0000_contigs", "0001_contigs"]
 
 
@@ -1058,12 +1066,15 @@ def test_a_contig_an_inclusion_genome_holds_part_of_is_kept_and_said_to_be_parti
     Measured case behind this: on a draft Brucella group a 338-base region was reported as present in all
     thirty inclusion genomes while one of them held 41 bases of it at the end of a contig.
     """
-    stubs(contigs={"ctg1": DIFFERS_AT_5_AND_12},
-          sam=[["ctg1", 0, "40=1X7=1X50="]],
-          presence_spans={"inclusion_2": {"ctg1": [[1, 12]]}})   # 12 of its 100 bases
+    calls = stubs(contigs={"ctg1": DIFFERS_AT_5_AND_12},
+                  sam=[["ctg1", 0, "40=1X7=1X50="]],
+                  presence_spans={"inclusion_2": {"ctg1": [[1, 12]]}})   # 12 of its 100 bases
     scenario = settings()
     with caplog.at_level("INFO"):
         assert run(scenario) == 0
+    # 88 bases of the contig are unaligned in that genome and none of them is masked, so they are not
+    # searched again: the unmasked pass is for what the masker took out, not for what a genome lacks
+    assert "-dust no" not in calls.read_text()
     assert "ctg1" in final_records(scenario.output)          # kept, which is the point
     rows = (scenario.output / "4_blast" / HITS_NAME).read_text().splitlines()
     held = dict(zip(rows[0].split("\t")[1:], rows[1].split("\t")[1:], strict=True))
@@ -1211,3 +1222,115 @@ def test_a_run_whose_kmer_dump_was_cut_short_stops(stubs, settings):
     stubs(kmers=["ACGT" * 5, "TTGA" * 5, "GGCA" * 5], dump_short=1)
     with pytest.raises(PrimerFinderError, match="was cut short"):
         run(settings())
+
+
+def test_a_region_the_search_masks_is_not_reported_absent(stubs, settings):
+    """blast masks a low-complexity query by default, and a masked stretch is not found however exactly
+    a genome holds it. The contig then read as absent from every exclusion genome -- the strongest claim
+    this tool makes, which ranks above every difference-based assay -- and as missing from every
+    inclusion genome, which drops the region altogether. Both searches now look again, with the masking
+    off, at what they did not align.
+
+    The stub masks whole contigs; the real programs are measured in
+    `test_blast.py::test_a_low_complexity_contig_a_genome_holds_exactly_is_not_reported_absent`.
+    """
+    calls = stubs(contigs={"ctg1": DIFFERS_AT_5_AND_12}, sam=[["ctg1", 0, "40=1X7=1X50="]],
+                  masked={"ctg1": [[0, 99]]})
+    scenario = settings()
+    assert run(scenario) == 0
+    assert "ctg1" in final_records(scenario.output)
+    assert "-dust no" in calls.read_text()
+    info = json.loads((scenario.output / "run_info.json").read_text())
+    # Held by the exclusion genomes, with the two differences it was kept for -- not absent from them
+    assert not info.get("absent_stretches")
+    rows = (scenario.output / "4_blast" / HITS_NAME).read_text().splitlines()
+    assert all(held == "1.000" for held in rows[1].split("\t")[1:])
+
+
+def test_the_pieces_of_the_unmasked_pass_are_named_the_same_way_on_both_sides():
+    """The stub resolves a piece's name back to its contig, so a separator that drifted would make every
+    second-pass hit land on a contig of its own and silently stop rescuing anything."""
+    from primer_finder.blast import PIECE_SEP
+    from tests.stub_programs import PIECE_SEP as STUB_SEP
+
+    assert PIECE_SEP == STUB_SEP
+
+
+def test_a_region_no_inclusion_genome_holds_in_one_piece_is_reported(stubs, settings, caplog):
+    """A contig is assembled from kmers, which is not the same as a stretch some genome has: at `-d 1`
+    the kmers inside a perfect tandem repeat are dropped as repeated, the unitig walk splices flank + one
+    kmer + flank, and both halves of the result hit every genome. The contig then passed this step as
+    wholly present while no genome holds it at that length -- and `design` priced products from it.
+
+    Here the two halves of a 100-base contig are held in two places 40 bases apart in the genome, and
+    they overlap by 40 bases of the contig -- more than one alignment's end can overlap the next
+    (`blast.MAX_PIECE_OVERLAP`), so they are two stretches and not one.
+    """
+    halves = {"ctg1": [[1, 60, 1000], [21, 100, 1100]]}
+    stubs(contigs={"ctg1": DIFFERS_AT_5_AND_12}, sam=[["ctg1", 0, "40=1X7=1X50="]],
+          presence_spans={"inclusion_1": halves, "inclusion_2": halves})
+    scenario = settings()
+    with caplog.at_level("INFO"):
+        assert run(scenario) == 0
+    # Still reported: its kmers are inclusion-specific, which is a separate fact from how they are spliced
+    assert "ctg1" in final_records(scenario.output)
+    rows = (scenario.output / "4_blast" / HITS_NAME).read_text().splitlines()
+    assert rows[1].split("\t")[1:] == ["1.000", "1.000"]  # the merged fraction still says "all of it"
+    assert "in the inclusion genomes in pieces rather than whole" in caplog.text
+    assert "no genome holds more than 80% of ctg1 as one stretch" in caplog.text
+    info = json.loads((scenario.output / "run_info.json").read_text())
+    assert info["held_in_pieces"] == {"ctg1": 0.8}
+
+
+def test_nothing_is_said_about_pieces_when_a_genome_holds_the_region_whole(stubs, settings, caplog):
+    stubs(contigs={"ctg1": DIFFERS_AT_5_AND_12}, sam=[["ctg1", 0, "40=1X7=1X50="]])
+    scenario = settings()
+    with caplog.at_level("INFO"):
+        assert run(scenario) == 0
+    assert "in pieces rather than whole" not in caplog.text
+    assert json.loads((scenario.output / "run_info.json").read_text())["held_in_pieces"] == {}
+
+
+REAL_PROGRAMS = ("kmc", "kmc_tools", "minimap2", "blastn", "makeblastdb", "dustmasker")
+
+
+@pytest.mark.tools
+@pytest.mark.skipif(not all(shutil.which(program) for program in REAL_PROGRAMS),
+                    reason=f"needs {', '.join(REAL_PROGRAMS)} on PATH")
+def test_a_region_spliced_across_a_tandem_repeat_with_the_real_programs(tmp_path):
+    """The whole composition, with the real programs, on the shape that produces it: three genomes
+    carrying a 25-base unit six times over between shared flanks.
+
+    At `-d 1` the kmers inside the repeat occur six times and are dropped, which is documented; the walk
+    then splices the kmers either side of it into flank + repeat + flank, and the region that comes out
+    holds **two** copies of the unit where the genome holds six. Nothing is wrong with any one step --
+    the kmers are inclusion-specific, the splice is what the kmers determine, and both halves of it are
+    in every genome -- but the region is 150 bases that exist in no genome, on either strand, and until
+    this the run said it was present in all three of them and nothing more.
+    """
+    import random
+
+    rng = random.Random(3)
+    dna = lambda n: "".join(rng.choice("ACGT") for _ in range(n))  # noqa: E731
+    left, right, unit = dna(6000), dna(6000), dna(25)
+    inclusion, exclusion = tmp_path / "inclusion", tmp_path / "exclusion"
+    inclusion.mkdir()
+    exclusion.mkdir()
+    for number in range(3):
+        (inclusion / f"inc_{number}.fasta").write_text(f">chr\n{left}{unit * 6}{right}\n")
+        (exclusion / f"exc_{number}.fasta").write_text(f">chr\n{left}{right}\n")
+
+    output = tmp_path / "out"
+    assert run(Settings(inclusion=inclusion, exclusion=exclusion, output=output, threads=4,
+                        memory_gb=4, kmer_size=51)) == 0
+    regions = final_records(output)
+    assert len(regions) == 1
+    name, sequence = next(iter(regions.items()))
+    genome = f"{left}{unit * 6}{right}".upper()
+    whole = sequence.upper()
+    assert whole not in genome and reverse_complement(whole) not in genome, "the shape has drifted"
+    # Both halves are there, which is why every step passed
+    assert whole[:100] in genome or reverse_complement(whole[:100]) in genome
+    # And the run says so: no genome holds more than two thirds of it as one stretch
+    pieces = json.loads((output / "run_info.json").read_text())["held_in_pieces"]
+    assert name in pieces and 0.6 < pieces[name] < 0.7

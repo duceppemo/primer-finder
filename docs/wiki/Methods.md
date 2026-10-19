@@ -232,7 +232,9 @@ blastn -task blastn -db <genome> -query best_kmers.fasta -evalue 1e-10 -max_targ
 ```
 
 Each inclusion genome is searched for each candidate; a hit with an e-value of 1e-10 or better counts as
-present, however little of the candidate it covers. The query span of every hit is read so that the table
+present, however little of the candidate it covers. Whatever a genome does not align is then looked at
+again with `-dust no`, piece by piece, where the masker says the query is low-complexity — see
+[below](#what-the-masking-hides). The query span of every hit is read so that the table
 can say *how much* of each candidate each genome holds, and every subject is asked for rather than the best
 one, because a draft assembly that broke a candidate between two of its contigs would otherwise be credited
 with the longer piece alone. Neither affects which candidates are kept. The presence of every candidate in
@@ -245,6 +247,29 @@ are searched in parallel (`-t`), and the blast databases are built inside the ou
 the input genomes.
 
 Gzipped genomes are decompressed into the output folder for this step: blast cannot read gzip.
+
+### A region held in pieces
+
+A candidate is a stretch the kmers spell out, and that is not always a stretch any genome has. The case
+is a perfect tandem repeat: at `-d 1` the kmers inside it occur once per copy and are dropped as repeated
+(which is what `-d` is for), the walk then splices the kmers either side of the repeat into
+flank + repeat + flank, and the region that comes out carries **fewer copies of the repeat than the genome
+does**. Every step is right about its own question — the kmers are inclusion-specific, the splice is what
+the kmers determine, and both halves of the result are in every genome — and the region is a stretch that
+exists in no genome at all. Measured on three genomes carrying a 25-base unit six times over: a 150-base
+region, present in all three, that is in none of them on either strand.
+
+The fraction in the presence table cannot see it, by design: it merges intervals of the **region** and
+asks nothing about where in a genome they came from, which is what makes it the right number for a draft
+assembly that broke a region between two of its own contigs. So each genome is also asked how much of the
+region it holds as *one stretch* — the best chain of hits that runs the same way through the region and
+through the genome — and a region no genome holds in one piece is named in a warning and recorded in
+`run_info.json` as `held_in_pieces`.
+
+**Nothing is dropped for it.** The region is specific, an assay inside either half may be perfectly good,
+and what cannot be trusted is the product *size*: a product designed across the splice would come out
+longer in the genome than the region says. `primer-finder design` measures exactly that against the
+inclusion genomes and reports it per assay as `inclusion_product_span`.
 
 ## 5. Different from every exclusion genome (blast)
 
@@ -277,6 +302,35 @@ reported at all while one of 33 is, so a shorter run could be present and merely
 is for is a novel block sitting in shared backbone — a repeat-targeted marker, most often — where every
 exclusion genome matches the flanks either side and nothing in between
 ([the record](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-16_v1.8.1_repeats/SUMMARY.md)).
+
+### What the masking hides
+
+`blastn` masks low-complexity stretches of its **query** by default, and a masked stretch is not found
+however exactly a genome holds it. In this step that is the strongest claim the tool makes, made wrongly:
+a stretch no exclusion genome aligns is read as missing from the whole group, and a contig that is
+low-complexity end to end is missing from every one of them — with minimap2 leaving such a contig unmapped
+too, so nothing else in the run contradicts it. In step 4 it reads the other way and is just as wrong: a
+region every inclusion genome carries exactly is held by none of them, and the run ends with nothing to
+design on.
+
+So both steps look again at what a genome did not align, with the masking off:
+
+```
+dustmasker -in <query> -outfmt acclist -out masked.txt      (once per step)
+blastn ... -dust no -soft_masking false -query <the stretches it did not align>
+```
+
+`dustmasker` is blast's own masker, so it says exactly which stretches the search cannot see rather than
+guessing: measured against `blastn` on nine 200-base shapes planted in a 6 kb genome, a perfect `AAT`
+repeat, a random two-letter sequence, a homopolymer and a 5- and a 10-base period are all masked and all
+return **no hit** at the default, while random ACGT and an 80% AT-rich sequence are masked by neither and
+found by both — and of a contig half ordinary and half `AAT`, exactly the second half is masked. Only the
+stretches holding a masked base are searched again, so a run whose contigs hold no low-complexity stretch
+searches once per genome as before, and a second search of everything a genome *lacks* — most of the query,
+on most genomes — never happens.
+
+Like the e-value rescue of the design step, this can only ever **remove** an absence: the first pass is
+untouched, and a genome cannot lose a region it was already found to hold.
 
 A contig is kept when:
 

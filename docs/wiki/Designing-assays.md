@@ -161,6 +161,37 @@ placing a short sequence, and with gaps to spend it finds half of any fifteen ba
 the flank turned eight of the bundled example's eleven genuine absences into copies. A flank is a handful
 of bases that either sit where they have to or do not.
 
+### The product the genomes would actually give
+
+`product_size` is Primer3's: the span of the two primers in the **region**. The region is a stretch the
+kmers of the find run spell out, and that is not always a stretch any genome holds at that length — at
+`-d 1` a region spliced across a tandem repeat carries fewer copies of it than the genome does (see
+[Methods](Methods#a-region-held-in-pieces)). So every copy counted in an inclusion genome is also
+*measured* there, from the first base of one primer site to the last of the other, and reported as
+`inclusion_product_span`: one number, or `low-high` where the genomes differ.
+
+Where the two disagree the run says so, once, naming the worst assay. An indel between the primers does
+the same thing on a smaller scale, and `has_the_amplicon` counts such a genome as holding the amplicon on
+purpose — that is a claim about sequence rather than about a reaction — so this column is what that
+decision leaves unsaid. It is the number to check before ordering anything whose size matters.
+
+### What the search itself cannot see
+
+Two more things can hide a copy, and both are looked at again for the genomes that came back with none —
+only ever to shed an `absence`, never to create one:
+
+- **the e-value floor.** `-evalue 1e-10` is a floor of 32 to 34 bases whatever the query length, so in a
+  70-150 base amplicon the primer-sized pieces that decide the answer are invisible: a 90-base amplicon
+  with a 30-base deletion between the primers returns no hit at all, while the genome holds both primer
+  sites and would make a shorter product. Such a genome is searched again at `-evalue 1` and counted as
+  holding a copy when the two primer sites are there in one place, the right way round and close enough to
+  be a product;
+- **the low-complexity masking.** `blastn` masks a low-complexity query by default, and a masked amplicon
+  is not found however exactly the genome holds it — measured on a 200-base AT element planted in a 6 kb
+  genome, no hit at the default and a 100%, full-length hit with `-dust no`. That second search runs with
+  the masking off for the same reason, and [Methods](Methods#what-the-masking-hides) has the measurement
+  behind it.
+
 > **Changed in 1.8.0 and 1.8.1.** Before 1.8.0, coverage and identity were taken from blast's own `length`
 > and `pident`, and each piece was judged on its own. The counts quoted from the sweeps on this page and in
 > `validation/results/` were produced under the old rule. On the bundled example the fix moves 7 of the 18

@@ -619,7 +619,7 @@ def test_amplicon_copies_counts_each_full_length_hit(stubs, tmp_path, fasta):
     genomes = [fasta("g1.fasta", {"chr": "ACGT" * 50}), fasta("g2.fasta", {"chr": "TTTT" * 50})]
     one = assay(amplicon="ACGT" * 10)
     one.region, one.number = "ctg1", 0
-    counts, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=2)
+    counts, _, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=2)
     assert counts[one.name] == [2, 0]
 
 
@@ -672,8 +672,10 @@ def test_a_genome_holding_a_copy_blast_reports_in_two_pieces_is_counted(stubs, t
     stubs(amplicon_hits={"g1": 1}, amplicon_split=[60, 300])
     genomes = [fasta("g1.fasta", {"chr": "ACGT" * 200})]
     one = assay(amplicon="ACGT" * 30, forward=oligo(start=0, length=20))
-    counts, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=1)
+    counts, _, spans = amplicon_copies([one], genomes, tmp_path / "work", threads=1)
     assert counts[one.name] == [1]  # One copy, not two and not none
+    # And the product it would give there is the 300 bases longer one, not the 120 the region spells out
+    assert spans[one.name] == [120 + 300]
 
 
 def test_two_hits_starting_at_the_same_base_of_the_amplicon_are_not_one_copy():
@@ -943,7 +945,7 @@ def test_a_genome_holding_both_primer_sites_with_an_indel_between_them_is_not_ab
     one = assay(amplicon=amplicon, product_size=90,
                 forward=oligo(start=0, length=20), reverse=oligo(start=70, length=20, reverse=True))
     one.forward.sequence, one.reverse.sequence = amplicon[:20], amplicon[-20:]
-    counts, _ = amplicon_copies([one], [whole, gapped, neither], tmp_path / "work", threads=3)
+    counts, _, _ = amplicon_copies([one], [whole, gapped, neither], tmp_path / "work", threads=3)
     assert counts[one.name] == [1, 1, 0]
 
 
@@ -955,14 +957,14 @@ def test_a_hit_too_weak_to_trust_is_not_a_copy(stubs, tmp_path, fasta):
     genomes = [fasta("g1.fasta", {"chr": amplicon})]
     one = assay(amplicon=amplicon, forward=oligo(start=0, length=20))
     stubs(amplicon_hits={"g1": 1}, amplicon_evalue="1e-30")
-    counts, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=1)
+    counts, _, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=1)
     assert counts[one.name] == [1]
     # Above the cut-off, and covering only the middle of the amplicon: neither primer site is there, so
     # the second look at a weaker e-value -- which exists for pieces too short for the floor, not for weak
     # matches -- finds no pair that could amplify.
     other = assay(amplicon=amplicon, forward=oligo(start=0, length=20))
     stubs(amplicon_hits={"g1": 1}, amplicon_evalue="1e-3", amplicon_qstart=25, amplicon_covers=0.4)
-    counts, _ = amplicon_copies([other], genomes, tmp_path / "work", threads=1)
+    counts, _, _ = amplicon_copies([other], genomes, tmp_path / "work", threads=1)
     assert counts[other.name] == [0]
 
 
@@ -979,7 +981,7 @@ def test_a_genome_holding_only_part_of_an_amplicon_does_not_hold_it(stubs, tmp_p
     # The first half exactly, then sequence unrelated to the half blast did not reach
     genomes = [fasta("g1.fasta", {"chr": amplicon[:48] + "TTTTTTTTTTGGGGGGGGGGCCCCCCCCCCAAAAAAAAAA"})]
     one = assay(amplicon=amplicon, forward=oligo(start=0, length=20))
-    counts, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=1)
+    counts, _, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=1)
     assert counts[one.name] == [0], "half an amplicon, with the rest absent, is not a copy"
 
 
@@ -1004,7 +1006,7 @@ def test_a_genome_holding_a_flank_blast_left_out_is_counted(stubs, tmp_path, fas
     stubs(amplicon_hits={"g1": 1}, amplicon_covers=0.85)
     genomes = [fasta("g1.fasta", {"chr": amplicon + "TTTTTTTTTT"})]
     one = assay(amplicon=amplicon, forward=oligo(start=0, length=20))
-    counts, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=1)
+    counts, _, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=1)
     assert counts[one.name] == [1]
 
 
@@ -1020,7 +1022,7 @@ def test_a_flank_can_rescue_a_copy_but_never_take_one_away(stubs, tmp_path, fast
     stubs(amplicon_hits={"g1": 1}, amplicon_covers=0.95, amplicon_mismatch=mismatches)
     genomes = [fasta("g1.fasta", {"chr": amplicon[:91] + "GGGGGGGGGGGGGGG"})]
     one = assay(amplicon=amplicon, forward=oligo(start=0, length=20))
-    counts, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=1)
+    counts, _, _ = amplicon_copies([one], genomes, tmp_path / "work", threads=1)
     assert counts[one.name] == [1], "a chain that reaches far enough on its own must stay a copy"
 
 
@@ -2081,3 +2083,34 @@ def test_a_dntp_at_the_magnesium_is_said_out_loud(stubs, finished_run, tmp_path,
     assert run(design_settings(finished_run, tmp_path / "ok",
                                conditions=Conditions(divalent_mm=3.0, dntp_mm=0.8))) == 0
     assert "free magnesium" not in caplog.text
+
+
+def test_an_assay_whose_product_is_longer_in_the_genomes_than_designed_is_said(stubs, finished_run,
+                                                                               tmp_path, caplog):
+    """A region is assembled from kmers and is not always a stretch any genome holds at that length: at
+    `-d 1` the kmers inside a perfect tandem repeat are dropped, and a region can come back holding two
+    copies of a repeat where the genome has six. The amplicon check counts such a genome as holding the
+    amplicon on purpose, and that is where the product size stopped being checked.
+
+    Modelled here by the stub reporting each copy in two pieces with 300 bases of genome between them.
+    """
+    stubs(amplicon_hits={"inclusion_1": 1, "inclusion_2": 1}, amplicon_split=[60, 300])
+    output = tmp_path / "assays"
+    with caplog.at_level("INFO"):
+        assert run(design_settings(finished_run, output)) == 0
+    row = next(iter_rows(output / "assays.tsv"))
+    designed = int(row["product_size"])
+    assert row["inclusion_product_span"] == str(designed + 300)
+    assert "would give a product of a size other than the one designed" in caplog.text
+    assert f"priced at {designed} bases" in caplog.text
+
+
+def test_nothing_is_said_when_the_genomes_hold_the_product_at_its_designed_size(stubs, finished_run,
+                                                                                tmp_path, caplog):
+    stubs(amplicon_hits={"inclusion_1": 1, "inclusion_2": 1})
+    output = tmp_path / "assays"
+    with caplog.at_level("INFO"):
+        assert run(design_settings(finished_run, output)) == 0
+    row = next(iter_rows(output / "assays.tsv"))
+    assert row["inclusion_product_span"] == row["product_size"]
+    assert "a size other than the one designed" not in caplog.text

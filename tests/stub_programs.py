@@ -3,6 +3,8 @@
 Each stub writes the files the real program would write. The `stubs` fixture puts a two-line launcher for
 every program on PATH; what they produce is read from the PRIMER_FINDER_STUBS environment variable (JSON):
 
+    masked           {contig: [[start, end]]} what blast's masker takes out of the query, 0-based and
+                     inclusive; such a contig is invisible to a search that masks (see `dustmasker`)
     kmers            the kmers "kmc_tools transform ... dump" writes (an empty list writes an empty file)
     dump_short       how many of them to leave out of the dump, as a full disk does, reporting success
     shared_kmers     the kmers the inclusion database holds, if not the same as `kmers`
@@ -10,7 +12,8 @@ every program on PATH; what they produce is read from the PRIMER_FINDER_STUBS en
     sam              [[query name, flag, cigar], ...] for minimap2 to write
     genome_kmers     {genome stem: [kmer, ...]} what each genome holds, so that KMC's operands are read
     presence         {genome: [contig, ...]} the contigs blastn finds in each inclusion genome
-    presence_spans   {genome: {contig: [[qstart, qend], ...]}} which part of a contig it finds there
+    presence_spans   {genome: {contig: [[qstart, qend], ...]}} which part of a contig it finds there,
+                     with an optional third number saying where in the genome that piece sits
     exclusion_hits   {genome: [[query, qstart, qend, evalue, qseq, sseq], ...]} for the exclusion genomes
     fail             the name of a program that should exit 1
     kill             the name of a program that should die by a signal, as an OOM kill looks
@@ -68,7 +71,7 @@ DEFAULT_SSEQ = ("ACGTA" + "A" + "GTACGT" + "T" + "CGTACGT" + "ACGT" * 20)  # Mis
 # ignoring it has produced tests that passed while exercising nothing -- so it is an error instead.
 KNOWN_KEYS = frozenset({
     "kmers", "shared_kmers", "dump_short", "genome_kmers", "contigs", "sam", "presence",
-    "presence_evalue",
+    "presence_evalue", "masked",
     "presence_spans", "exclusion_hits",
     "fail", "kill", "exit_code",
     "amplicon_hits", "amplicon_mismatch", "amplicon_qstart", "amplicon_covers", "amplicon_insertion",
@@ -226,6 +229,38 @@ def stub_programs_local_fasta() -> str:
     return LOCAL_FASTA
 
 
+# What separates a contig's name from a piece's offset in the query of the unmasked second pass; it has
+# to agree with `blast.PIECE_SEP`, which a test holds it to.
+PIECE_SEP = "~piece~"
+
+
+def masked_of(contig: str) -> list[tuple[int, int]]:
+    """The stretches of a contig the scenario says blast masks, as 0-based inclusive pairs."""
+    return [(int(start), int(end)) for start, end in value("masked", {}).get(contig, [])]
+
+
+def piece_of(name: str) -> tuple[str, int]:
+    """A query name from the unmasked pass as (contig, offset); any other name as itself at 0."""
+    contig, separator, offset = name.rpartition(PIECE_SEP)
+    return (contig, int(offset)) if separator and offset.isdigit() else (name, 0)
+
+
+def dustmasker(argv: list[str]) -> int:
+    """What blast's masker says of the query: one `>name<TAB>start<TAB>end` line per masked stretch.
+
+    The scenario's `masked` drives it. Masking is modelled per contig rather than per base: a contig the
+    scenario masks is invisible to a search that masks and visible to one that does not, which is the
+    shape of the finding this exists for (a contig low-complexity end to end, held exactly by a genome
+    and reported absent from every one of them). The real program is the one measured in
+    `blast.masked_intervals`.
+    """
+    names = [line[1:].split()[0] for line in Path(argument(argv, "-in")).read_text().splitlines()
+             if line.startswith(">")]
+    rows = [f">{name}\t{start}\t{end}\n" for name in names for start, end in masked_of(name)]
+    Path(argument(argv, "-out")).write_text("".join(rows))
+    return 0
+
+
 def query_sequences(argv: list[str]) -> dict[str, str]:
     """The query fasta of a blastn call, as {name: sequence}."""
     sequences: dict[str, str] = {}
@@ -240,7 +275,12 @@ def query_sequences(argv: list[str]) -> dict[str, str]:
 
 
 def blastn(argv: list[str]) -> int:
-    """Write the tabular output the pipeline asked for, for the genome the database was made from."""
+    """Write the tabular output the pipeline asked for, for the genome the database was made from.
+
+    `-dust no` is the second, unmasked pass: without it a contig the scenario masks is not reported at
+    all, and the pieces that pass of the masked stretches are reported in their own coordinates.
+    """
+    unmasked = "-dust" in argv
     fields = argument(argv, "-outfmt").split()[1:]
     out_file = Path(argument(argv, "-out"))
     # blastn runs in the database's folder, with the genome linked there under a fixed name. A scenario can
@@ -324,9 +364,23 @@ def blastn(argv: list[str]) -> int:
                     rows.append([row[name] for name in fields])
     elif "qseq" in fields:  # The exclusion step: aligned sequences
         hits = value("exclusion_hits", {})
-        default = [[query, 1, len(DEFAULT_QSEQ), 1e-30, DEFAULT_QSEQ, DEFAULT_SSEQ] for query in queries]
-        for query, qstart, qend, evalue, qseq, sseq in hits.get(genome, default):
-            rows.append([str(query), str(qstart), str(qend), str(evalue), qseq, sseq])
+        for query in queries:
+            contig, offset = piece_of(query)
+            masked = masked_of(contig)
+            if masked and not unmasked:
+                continue  # Masked out of the query: this search cannot see the contig at all
+            default = [[contig, 1, len(DEFAULT_QSEQ), 1e-30, DEFAULT_QSEQ, DEFAULT_SSEQ]]
+            held = [row for row in hits.get(genome, default) if row[0] == contig]
+            if query != contig:
+                # A piece of a masked stretch, searched with the masking off: what the genome holds of
+                # the contig is what the first pass could not see. Masking is modelled per contig, so a
+                # piece of one covers it whole and the rows only shift into the piece's coordinates.
+                for _name, qstart, qend, evalue, qseq, sseq in held if masked else []:
+                    rows.append([query, str(int(qstart) - offset), str(int(qend) - offset),
+                                 str(evalue), qseq, sseq])
+                continue
+            for name, qstart, qend, evalue, qseq, sseq in held:
+                rows.append([str(name), str(qstart), str(qend), str(evalue), qseq, sseq])
     else:  # The inclusion step: is the contig there, and how much of it?
         present = value("presence", {}).get(genome, queries)
         evalue = value("presence_evalue", "1e-30")
@@ -336,10 +390,26 @@ def blastn(argv: list[str]) -> int:
         spans = value("presence_spans", {}).get(genome, {})
         sizes = {name: len(sequence) for name, sequence in query_sequences(argv).items()}
         for query in queries:
-            if query not in present:
+            contig, offset = piece_of(query)
+            if contig not in present and query not in present:
                 continue
-            for start, end in spans.get(query, [[1, sizes.get(query, 100)]]):
-                row = {"qseqid": query, "qstart": str(start), "qend": str(end), "evalue": evalue}
+            masked = masked_of(contig)
+            if masked and not unmasked:
+                continue
+            size = sizes.get(query, 100)
+            held = spans.get(contig, spans.get(query, [[1, offset + size]]))
+            for span in held:
+                start, end = int(span[0]), int(span[1])
+                # Where the piece sits in the genome: the same coordinates unless the span says
+                # otherwise, which is how a scenario puts two pieces of a contig in two unrelated places
+                at = int(span[2]) if len(span) > 2 else start
+                # Clipped to the piece this query is, and reported in the piece's own coordinates
+                low, high = max(start, offset + 1), min(end, offset + size)
+                if low > high:
+                    continue
+                row = {"qseqid": query, "qstart": str(low - offset), "qend": str(high - offset),
+                       "evalue": evalue, "sseqid": "chr",
+                       "sstart": str(at + (low - start)), "send": str(at + (high - start))}
                 rows.append([row[name] for name in fields])
     out_file.write_text("".join("\t".join(row) + "\n" for row in rows))
     return 0
@@ -453,6 +523,7 @@ PROGRAMS = {
     "minimap2": minimap2,
     "makeblastdb": makeblastdb,
     "blastn": blastn,
+    "dustmasker": dustmasker,
 }
 
 

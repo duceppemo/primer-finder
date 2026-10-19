@@ -23,6 +23,13 @@ under *repeats: a published repeat-targeted assay* below.
 on any blast hit, however little of the region it covers. `partial_presence.py` measures what that lets
 through on every answer key, which is what decided that the rule stays and the fraction gets reported.
 
+`2026-10-19_v1.9.3_masking/` is about two defects of composition, where every step is right about its own
+question and the answer is wrong: `blastn` cannot find what its own masking takes out of the query, which
+turned a region every inclusion genome holds into an absence from every exclusion genome; and a region
+spliced across a tandem repeat, which is reported shorter than the genome's own copy of it. It measures
+what blast masks, what that did to a run end to end, and what the fix changes on the Xylella panel
+(nothing at all).
+
 Not every record is about an assay. `2026-10-14_v1.7.0_unitig/` measures what a change to the code does to
 a panel whose answer is already known — the question any change to the find or assembly rules has to
 answer before it can become a default.

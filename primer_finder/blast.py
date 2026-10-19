@@ -8,12 +8,12 @@ import os
 import shutil
 from collections.abc import Iterable, Sequence
 from concurrent import futures
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from primer_finder import tools
 from primer_finder.mapping import MAX_PRIMER_SPAN, STRICT_DIFFERENCES
-from primer_finder.seqio import base_name, iter_records
+from primer_finder.seqio import Record, base_name, iter_records, write_fasta
 
 log = logging.getLogger(__name__)
 
@@ -48,12 +48,17 @@ SHORTEST_ABSENT_STRETCH = 40
 MOST_SUBJECTS = 500
 MIN_EXCLUSION_FRACTION = 0.90
 
-PRESENCE_FIELDS = ("qseqid", "qstart", "qend", "evalue")
+# The subject columns are here for `in_one_piece`: without them two halves of a contig landing in
+# two unrelated places in a genome are indistinguishable from the contig being there whole.
+PRESENCE_FIELDS = ("qseqid", "qstart", "qend", "evalue", "sseqid", "sstart", "send")
 ALIGNMENT_FIELDS = ("qseqid", "qstart", "qend", "evalue", "qseq", "sseq")
 
 # BLAST splits its path arguments on whitespace, so it is never given a path that could hold a space: each
 # genome is linked into its own folder under these fixed names, and blast runs in that folder.
 LOCAL_FASTA = "genome.fasta"
+# What separates a contig's name from a piece's offset in the query of the second, unmasked pass. A name
+# blast prints is cut at the first space, so the separator has to be something a fasta header keeps.
+PIECE_SEP = "~piece~"
 DB_NAME = "db"
 HITS_NAME = "hits.tsv"
 
@@ -149,7 +154,7 @@ SEARCH_TASK = "blastn"
 
 
 def blastn(db: Path, query: Path, out_file: Path, fields: Sequence[str], max_targets: int = 10,
-           evalue: float = MAX_EVALUE) -> Path:
+           evalue: float = MAX_EVALUE, dust: bool = True) -> Path:
     """Run blastn in the database's folder, writing the chosen tabular fields to `out_file`.
 
     `evalue` is a parameter because one cut-off cannot serve both questions asked here. Measured against
@@ -158,6 +163,14 @@ def blastn(db: Path, query: Path, out_file: Path, fields: Sequence[str], max_tar
     present", with queries of hundreds to thousands of bases, that is right. For "does this genome hold
     this amplicon", with a 70-150 base query, the pieces that decide the answer are primer-sized: an
     exact 20-mer in a 90-base query is at 1e-4, which this floor can never see.
+
+    `dust` is a parameter for the same kind of reason. Blast masks low-complexity stretches of the query
+    by default, and a masked stretch cannot be found however exactly a genome holds it: measured on a
+    200-base AT microsatellite planted in a 6 kb genome, the default search returns **no hit at all** and
+    `-dust no` returns one over all 200 bases at 100% identity. For a search that asks "is this here", a
+    masked query reads as absent -- which is the strongest claim this tool makes -- so the searches that
+    decide an absence take a second look with the masking off. Nothing is left masked for the sake of
+    speed on a question that masking can only answer wrongly in one direction.
     """
     work_dir = db.parent
     tools.run([
@@ -168,6 +181,7 @@ def blastn(db: Path, query: Path, out_file: Path, fields: Sequence[str], max_tar
         "-out", os.path.relpath(out_file, work_dir),
         "-evalue", str(evalue),
         "-max_target_seqs", str(max_targets),
+        *(() if dust else ("-dust", "no", "-soft_masking", "false")),
         # One CPU per search, with as many searches at once as `-t` allows, rather than the other way
         # round. `-num_threads` splits the *query*, and each search here is one small genome, so there is
         # almost nothing to split: measured on 200 genomes at a fixed budget of 48 CPUs, with the two
@@ -294,6 +308,69 @@ def genome_folder(work_dir: Path, index: int, genome: Path) -> Path:
     return work_dir / f"{index:04d}_{safe_stem(genome)}"
 
 
+# How far apart two pieces of one alignment may be, in the amplicon or in the genome, and still be read as
+# one copy of it rather than two unrelated stretches of homology (`chains_of`). Deliberately generous: an
+# indel of this size between the primers makes a product far outside what the assay was designed for, and
+# counting it as held only means the assay is judged on its primers rather than granted the "nothing to
+# amplify" exemption. Two pieces further apart than this say nothing about one another.
+MAX_PRODUCT_GAP = 2000
+# Blast's pieces may overlap a little where it ends one alignment and starts the next
+MAX_PIECE_OVERLAP = 30
+def subject_bounds(hit: Hit) -> tuple[int, int, bool]:
+    """Where a hit sits on the subject, lowest coordinate first, and whether it is on the plus strand."""
+    forward = hit.sstart <= hit.send
+    return (hit.sstart, hit.send, True) if forward else (hit.send, hit.sstart, False)
+
+
+def chains_of(hits: Sequence[Hit]) -> list[list[Hit]]:
+    """Group one amplicon's hits in one genome into chains, one per copy the genome holds.
+
+    Blast does not always report a copy as one alignment. Once the cost of gapping through an indel
+    exceeds what the rest of the alignment is worth, it stops and reports the pieces either side as
+    separate high-scoring pairs instead -- measured with blastn 2.17 at its defaults, an insertion of
+    about 60 bases is enough on a 207-base amplicon, and a deletion of about 30. Judged one piece at a
+    time neither reaches far enough across the amplicon to count, so a genome holding every base of it
+    either side of an insertion, and both primer sites exactly, counted as holding nothing at all.
+
+    Pieces belong to the same copy when they follow each other in the amplicon *and* in the genome, on one
+    strand of one sequence, close enough to be one product. Two copies lying side by side in the genome do
+    not chain: the second repeats the amplicon rather than continuing it, so it does not advance along the
+    query.
+    """
+    chains: list[list[Hit]] = []
+    # Sorted by where each piece sits in the genome as well as in the amplicon. Without that last term
+    # pieces covering the same stretch of the amplicon keep the order blast printed them in -- which is by
+    # score -- and each piece joins the first chain that will take it. Two split copies within
+    # MAX_PRODUCT_GAP of each other then cross: measured on real output, the downstream copy's second
+    # piece scored higher, came first, and joined the upstream copy's chain, leaving one countable copy
+    # where there are two. It also made the count depend on the scores rather than on the sequence.
+    def in_order(one: Hit) -> tuple:
+        low, _, forward = subject_bounds(one)
+        return one.subject, forward, one.qstart, one.qend, low
+
+    for hit in sorted(hits, key=in_order):
+        low, high, forward = subject_bounds(hit)
+        for chain in chains:
+            last = chain[-1]
+            last_low, last_high, last_forward = subject_bounds(last)
+            if last.subject != hit.subject or last_forward != forward:
+                continue
+            if hit.qstart <= last.qstart or hit.qend <= last.qend:
+                continue  # Not a continuation of this copy but another look at the same stretch of it
+            query_gap = hit.qstart - last.qend - 1
+            # Along the genome the pieces run the other way round on the minus strand
+            subject_gap = low - last_high - 1 if forward else last_low - high - 1
+            if min(query_gap, subject_gap) < -MAX_PIECE_OVERLAP:
+                continue  # Overlapping in the genome: a repeat rather than one stretch
+            if max(query_gap, subject_gap) > MAX_PRODUCT_GAP:
+                continue
+            chain.append(hit)
+            break
+        else:
+            chains.append([hit])
+    return chains
+
+
 def covered_fraction(hits: Iterable[Hit], length: int) -> float:
     """How much of a contig a genome's hits cover, as a fraction of the contig's length.
 
@@ -312,11 +389,35 @@ def covered_fraction(hits: Iterable[Hit], length: int) -> float:
     return min(1.0, covered / length)
 
 
+def in_one_piece(hits: Sequence[Hit], length: int) -> float:
+    """The largest fraction of a contig this genome holds as **one stretch**: the best chain of hits that
+    runs the same way through the contig and through the genome (`chains_of`).
+
+    `covered_fraction` beside this merges intervals of the *query* and asks nothing about where in the
+    genome they came from, which is right for "how much of this region is in this genome" and cannot see
+    the case that matters here: a contig assembled from kmers is not always a stretch any genome holds.
+    At `-d 1` the kmers inside a perfect tandem repeat are dropped as repeated, the unitig walk then
+    splices flank + one kmer + flank, and both halves of what comes out hit the genome -- 50 bases either
+    side of the join, in two places 100 bases apart -- so the contig reads as wholly present while no
+    genome holds it at that length. Measured on such a run: a 150-base region whose best single chain
+    covers 100 bases of it, in every one of the three inclusion genomes.
+
+    The reach of a chain is taken from its first piece's `qstart` to its last piece's `qend`, as
+    `has_the_amplicon` measures an amplicon: what matters is how far across the contig one locus of the
+    genome carries it.
+    """
+    if length <= 0:  # pragma: no cover - a contig of no length cannot be reported
+        return 0.0
+    reaches = [chain[-1].qend - chain[0].qstart + 1 for chain in chains_of(hits) if chain]
+    return min(1.0, max(reaches, default=0) / length)
+
+
 def presence_in_genomes(
     query: Path, genomes: Sequence[Path], work_dir: Path, threads: int
-) -> dict[str, dict[str, float]]:
-    """For every contig of `query`, how much of it each genome holds, as a fraction of its length. Keyed
-    by contig, then by the genome's path, which is what tells two genomes with the same file name apart.
+) -> tuple[dict[str, dict[str, float]], dict[str, dict[str, float]]]:
+    """For every contig of `query`, how much of it each genome holds, as a fraction of its length, and how
+    much of it the genome holds in one piece. Keyed by contig, then by the genome's path, which is what
+    tells two genomes with the same file name apart.
 
     Anything above 0 means "the contig is there", which is what this has always answered and still is:
     the step this feeds keeps a contig on any hit at all, and deliberately so -- a region whose shared
@@ -325,8 +426,12 @@ def presence_in_genomes(
     region and holding forty bases of it looked identical in the output and they are not the same thing.
     """
     sizes = _query_sizes(query)
+    masked = masked_intervals(query, work_dir)
+    # Only read for the second pass, and only where there is one: a query of 5,430 contigs is held in
+    # memory for as long as the step runs
+    sequences = {record.name: record.seq for record in iter_records(query)} if masked else {}
 
-    def one(index: int, genome: Path) -> dict[str, float]:
+    def one(index: int, genome: Path) -> tuple[dict[str, float], dict[str, float]]:
         folder = genome_folder(work_dir, index, genome)
         db = make_db(genome, folder)
         # Every subject that matches, not the best one. A draft assembly breaks a contig across two of
@@ -334,18 +439,25 @@ def presence_in_genomes(
         # missing from the fraction -- which is the case this number exists to show.
         hits = parse_hits(blastn(db, query, folder / HITS_NAME, PRESENCE_FIELDS,
                                  max_targets=MOST_SUBJECTS), PRESENCE_FIELDS)
+        # And a second look at what it did not align, with the masking off: a low-complexity contig is
+        # masked out of its own query and read as held by nobody, which here drops a real region rather
+        # than overclaiming one. It can only add to the fraction.
+        hits += unmasked_hits(db, folder, hits, sizes, sequences, masked, PRESENCE_FIELDS)
         per_contig: dict[str, list[Hit]] = {}
         for hit in hits:
             if hit.evalue <= MAX_EVALUE and hit.query in sizes:
                 per_contig.setdefault(hit.query, []).append(hit)
-        return {contig: covered_fraction(found, sizes[contig]) for contig, found in per_contig.items()}
+        return ({contig: covered_fraction(rows, sizes[contig]) for contig, rows in per_contig.items()},
+                {contig: in_one_piece(rows, sizes[contig]) for contig, rows in per_contig.items()})
 
     found = parallel(enumerate(genomes), one, threads)
     presence: dict[str, dict[str, float]] = {contig: {} for contig in sizes}
-    for genome, covered in zip(genomes, found, strict=True):
+    pieces: dict[str, dict[str, float]] = {contig: {} for contig in sizes}
+    for genome, (covered, whole) in zip(genomes, found, strict=True):
         for contig in sizes:
             presence[contig][str(genome)] = covered.get(contig, 0.0)
-    return presence
+            pieces[contig][str(genome)] = whole.get(contig, 0.0)
+    return presence, pieces
 
 
 def _query_names(query: Path) -> list[str]:
@@ -362,14 +474,21 @@ def exclusion_variants(
     query: Path, genomes: Sequence[Path], work_dir: Path, threads: int
 ) -> dict[str, ExclusionResult]:
     """For every contig of `query`, what each exclusion genome that holds part of it looks like there."""
+    sizes = _query_sizes(query)
+    masked = masked_intervals(query, work_dir)
+    # Only read for the second pass, and only where there is one: a query of 5,430 contigs is held in
+    # memory for as long as the step runs
+    sequences = {record.name: record.seq for record in iter_records(query)} if masked else {}
+
     def one(index: int, genome: Path) -> list[Hit]:
         folder = genome_folder(work_dir, index, genome)
         db = make_db(genome, folder)
         # Every subject that matches, not the ten best. A draft assembly can put a short stretch of a
         # contig on a sequence of its own, and at the default ten that sequence can be crowded out by
         # others holding the rest -- which would read as the genome lacking that stretch when it has it.
-        return parse_hits(blastn(db, query, folder / HITS_NAME, ALIGNMENT_FIELDS,
+        hits = parse_hits(blastn(db, query, folder / HITS_NAME, ALIGNMENT_FIELDS,
                                  max_targets=MOST_SUBJECTS), ALIGNMENT_FIELDS)
+        return hits + unmasked_hits(db, folder, hits, sizes, sequences, masked)
 
     results: dict[str, ExclusionResult] = {name: ExclusionResult() for name in _query_names(query)}
     for hits in parallel(enumerate(genomes), one, threads):
@@ -381,6 +500,116 @@ def exclusion_variants(
         for contig, alignments in per_contig.items():
             results.setdefault(contig, ExclusionResult()).genomes.append(alignments)
     return results
+
+
+def masked_intervals(query: Path, work_dir: Path) -> dict[str, list[tuple[int, int]]]:
+    """Which stretches of each contig blast masks as low-complexity, from blast's own masker.
+
+    `dustmasker` is the same SDUST implementation `blastn` applies to its query, so this says exactly
+    which stretches the searches cannot see rather than guessing at it. Measured against `blastn` itself
+    on nine 200-base shapes planted in a 6 kb genome: a perfect `AAT` repeat, a random two-letter
+    sequence, a homopolymer, a 5-base and a 10-base period are all masked and all return **no hit** at
+    the default, while random ACGT and an 80% AT-rich sequence are masked by neither and found by both --
+    and of a contig that is half ordinary and half `AAT`, exactly the second half is masked. Note what
+    that rules out: a cheap proxy of my own. A random two-letter 200-mer holds 186 of its 190 possible
+    11-base seeds and is masked all the same, so seed diversity does not predict this.
+
+    Returned as half-open ranges in the contig's own coordinates. One call per search step, since the
+    query is the same for every genome.
+    """
+    work_dir.mkdir(parents=True, exist_ok=True)
+    out_file = work_dir / "masked.txt"
+    tools.run(["dustmasker", "-in", str(query), "-outfmt", "acclist", "-out", str(out_file)])
+    masked: dict[str, list[tuple[int, int]]] = {}
+    for line in out_file.read_text().splitlines():
+        parts = line.split("\t")
+        if len(parts) != 3 or not parts[0].startswith(">"):  # pragma: no cover - acclist is three columns
+            continue
+        name = parts[0][1:].split()[0]
+        try:  # The two coordinates are 0-based and inclusive of both ends
+            start, end = int(parts[1]), int(parts[2])
+        except ValueError:  # pragma: no cover - dustmasker writes numbers
+            continue
+        masked.setdefault(name, []).append((start, end + 1))
+    return masked
+
+
+def overlaps_masked(masked: Sequence[tuple[int, int]], start: int, end: int) -> bool:
+    """Whether a stretch of a contig holds any base the masker takes out."""
+    return any(low < end and start < high for low, high in masked)
+
+
+def unaligned_stretches(hits: Iterable[Hit], sizes: dict[str, int],
+                        shortest: int = SHORTEST_ABSENT_STRETCH,
+                        only: Iterable[str] | None = None) -> list[tuple[str, int, int]]:
+    """The stretches of each contig that these hits leave untouched, as `(contig, start, end)` with
+    `start` 0-based, in runs of at least `shortest` bases.
+
+    Shorter runs are left out for the reason `SHORTEST_ABSENT_STRETCH` gives: nothing downstream reads a
+    run below it as an absence, so looking again at one would buy nothing. `only` narrows it to a few
+    contigs, which is what the caller wants -- on a 2,000-contig query this is measured per genome, and
+    the contigs worth asking about are the handful the masker touched.
+    """
+    wanted = ({name: length for name, length in sizes.items() if name in set(only)} if only is not None
+              else sizes)
+    covered: dict[str, list[tuple[int, int]]] = {}
+    for hit in hits:
+        if hit.query in wanted and hit.evalue <= MAX_EVALUE:
+            covered.setdefault(hit.query, []).append((hit.qstart - 1, hit.qend))
+    stretches = []
+    for contig, length in wanted.items():
+        reached = 0
+        for start, end in sorted(covered.get(contig, [])):
+            if start - reached >= shortest:
+                stretches.append((contig, reached, start))
+            reached = max(reached, end)
+        if length - reached >= shortest:
+            stretches.append((contig, reached, length))
+    return stretches
+
+
+def unmasked_hits(db: Path, folder: Path, hits: Sequence[Hit], sizes: dict[str, int],
+                  sequences: dict[str, str], masked: dict[str, list[tuple[int, int]]],
+                  fields: Sequence[str] = ALIGNMENT_FIELDS) -> list[Hit]:
+    """A second look, with the low-complexity masking off, at the stretches this genome did not align.
+
+    Blast masks a low-complexity query by default, and a masked stretch is not found however exactly the
+    genome holds it (see `blastn`). In the exclusion group that turns into the strongest claim the tool
+    makes: a stretch no exclusion genome aligns is reported as absent from the whole group, and a contig
+    that is low-complexity end to end is absent from every one of them. minimap2 leaves such a contig
+    unmapped too, so nothing else in the run contradicts it. In the inclusion group it reads the other
+    way and is just as wrong: measured end to end, a 200-base AT element that every inclusion genome
+    carries exactly was held by none of them, and the run ended at "no candidate contig is present in all
+    the inclusion genomes".
+
+    Only the stretches left over from the first pass are searched, and only those holding a base the
+    masker takes out (`masked_intervals`), so this can only ever *add* an alignment: an absence can be
+    removed by it and never created, and a genome cannot lose a region it was already found to hold. The
+    pieces are returned in the contig's own coordinates, which is what the callers measure in.
+
+    Asking the masker first is what keeps this from costing a second search of everything a genome does
+    not hold -- which is most of a query, on most genomes, since the whole point of the search is that
+    these contigs are not in the exclusion group. A run whose contigs hold no low-complexity stretch does
+    not search twice at all.
+    """
+    stretches = [(contig, start, end)
+                 for contig, start, end in unaligned_stretches(hits, sizes, only=masked)
+                 if overlaps_masked(masked.get(contig, ()), start, end)]
+    if not stretches:
+        return []
+    pieces = folder / "unmasked.fasta"
+    write_fasta(pieces, [Record(f"{contig}{PIECE_SEP}{start}", "", sequences[contig][start:end])
+                         for contig, start, end in stretches if contig in sequences])
+    found = parse_hits(blastn(db, pieces, folder / "unmasked_hits.tsv", fields,
+                              max_targets=MOST_SUBJECTS, dust=False), fields)
+    shifted = []
+    for hit in found:
+        contig, _, offset = hit.query.rpartition(PIECE_SEP)
+        if not contig or not offset.isdigit():  # pragma: no cover - this wrote the names itself
+            continue
+        shift = int(offset)
+        shifted.append(replace(hit, query=contig, qstart=hit.qstart + shift, qend=hit.qend + shift))
+    return shifted
 
 
 def unaligned_positions(result: ExclusionResult, length: int,

@@ -48,7 +48,7 @@ ASSEMBLY_FOLDER = "2_assembly"
 CANDIDATE_FOLDER = "3_candidates"
 BLAST_FOLDER = "4_blast"
 
-BASE_PROGRAMS = ("kmc", "kmc_tools", "minimap2", "makeblastdb", "blastn")
+BASE_PROGRAMS = ("kmc", "kmc_tools", "minimap2", "makeblastdb", "blastn", "dustmasker")
 
 
 def required_genomes(settings: Settings, inclusion: list[Path]) -> int:
@@ -167,11 +167,18 @@ def _run(settings: Settings, inclusion: list[Path], exclusion: list[Path], refer
     counts["contigs"] = seqio.count_records(assembly)
 
     absent: dict[str, list[list[int]]] = {}
+    spliced: dict[str, float] = {}
     final, min_differences = check_the_contigs(settings, assembly, reference, inclusion, exclusion,
-                                               counts, absent)
+                                               counts, absent, spliced)
     # Which marked stretches are missing from the exclusion group rather than differing from it. `design`
     # reads the marks off the sequence and cannot tell the two apart on its own.
     info["absent_stretches"] = {name: runs for name, runs in sorted(absent.items())}
+    # And which of them no inclusion genome holds in one piece, with the most any of them does hold:
+    # a region spliced across a repeat is shorter than the genome's own copy of it, so a product
+    # designed on it would be longer than its size says. Only the regions that are still in the answer.
+    final_names = {record.name for record in seqio.iter_records(final)} if final.is_file() else set()
+    info["held_in_pieces"] = {name: round(most, 3) for name, most in sorted(spliced.items())
+                              if name in final_names}
     info["parameters"]["min_differences"] = min_differences  # type: ignore[index]
     info["last_resort"] = min_differences <= 1 and counts["final"] > 0
 
@@ -330,7 +337,8 @@ def assemble_kmers(settings: Settings, kmer_fasta: Path) -> tuple[Path, str]:
 
 def check_the_contigs(settings: Settings, assembly: Path, reference: Path, inclusion: list[Path],
                       exclusion: list[Path], counts: dict[str, int],
-                      absent: dict[str, list[list[int]]] | None = None) -> tuple[Path, int]:
+                      absent: dict[str, list[list[int]]] | None = None,
+                      spliced: dict[str, float] | None = None) -> tuple[Path, int]:
     """Steps 3 to 5 at the strict rule, and again accepting a single difference if that found nothing.
 
     The three steps between the assembly and the answer all turn on how much a region has to differ, and
@@ -347,7 +355,8 @@ def check_the_contigs(settings: Settings, assembly: Path, reference: Path, inclu
     """
     def pass_at(min_differences: int) -> Path:
         best, counts["candidates"] = find_candidates(settings, assembly, reference, min_differences)
-        all_inclusion, counts["in_all_inclusion"] = keep_shared_by_inclusion(settings, best, inclusion)
+        all_inclusion, counts["in_all_inclusion"] = keep_shared_by_inclusion(settings, best, inclusion,
+                                                                            spliced)
         final, counts["final"], found = keep_absent_from_exclusion(settings, all_inclusion, exclusion,
                                                                     min_differences)
         if absent is not None:
@@ -415,7 +424,8 @@ def find_candidates(settings: Settings, assembly: Path, reference: Path,
     return best, count
 
 
-def keep_shared_by_inclusion(settings: Settings, best: Path, inclusion: list[Path]) -> tuple[Path, int]:
+def keep_shared_by_inclusion(settings: Settings, best: Path, inclusion: list[Path],
+                             spliced: dict[str, float] | None = None) -> tuple[Path, int]:
     """Drop the candidates that too few inclusion genomes hold: the mapping step only compared them with one
     exclusion genome, and the assembly may hold kmers that come from some of the genomes only.
 
@@ -426,7 +436,8 @@ def keep_shared_by_inclusion(settings: Settings, best: Path, inclusion: list[Pat
     folder.mkdir(parents=True, exist_ok=True)
     required = required_genomes(settings, inclusion)
     log.info("Checking the candidates against the %d inclusion genomes...", len(inclusion))
-    presence = blast.presence_in_genomes(best, inclusion, folder / "inclusion_db", settings.threads)
+    presence, pieces = blast.presence_in_genomes(best, inclusion, folder / "inclusion_db",
+                                                settings.threads)
     write_presence_table(folder / HITS_NAME, presence, genome_labels(inclusion, settings.inclusion))
 
     partial = required < len(inclusion)
@@ -452,6 +463,10 @@ def keep_shared_by_inclusion(settings: Settings, best: Path, inclusion: list[Pat
     else:
         log.info("%d contig(s) are present in all inclusion genomes", count)
     report_partial_presence(presence, (record for _, record in kept), folder / HITS_NAME)
+    in_pieces = report_spliced_regions(pieces, (record for _, record in kept))
+    if spliced is not None:
+        spliced.clear()  # A second pass replaces what the first one found, as with the absent stretches
+        spliced.update(in_pieces)
     if count == 0:
         how_many = f"at least {required} of the inclusion genomes" if partial else "all the inclusion genomes"
         hint = (f" A -p/--min-inclusion below {settings.min_inclusion:g} would ask for fewer than {required}."
@@ -549,6 +564,40 @@ def write_presence_table(path: Path, presence: dict[str, dict[str, float]],
         for contig in sorted(presence):
             row = [f"{presence[contig].get(genome, 0.0):.3f}" for genome in genomes]
             fh.write(f"{contig}\t" + "\t".join(row) + "\n")
+
+
+def report_spliced_regions(pieces: dict[str, dict[str, float]],
+                           kept: Iterable[seqio.Record]) -> dict[str, float]:
+    """Say which kept contigs no inclusion genome holds in **one piece**. Returns them, with the best
+    fraction any genome holds in one piece.
+
+    A contig is assembled from kmers, and that is not the same as a stretch some genome has. At `-d 1`
+    the kmers inside a perfect tandem repeat are dropped as repeated, the unitig walk splices what is
+    left into flank + one kmer + flank, and both halves of the result hit every genome -- so the contig
+    passes this step as wholly present while no genome holds it at that length, and the design step then
+    prices products from a region that exists nowhere. Measured on a synthetic run of a 25-base unit
+    repeated six times: a 150-base region, present in all three inclusion genomes, whose best single
+    chain in any of them covers 100 bases.
+
+    Nothing is dropped for it. The region is specific -- its kmers are inclusion-specific, which is a
+    separate fact from how they are spliced -- and an assay inside either half may be perfectly good; the
+    product size is what cannot be trusted, and `design` measures that against the genomes itself.
+    """
+    worst: dict[str, float] = {}
+    for record in kept:
+        held = [whole for whole in pieces.get(record.name, {}).values() if whole > 0]
+        if held and max(held) < MOSTLY_PRESENT:
+            worst[record.name] = max(held)
+    if worst:
+        name, best = min(worst.items(), key=lambda pair: pair[1])
+        log.warning("%d region(s) are in the inclusion genomes in pieces rather than whole: no genome "
+                    "holds more than %.0f%% of %s as one stretch, though the pieces together cover it. "
+                    "A region assembled across a repeat can come out shorter than the genome's own copy "
+                    "of it (see -d/--duplication), and then a product designed on it would be longer "
+                    "than its size says. `primer-finder design` measures each amplicon against the "
+                    "genomes and reports inclusion_product_span per assay.",
+                    len(worst), 100 * best, name)
+    return worst
 
 
 def report_partial_presence(presence: dict[str, dict[str, float]], kept: Iterable[seqio.Record],

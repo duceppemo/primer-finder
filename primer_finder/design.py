@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from primer_finder import PrimerFinderError, __version__, blast, insilico, seqio, system, tools
+from primer_finder.blast import MAX_PRODUCT_GAP, chains_of, subject_bounds
 from primer_finder.pipeline import LAST_RESORT_TAG, _inside, add_log_file, keep_previous_log
 
 log = logging.getLogger(__name__)
@@ -81,14 +82,6 @@ DEFAULT_PROBE_NM = 200.0
 # "the genome has it". See `has_the_amplicon` for why neither is measured the way blast reports it.
 MIN_AMPLICON_COVERAGE = 0.9
 MIN_AMPLICON_IDENTITY = 90.0
-# How far apart two pieces of one alignment may be, in the amplicon or in the genome, and still be read as
-# one copy of it rather than two unrelated stretches of homology (`chains_of`). Deliberately generous: an
-# indel of this size between the primers makes a product far outside what the assay was designed for, and
-# counting it as held only means the assay is judged on its primers rather than granted the "nothing to
-# amplify" exemption. Two pieces further apart than this say nothing about one another.
-MAX_PRODUCT_GAP = 2000
-# Blast's pieces may overlap a little where it ends one alignment and starts the next
-MAX_PIECE_OVERLAP = 30
 # Blast hits to ask for per amplicon and genome, enough to count the copies of a repeated target.
 MAX_COPIES = 100
 # A second look for the genomes that appear to hold nothing, at an e-value blast's own floor hides.
@@ -101,8 +94,10 @@ MAX_COPIES = 100
 # a shorter product. That is an unearned `absence`, the claim that ranks above every difference-based
 # assay and is exempt from the differences filter.
 #
-# So a genome with no copy is looked at again at this e-value, and only ever to *remove* an absence: the
-# first pass is untouched and nothing here can turn a copy into an absence.
+# So a genome with no copy is looked at again at this e-value, with the low-complexity masking off as
+# well -- a masked amplicon is not found however exactly the genome holds it, measured in
+# `blast.blastn` -- and only ever to *remove* an absence: the first pass is untouched and nothing here
+# can turn a copy into an absence.
 RESCUE_EVALUE = 1.0
 # How much of a primer's site at either end of the amplicon has to be there for the two to be a pair that
 # would amplify. Two bases, because blast trims at most that much off an alignment's end.
@@ -128,9 +123,9 @@ def could_amplify(hits: Sequence[blast.Hit], size: int, head: int, tail: int) ->
         tails = [hit for hit in good if hit.qend >= size - PRIMER_SITE_SLACK
                  and hit.qstart <= size - tail + PRIMER_SITE_SLACK]
         for one in heads:
-            low_one, high_one, forward_one = _subject_bounds(one)
+            low_one, high_one, forward_one = subject_bounds(one)
             for other in tails:
-                low_other, high_other, forward_other = _subject_bounds(other)
+                low_other, high_other, forward_other = subject_bounds(other)
                 if forward_one != forward_other:
                     continue  # the two sites are not on one strand, so they are not one locus
                 first, second = ((low_one, high_other) if forward_one
@@ -295,6 +290,9 @@ class Assay:
     pair_dimer_end_tm: float = 0.0  # ... at their 3' ends, where it costs most
     exclusion_genomes_with_amplicon: int | None = None  # None until it has been checked
     inclusion_copies: list[int] | None = None  # Copies of the amplicon in each inclusion genome
+    # How long the stretch between the primer sites is in the inclusion genomes, one entry per copy
+    # counted. It is `product_size` wherever a genome holds the amplicon as the region spells it.
+    inclusion_spans: list[int] = field(default_factory=list)
     amplicon: str = ""
 
     @property
@@ -813,59 +811,16 @@ def design(regions: Iterable[seqio.Record], work_dir: Path, product_size: str = 
     return assays
 
 
-def _subject_bounds(hit: blast.Hit) -> tuple[int, int, bool]:
-    """Where a hit sits on the subject, lowest coordinate first, and whether it is on the plus strand."""
-    forward = hit.sstart <= hit.send
-    return (hit.sstart, hit.send, True) if forward else (hit.send, hit.sstart, False)
+def chain_span(chain: Sequence[blast.Hit]) -> int:
+    """How much of the genome one chain covers: the product this copy would give.
 
-
-def chains_of(hits: Sequence[blast.Hit]) -> list[list[blast.Hit]]:
-    """Group one amplicon's hits in one genome into chains, one per copy the genome holds.
-
-    Blast does not always report a copy as one alignment. Once the cost of gapping through an indel
-    exceeds what the rest of the alignment is worth, it stops and reports the pieces either side as
-    separate high-scoring pairs instead -- measured with blastn 2.17 at its defaults, an insertion of
-    about 60 bases is enough on a 207-base amplicon, and a deletion of about 30. Judged one piece at a
-    time neither reaches far enough across the amplicon to count, so a genome holding every base of it
-    either side of an insertion, and both primer sites exactly, counted as holding nothing at all.
-
-    Pieces belong to the same copy when they follow each other in the amplicon *and* in the genome, on one
-    strand of one sequence, close enough to be one product. Two copies lying side by side in the genome do
-    not chain: the second repeats the amplicon rather than continuing it, so it does not advance along the
-    query.
+    It is the amplicon's own length wherever the genome holds the amplicon as designed, and it is not
+    where the genome holds something longer or shorter between the two primer sites. `has_the_amplicon`
+    counts such a copy as held on purpose -- an indel between the primers is a fact about the sequence
+    rather than about a reaction -- so this is the number that decision leaves unsaid.
     """
-    chains: list[list[blast.Hit]] = []
-    # Sorted by where each piece sits in the genome as well as in the amplicon. Without that last term
-    # pieces covering the same stretch of the amplicon keep the order blast printed them in -- which is by
-    # score -- and each piece joins the first chain that will take it. Two split copies within
-    # MAX_PRODUCT_GAP of each other then cross: measured on real output, the downstream copy's second
-    # piece scored higher, came first, and joined the upstream copy's chain, leaving one countable copy
-    # where there are two. It also made the count depend on the scores rather than on the sequence.
-    def in_order(one: blast.Hit) -> tuple:
-        low, _, forward = _subject_bounds(one)
-        return one.subject, forward, one.qstart, one.qend, low
-
-    for hit in sorted(hits, key=in_order):
-        low, high, forward = _subject_bounds(hit)
-        for chain in chains:
-            last = chain[-1]
-            last_low, last_high, last_forward = _subject_bounds(last)
-            if last.subject != hit.subject or last_forward != forward:
-                continue
-            if hit.qstart <= last.qstart or hit.qend <= last.qend:
-                continue  # Not a continuation of this copy but another look at the same stretch of it
-            query_gap = hit.qstart - last.qend - 1
-            # Along the genome the pieces run the other way round on the minus strand
-            subject_gap = low - last_high - 1 if forward else last_low - high - 1
-            if min(query_gap, subject_gap) < -MAX_PIECE_OVERLAP:
-                continue  # Overlapping in the genome: a repeat rather than one stretch
-            if max(query_gap, subject_gap) > MAX_PRODUCT_GAP:
-                continue
-            chain.append(hit)
-            break
-        else:
-            chains.append([hit])
-    return chains
+    bounds = [subject_bounds(piece) for piece in chain]
+    return max(high for _, high, _ in bounds) - min(low for low, _, _ in bounds) + 1
 
 
 def matching(flank: str, window: str) -> int:
@@ -927,8 +882,8 @@ def with_flanks(chain: Sequence[blast.Hit], size: int, amplicon: str,
         return list(chain)
 
     sequence = contig.seq
-    low, high, forward = _subject_bounds(chain[0])
-    last_low, last_high, _ = _subject_bounds(chain[-1])
+    low, high, forward = subject_bounds(chain[0])
+    last_low, last_high, _ = subject_bounds(chain[-1])
     pieces = list(chain)
 
     head = chain[0].qstart - 1  # Bases of the amplicon before the alignment
@@ -1009,9 +964,12 @@ def has_the_amplicon(chain: Sequence[blast.Hit], size: int) -> bool:
     return span >= MIN_AMPLICON_COVERAGE * size and identity >= MIN_AMPLICON_IDENTITY
 
 
-def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: Path, threads: int,
-                    with_bases: bool = True) -> tuple[dict[str, list[int]], dict[str, dict[int, str]]]:
-    """How many copies of each amplicon each genome holds, and what those genomes have where they differ.
+def amplicon_copies(
+    assays: Sequence[Assay], genomes: Sequence[Path], work_dir: Path, threads: int,
+    with_bases: bool = True,
+) -> tuple[dict[str, list[int]], dict[str, dict[int, str]], dict[str, list[int]]]:
+    """How many copies of each amplicon each genome holds, what those genomes have where they differ, and
+    how long each copy is in the genome.
 
     A copy is a blast hit covering nearly the whole amplicon at high identity, so a genome that holds the
     target twice gives two. In the exclusion group that answers "is there anything to amplify"; in the
@@ -1021,11 +979,16 @@ def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: 
     taking the commonest when they disagree. It is only meaningful for the exclusion group, whose bases are
     what an oligo has to mismatch, so `with_bases` is off for the inclusion group: the aligned sequences are
     then not asked for and not read.
+
+    The third is the span of every copy counted, in the genome's own coordinates (`chain_span`): the
+    product that copy would give, which is the amplicon's length only where the genome holds the amplicon
+    as the region spells it.
     """
     counts = {assay.name: [0] * len(genomes) for assay in assays}
     bases: dict[str, dict[int, str]] = {assay.name: {} for assay in assays}
+    spans: dict[str, list[int]] = {assay.name: [] for assay in assays}
     if not assays or not genomes:
-        return counts, bases
+        return counts, bases, spans
     work_dir.mkdir(parents=True, exist_ok=True)
     query = work_dir / "amplicons.fasta"
     seqio.write_fasta(query, [seqio.Record(assay.name, "", assay.amplicon) for assay in assays])
@@ -1037,13 +1000,15 @@ def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: 
     if with_bases:
         fields += ("qseq", "sseq")
 
-    def one(index: int, genome: Path) -> tuple[dict[str, int], dict[str, dict[int, str]]]:
+    def one(index: int, genome: Path) -> tuple[dict[str, int], dict[str, dict[int, str]],
+                                              dict[str, list[int]]]:
         folder = blast.genome_folder(work_dir, index, genome)
         db = blast.make_db(genome, folder)
         hits = blast.parse_hits(blast.blastn(db, query, folder / blast.HITS_NAME, fields,
                                              max_targets=MAX_COPIES), fields)
         found: dict[str, int] = {}
         seen: dict[str, dict[int, str]] = {}
+        measured: dict[str, list[int]] = {}
         by_query: dict[str, list[blast.Hit]] = {}
         for hit in hits:
             if hit.evalue > blast.MAX_EVALUE:
@@ -1067,6 +1032,7 @@ def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: 
                 if not held:
                     continue
                 found[name] = found.get(name, 0) + 1
+                measured.setdefault(name, []).append(chain_span(chain))
                 if with_bases:
                     offset = starts[name]
                     for piece in chain:
@@ -1075,14 +1041,16 @@ def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: 
                              for position, base in blast.variant_bases(piece).items()}
                         )
         # The genomes that appear to hold nothing get a second look, because blast's floor cannot see a
-        # primer-sized piece of a short query (see RESCUE_EVALUE). Only the assays with no copy are asked
-        # about, and the answer can only ever add one.
+        # primer-sized piece of a short query (see RESCUE_EVALUE) and because the default masking hides a
+        # low-complexity amplicon however exactly the genome holds it (see `blast.blastn`). Only the
+        # assays with no copy are asked about, and the answer can only ever add one.
         absent = [assay for assay in assays if not found.get(assay.name)]
         if absent:
             again = folder / "rescue.fasta"
             seqio.write_fasta(again, [seqio.Record(assay.name, "", assay.amplicon) for assay in absent])
             weak = blast.parse_hits(blast.blastn(db, again, folder / "rescue_hits.tsv", fields,
-                                                 max_targets=MAX_COPIES, evalue=RESCUE_EVALUE), fields)
+                                                 max_targets=MAX_COPIES, evalue=RESCUE_EVALUE,
+                                                 dust=False), fields)
             by_assay: dict[str, list[blast.Hit]] = {}
             for hit in weak:
                 if hit.evalue <= RESCUE_EVALUE:
@@ -1092,25 +1060,27 @@ def amplicon_copies(assays: Sequence[Assay], genomes: Sequence[Path], work_dir: 
                 if could_amplify(pieces, sizes[assay.name], len(assay.forward.sequence),
                                  len(assay.reverse.sequence)):
                     found[assay.name] = 1
-        return found, seen
+        return found, seen, measured
 
     votes: dict[str, dict[int, Counter]] = {assay.name: {} for assay in assays}
-    for index, (found, seen) in enumerate(blast.parallel(enumerate(genomes), one, threads)):
+    for index, (found, seen, measured) in enumerate(blast.parallel(enumerate(genomes), one, threads)):
         for name, number in found.items():
             counts[name][index] = number
+        for name, lengths in measured.items():
+            spans[name].extend(lengths)
         for name, positions in seen.items():
             for position, base in positions.items():
                 votes[name].setdefault(position, Counter())[base] += 1
     for name, positions in votes.items():
         bases[name] = {position: counter.most_common(1)[0][0] for position, counter in positions.items()}
-    return counts, bases
+    return counts, bases, spans
 
 
 def check_against_exclusion(assays: Sequence[Assay], exclusion: Sequence[Path], work_dir: Path,
                             threads: int) -> None:
     """Count how many exclusion genomes hold each amplicon, and note what they have where an oligo differs
     from them. Sets both in place."""
-    counts, bases = amplicon_copies(assays, exclusion, work_dir, threads)
+    counts, bases, _ = amplicon_copies(assays, exclusion, work_dir, threads)
     for assay in assays:
         assay.exclusion_genomes_with_amplicon = sum(1 for number in counts[assay.name] if number)
         for oligo in assay.oligos:
@@ -1120,10 +1090,12 @@ def check_against_exclusion(assays: Sequence[Assay], exclusion: Sequence[Path], 
 
 def count_inclusion_copies(assays: Sequence[Assay], inclusion: Sequence[Path], work_dir: Path,
                            threads: int) -> None:
-    """Count the copies of each amplicon in every inclusion genome. Sets them in place."""
-    counts, _ = amplicon_copies(assays, inclusion, work_dir, threads, with_bases=False)
+    """Count the copies of each amplicon in every inclusion genome, and measure how long each of them is
+    there. Sets both in place."""
+    counts, _, spans = amplicon_copies(assays, inclusion, work_dir, threads, with_bases=False)
     for assay in assays:
         assay.inclusion_copies = counts[assay.name]
+        assay.inclusion_spans = spans[assay.name]
 
 
 def rank(assays: Iterable[Assay]) -> list[Assay]:
@@ -1165,7 +1137,8 @@ DEFAULT_MAX_REGIONS = 50
 
 COLUMNS = (
     "assay", "region", "specific_by", "exclusion_genomes_with_amplicon", "best_terminal_run",
-    "inclusion_copies_min", "inclusion_copies_max", "product_size", "penalty", "penalty_band",
+    "inclusion_copies_min", "inclusion_copies_max", "product_size", "inclusion_product_span",
+    "penalty", "penalty_band",
     "best_primer_variants", "primer_variant_weight", "pair_dimer_tm", "pair_dimer_end_tm",
     "forward", "forward_start", "forward_tm", "forward_gc", "forward_variants",
     "forward_absent_bases", "forward_hairpin_tm", "forward_self_dimer_tm",
@@ -1203,6 +1176,18 @@ class DesignSettings:
     command_line: list[str] = field(default_factory=list)
 
 
+def span_of(assay: Assay) -> str:
+    """What the inclusion genomes hold between the primer sites, as one number or a range.
+
+    Empty where nothing was measured -- no inclusion genome holds the amplicon, or the copy was counted
+    by the e-value rescue, which reports no chain to measure.
+    """
+    if not assay.inclusion_spans:
+        return ""
+    low, high = min(assay.inclusion_spans), max(assay.inclusion_spans)
+    return str(low) if low == high else f"{low}-{high}"
+
+
 def specific_by(assay: Assay) -> str:
     if assay.specific_by_absence:
         return "absence"
@@ -1218,6 +1203,7 @@ def assay_row(assay: Assay, verdict: dict[str, object] | None = None) -> dict[st
         "best_terminal_run": assay.best_terminal_run,
         "inclusion_copies_min": assay.min_inclusion_copies,
         "inclusion_copies_max": max(assay.inclusion_copies) if assay.inclusion_copies else 0,
+        "inclusion_product_span": span_of(assay),
         "product_size": assay.product_size, "penalty": f"{assay.penalty:.4f}",
         "penalty_band": assay.penalty_band,
         "best_primer_variants": assay.best_primer_variants,
@@ -1442,7 +1428,7 @@ def run(settings: DesignSettings) -> int:
                 f"folders it stages genomes into, which would delete those files. Choose an {group} "
                 f"folder outside {settings.output}."
             )
-    tools.require([PROGRAM, "makeblastdb", "blastn"])
+    tools.require([PROGRAM, "makeblastdb", "blastn", "dustmasker"])
     if settings.insilico_pcr is not None:
         # Looked at now rather than at the end. Until this, what --insilico-pcr pointed at was first
         # resolved after Primer3 and both amplicon searches had run, so a mistyped path -- or a portable
@@ -1518,6 +1504,24 @@ def _design(settings: DesignSettings, final: Path, inclusion: Path, exclusion: P
                     "regions were found in.", len(nowhere),
                     ", ".join(assay.name for assay in nowhere[:3])
                     + (f" and {len(nowhere) - 3} more" if len(nowhere) > 3 else ""))
+    stretched = [assay for assay in assays
+                 if assay.inclusion_spans
+                 and {assay.product_size} != set(assay.inclusion_spans)]
+    if stretched:
+        # The region is what Primer3 priced the product from, and a region is not always a stretch any
+        # genome holds at that length: `find` assembles it from kmers, and at `-d 1` the kmers inside a
+        # perfect tandem repeat are dropped, so a region can come back holding two copies of a repeat
+        # where the genome has six. Measured on such a run, the products priced at 140, 150 and 142 bases
+        # are 284, 294 and 286 in the genome. `has_the_amplicon` counts the genome as holding the
+        # amplicon anyway, which is the cautious direction for specificity and says nothing about size.
+        worst = max(stretched, key=lambda assay: max(abs(span - assay.product_size)
+                                                     for span in assay.inclusion_spans))
+        log.warning("%d assay(s) would give a product of a size other than the one designed, in at least "
+                    "one inclusion genome: %s is priced at %d bases and the genomes hold %s between its "
+                    "primer sites. The region spells out a stretch no genome holds at that length -- an "
+                    "indel inside the amplicon, or a repeat whose copies the region does not all carry. "
+                    "inclusion_product_span says it per assay.",
+                    len(stretched), worst.name, worst.product_size, span_of(worst))
     repeated = sum(1 for assay in assays if assay.min_inclusion_copies > 1)
     if repeated:
         log.info("%d assay(s) amplify a target present more than once in every inclusion genome, which "

@@ -24,12 +24,16 @@ from primer_finder.blast import (
     exclusion_variants,
     genome_folder,
     has_close_variants,
+    in_one_piece,
     make_db,
+    masked_intervals,
+    overlaps_masked,
     parse_hits,
     presence_in_genomes,
     safe_stem,
     shared_variants,
     unaligned_positions,
+    unaligned_stretches,
     variant_bases,
 )
 
@@ -67,11 +71,12 @@ def test_parse_hits_ignores_malformed_lines(tmp_path):
 
 
 def test_parse_hits_without_the_alignment_fields(tmp_path):
-    """The presence search asks for the query span and nothing more: no aligned sequences to read."""
+    """The presence search asks for the two spans and nothing more: no aligned sequences to read."""
     path = tmp_path / "hits.tsv"
-    path.write_text("ctg1\t1\t20\t1e-30\n")
+    path.write_text("ctg1\t1\t20\t1e-30\tchr\t900\t919\n")
     hits = parse_hits(path, PRESENCE_FIELDS)
     assert (hits[0].query, hits[0].qseq, hits[0].qstart, hits[0].qend) == ("ctg1", "", 1, 20)
+    assert (hits[0].subject, hits[0].sstart, hits[0].send) == ("chr", 900, 919)
 
 
 def test_a_genome_name_blast_cannot_use_does_not_reach_the_database_folder():
@@ -258,7 +263,7 @@ def test_presence_in_genomes(stubs, tmp_path):
     """The fraction of the contig each genome holds: all of it, or none."""
     stubs(presence={"g1": ["ctg1"], "g2": []})
     genomes = [genome(tmp_path / "in", f"{name}.fasta") for name in ("g1", "g2")]
-    presence = presence_in_genomes(query_file(tmp_path), genomes, tmp_path / "work", threads=2)
+    presence, _ = presence_in_genomes(query_file(tmp_path), genomes, tmp_path / "work", threads=2)
     assert presence == {"ctg1": {str(genomes[0]): 1.0, str(genomes[1]): 0.0}}
 
 
@@ -271,7 +276,7 @@ def test_presence_in_genomes_reports_the_part_a_genome_holds(stubs, tmp_path):
     stubs(presence={"g1": ["ctg1"], "g2": ["ctg1"]},
           presence_spans={"g2": {"ctg1": [[1, 24], [101, 130]]}})  # 24 + 30 of the 200
     genomes = [genome(tmp_path / "in", f"{name}.fasta") for name in ("g1", "g2")]
-    presence = presence_in_genomes(contig, genomes, tmp_path / "work", threads=2)
+    presence, _ = presence_in_genomes(contig, genomes, tmp_path / "work", threads=2)
     assert presence["ctg1"][str(genomes[0])] == 1.0
     assert presence["ctg1"][str(genomes[1])] == pytest.approx(54 / 200)
 
@@ -279,7 +284,7 @@ def test_presence_in_genomes_reports_the_part_a_genome_holds(stubs, tmp_path):
 def test_two_genomes_with_the_same_name_stay_apart(stubs, tmp_path):
     stubs(presence={"a/g": ["ctg1"], "b/g": []})
     genomes = [genome(tmp_path / "in" / sample, "g.fasta") for sample in ("a", "b")]
-    presence = presence_in_genomes(query_file(tmp_path), genomes, tmp_path / "work", threads=2)
+    presence, _ = presence_in_genomes(query_file(tmp_path), genomes, tmp_path / "work", threads=2)
     assert presence == {"ctg1": {str(genomes[0]): 1.0, str(genomes[1]): 0.0}}
 
 
@@ -287,7 +292,7 @@ def test_a_hit_that_is_not_good_enough_is_not_a_presence(stubs, tmp_path):
     """blastn is told -evalue 1e-10, and the value is checked again when the output is read."""
     stubs(presence_evalue="1e-3")
     genomes = [genome(tmp_path / "in", "g1.fasta")]
-    presence = presence_in_genomes(query_file(tmp_path), genomes, tmp_path / "work", threads=1)
+    presence, _ = presence_in_genomes(query_file(tmp_path), genomes, tmp_path / "work", threads=1)
     assert presence == {"ctg1": {str(genomes[0]): 0.0}}
 
 
@@ -313,7 +318,8 @@ def test_a_contig_no_exclusion_genome_hits(stubs, tmp_path):
 
 
 def test_no_genome_at_all(stubs, tmp_path):
-    assert presence_in_genomes(query_file(tmp_path), [], tmp_path / "work", threads=1) == {"ctg1": {}}
+    assert presence_in_genomes(query_file(tmp_path), [], tmp_path / "work", threads=1) == (
+        {"ctg1": {}}, {"ctg1": {}})
 
 
 @pytest.mark.parametrize("fields", [ALIGNMENT_FIELDS, PRESENCE_FIELDS])
@@ -415,3 +421,88 @@ def test_the_exclusion_search_asks_for_more_than_ten_subjects(stubs, tmp_path, f
     asked = [line for line in calls.read_text().splitlines() if line.startswith("blastn")]
     assert asked, "no search was run"
     assert all(f"-max_target_seqs {MOST_SUBJECTS}" in line for line in asked), asked
+
+
+def test_the_unaligned_stretches_of_a_contig():
+    """What the second, unmasked pass is given to look at: what the first pass left untouched, in runs
+    long enough for anything downstream to read as an absence."""
+    sizes = {"ctg1": 200, "ctg2": 100}
+    # One hit over the middle of ctg1, nothing at all on ctg2
+    stretches = unaligned_stretches([hit(51, 150, "", "")], sizes)
+    assert stretches == [("ctg1", 0, 50), ("ctg1", 150, 200), ("ctg2", 0, 100)]
+    # A gap shorter than the floor is not one: nothing downstream would read it as an absence
+    short = unaligned_stretches([hit(1, 90, "", ""), hit(111, 200, "", "")], {"ctg1": 200})
+    assert short == []
+    assert SHORTEST_ABSENT_STRETCH == 40
+    assert unaligned_stretches([hit(1, 200, "", "")], {"ctg1": 200}) == []
+
+
+def test_overlaps_masked():
+    assert overlaps_masked([(10, 20)], 0, 11)
+    assert overlaps_masked([(10, 20)], 19, 100)
+    assert not overlaps_masked([(10, 20)], 20, 100)
+    assert not overlaps_masked([(10, 20)], 0, 10)
+    assert not overlaps_masked([], 0, 100)
+
+
+# A 200-base element with a three-base period: low-complexity, and what blast masks out of a query.
+LOW_COMPLEXITY = ("AAT" * 70)[:200]
+
+
+@pytest.mark.tools
+@pytest.mark.skipif(not all(shutil.which(program) for program in ("blastn", "makeblastdb", "dustmasker")),
+                    reason="needs blastn, makeblastdb and dustmasker on PATH")
+def test_a_low_complexity_contig_a_genome_holds_exactly_is_not_reported_absent(tmp_path):
+    """The real programs, which are the only thing that can show this. blast masks a low-complexity
+    query by default, and a masked stretch is not found however exactly the genome holds it -- so the
+    contig was reported absent from every exclusion genome, which is the strongest claim this tool
+    makes, and missing from every inclusion genome, which drops the region altogether.
+    """
+    import random
+
+    rng = random.Random(29)
+    dna = lambda n: "".join(rng.choice("ACGT") for _ in range(n))  # noqa: E731
+    genome = tmp_path / "genome.fasta"
+    genome.write_text(f">chr\n{dna(3000)}{LOW_COMPLEXITY}{dna(3000)}\n")
+    query = tmp_path / "contigs.fasta"
+    query.write_text(f">ctg1\n{LOW_COMPLEXITY}\n")
+
+    # What the masker says, and what the default search can therefore see: nothing
+    work = tmp_path / "work"
+    assert masked_intervals(query, work)["ctg1"] == [(0, 200)]
+    folder = genome_folder(work, 0, genome)
+    db = make_db(genome, folder)
+    assert parse_hits(blastn(db, query, folder / "masked.tsv", PRESENCE_FIELDS), PRESENCE_FIELDS) == []
+    assert parse_hits(blastn(db, query, folder / "unmasked.tsv", PRESENCE_FIELDS, dust=False),
+                      PRESENCE_FIELDS), "the genome holds it exactly, masking or not"
+
+    # And what the two search steps now say about it
+    held, whole = presence_in_genomes(query, [genome], tmp_path / "presence", threads=1)
+    assert held["ctg1"][str(genome)] == 1.0
+    assert whole["ctg1"][str(genome)] == 1.0
+    found = exclusion_variants(query, [genome], tmp_path / "exclusion", threads=1)
+    assert found["ctg1"].genomes_hit == 1
+    assert unaligned_positions(found["ctg1"], len(LOW_COMPLEXITY)) == []
+
+
+def piece(qstart: int, qend: int, sstart: int, send: int, subject: str = "chr") -> Hit:
+    """One hit of a contig in a genome, with where it sits in the genome."""
+    return Hit("ctg1", qstart, qend, 1e-30, subject=subject, sstart=sstart, send=send)
+
+
+def test_how_much_of_a_contig_a_genome_holds_in_one_piece():
+    """`covered_fraction` beside this asks nothing about where in the genome the pieces came from, so two
+    halves of a contig landing 100 bases apart -- which is what a region spliced across a tandem repeat
+    does -- read as the whole contig being there."""
+    halves = [piece(1, 100, 1000, 1099), piece(51, 150, 1150, 1249)]
+    assert covered_fraction(halves, 150) == 1.0        # 150 of the 150 bases, in two pieces
+    assert in_one_piece(halves, 150) == 100 / 150      # and no more than 100 of them in one
+    # A genome that holds the contig whole, in one alignment or in two that follow each other
+    assert in_one_piece([piece(1, 150, 1000, 1149)], 150) == 1.0
+    assert in_one_piece([piece(1, 60, 1000, 1059), piece(61, 150, 1060, 1149)], 150) == 1.0
+    # Two copies of the contig side by side in the genome are two pieces, not one longer one
+    assert in_one_piece([piece(1, 150, 1000, 1149), piece(1, 150, 1200, 1349)], 150) == 1.0
+    # On two sequences of a draft assembly, which is the case the merged fraction exists for
+    assert covered_fraction([piece(1, 60, 1, 60), piece(61, 150, 1, 90, "ctg_b")], 150) == 1.0
+    assert in_one_piece([piece(1, 60, 1, 60), piece(61, 150, 1, 90, "ctg_b")], 150) == 90 / 150
+    assert in_one_piece([], 150) == 0.0

@@ -23,6 +23,7 @@ PACKAGES = {
     "minimap2": "minimap2",
     "blastn": "blast",
     "makeblastdb": "blast",
+    "dustmasker": "blast",
 }
 
 # How to ask each program for its version: blast wants one dash, and KMC prints its banner with no
@@ -32,6 +33,7 @@ VERSION_FLAGS = {
     "kmc_tools": (),
     "blastn": ("-version",),
     "makeblastdb": ("-version",),
+    "dustmasker": ("-version",),
     "primer3_core": ("--about",),  # --version prints nothing at all
 }
 

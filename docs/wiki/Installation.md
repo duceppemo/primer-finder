@@ -50,7 +50,7 @@ Without installing anything, `python primer_finder.py ...` works from a clone an
 | `skesa` | assembling the kmers (`-a skesa`, the default) | `skesa` >=2.4 |
 | `spades.py` | assembling the kmers (`-a spades`) | `spades` >=3.15 |
 | `minimap2` | mapping the contigs to an exclusion genome | `minimap2` >=2.24 |
-| `blastn`, `makeblastdb` | checking the contigs against every genome | `blast` >=2.14 |
+| `blastn`, `makeblastdb`, `dustmasker` | checking the contigs against every genome | `blast` >=2.14 |
 | `primer3_core` | designing assays on the regions (`primer-finder design`) | `primer3` >=2.6 |
 
 A missing program is reported before anything runs, with the conda package that provides it. Only the

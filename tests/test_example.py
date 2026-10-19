@@ -126,7 +126,7 @@ def test_the_checks_fail_when_there_is_no_result(dataset, tmp_path, capsys):
     assert "FAIL" in capsys.readouterr().out
 
 
-PROGRAMS = ("kmc", "kmc_tools", "skesa", "minimap2", "blastn", "makeblastdb")
+PROGRAMS = ("kmc", "kmc_tools", "skesa", "minimap2", "blastn", "makeblastdb", "dustmasker")
 
 
 @pytest.mark.tools
