@@ -501,20 +501,24 @@ primer-finder design results/ -o assays/ --insilico-pcr /path/to/insilicoPCR-lin
 ```
 
 `--insilico-pcr` takes the folder of an extracted portable release (which brings its own Java), its jar, or
-a launcher script. Without it, the same thing can be run later with the `run_insilico_pcr.sh` the command
-writes.
+a launcher script — **insilicoPCR 0.8.0 or newer**. Since that release a row of its report is a called
+amplicon: the two primers on the same contig, facing each other, within a size limit, and for a probe assay
+with the probe inside the product. The report of an older release — whose rows were every pairing of two
+primer alignments, most of them nothing PCR could make — is refused rather than counted; primer-finder
+1.9.x carries the reading that re-checked them. Without `--insilico-pcr`, the same thing can be run later
+with the `run_insilico_pcr.sh` the command writes.
 
-insilicoPCR reads only the top level of a genome folder, and hands each file to its own BLAST as it stands,
-so it sees neither a genome in a subfolder nor a gzipped one. Both groups are therefore staged into
-`insilico_genomes/` first — flattened, decompressed, duplicate names numbered — and that is what both the
-run and the script read. **If insilicoPCR fails, the design is not lost**: `assays.tsv` is written without
-the verdict columns, the reason is logged, and the command exits 1. The script can then repeat the check on
-its own.
+insilicoPCR reads only the top level of a genome folder, so a genome in a subfolder would be skipped. Both
+groups are therefore staged into `insilico_genomes/` first — flattened, decompressed, duplicate names
+numbered — and that is what both the run and the script read. **If insilicoPCR fails, the design is not
+lost**: `assays.tsv` is written without the verdict columns, the reason is logged, and the command exits 1.
+The script can then repeat the check on its own.
 
-**Two files, two runs.** insilicoPCR cannot report both kinds of assay at once: one probe in a primer file
-puts the whole report in qPCR mode, where an assay without a probe is never positive. So every usable assay
-is written twice — `assays_qpcr.fasta` with its probe, `assays_pcr.fasta` with the primers alone — and each
-file is run against both groups. That gives two answers per assay, and they are worth having separately:
+**Two files, two runs.** insilicoPCR decides per assay whether the probe is required, so a probe assay in a
+file is only positive when its probe binds inside the product — and one file cannot ask both questions
+about the same assay. So every usable assay is written twice — `assays_qpcr.fasta` with its probe,
+`assays_pcr.fasta` with the primers alone — and each file is run against both groups. That gives two
+answers per assay, and they are worth having separately:
 
 - **`pcr_selective`** says whether the primer pair discriminates on its own;
 - **`qpcr_selective`** says whether the whole assay reports positive, with the probe having to bind too.
@@ -524,21 +528,24 @@ genome; the other values it can take are below.
 
 ### What `--mismatches` actually governs
 
-insilicoPCR takes a mismatch tolerance, and primer-finder passes `--mismatches 1` by default. What that
-governs was measured rather than assumed — a primer pair in a synthetic template, the template mutated one
-base at a time at a known distance from the primer's 3' end, run at tolerances from 0 to 10
-([`mismatch_zones.py`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-08_v1.3.0/mismatch_zones.py)).
-A primer turns out to have three zones, and the tolerance only controls one:
+insilicoPCR takes a mismatch tolerance, and primer-finder passes `--mismatches 1` by default. Since
+insilicoPCR 0.8.0 the budget counts substitutions, indels **and** the 3'-end bases blast leaves unaligned,
+and a second, weighted check guards the primer's 3' end on top of it (its `--3p-window`/`--3p-penalty`,
+left at their defaults). A primer still has three zones, but they are now a model of priming rather than an
+artifact of the alignment:
 
-| Where the mismatch is | What insilicoPCR does |
+| Where the mismatch is | What insilicoPCR 0.8.0 does |
 |---|---|
-| the last 2 bases | **free.** Not counted as a mismatch at any tolerance, including 0. blast trims an unmatched base off the end of its alignment, and insilicoPCR reports the trim as a negative `EndMismatch` offset and calls the primer bound. |
-| 3 or 4 bases from the 3' end | **never amplifies**, at any tolerance — 10 was tested. A trim that long is rejected, and keeping the mismatch scores worse for blast than trimming. |
-| 5 or more bases in | **what `--mismatches` decides**, counted per primer: at `--mismatches 1` each primer may carry one, so an assay may carry two. |
+| the last 5 bases | **refused**, whatever the budget: any imperfection in the 3' window scores above the default `--3p-penalty 0`. This is where the polymerase extends from, and a mismatch there is the strongest block a template can offer. |
+| 6 or more bases in | **what `--mismatches` decides**, counted per primer: at `--mismatches 1` each primer may carry one, so an assay may carry two. |
+| unaligned 5' bases | **tolerated** up to its `--5p-truncation` (5): blast trims a 5'-proximal mismatch as several unaligned bases, and a 5'-end difference barely affects priming anyway. |
 
-This is a property of the alignment, not of PCR, and there is no setting that changes it. Two consequences:
-a difference at the very 3' end — what the forced-end requests aim for — cannot be rewarded by this check,
-and a difference 3 or 4 bases in is treated as fatal when it may not be.
+A consequence worth noting: a difference at the very 3' end — what the forced-end requests aim for — is now
+rewarded by this check. Under insilicoPCR 0.6.x the last two bases were invisible to it (blast trimmed them
+off the alignment and the primer was called bound), which is what the three measured zones of
+[`mismatch_zones.py`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-10-08_v1.3.0/mismatch_zones.py)
+and the `undecided (3' end)` verdict of primer-finder 1.9.x were about. Both are gone: an exclusion genome
+that differs only at a primer's last base no longer amplifies, and the assay gets a real `yes` or `no`.
 
 **Why 1 and not 0, 2 or 3.** `--mismatches 0` assumes any mismatch five or more bases from the 3' end stops
 a primer, which is the optimistic end of what is known: a single internal mismatch frequently does not stop
@@ -556,51 +563,41 @@ primer-finder design results/ -o assays/ --insilico-pcr <dir> --mismatches 2    
 ```
 
 An assay that still passes at `--mismatches 2` rests on something the model cannot explain away. Raising the
-tolerance only ever finds more exclusion amplification, never less, so it can only take assays away.
+tolerance only ever finds more exclusion amplification, never less, so it can only take assays away. (The
+counts above were measured with insilicoPCR 0.6.1; 0.8.0 draws the 3'-end line differently, so the exact
+figures will move, but not the direction of the argument.)
 
-### When a `no` is the model's blind spot
+### The probe has a budget of its own
 
-Because the last two bases are free, an assay can be reported non-selective for a reason that is about the
-alignment rather than about the assay. `assays.tsv` therefore carries **`qpcr_exclusion_terminal_only`** and
-**`pcr_exclusion_terminal_only`**: of the exclusion genomes an assay amplified, how many did so *only* where
-a difference sits in the last two bases of a primer. The count is read from insilicoPCR's
-`ForwardEndMismatch` and `ReverseEndMismatch` columns; a release that does not write them gets a warning in
-the log, the count stays 0, and those assays read a plain `no` (0.6.1, used for every record here, writes
-them).
+A hydrolysis probe is longer than its primers and designed to hybridize 8–10 °C hotter, so a single mismatch
+that would kill a primer's 3' end usually only delays its signal. insilicoPCR models that with a separate
+budget, `--probe-mismatches`, whose default is the `--mismatches` value — and primer-finder passes it
+through under the same name:
 
-Two rules decide that, and between them they make the count mean one thing:
+```bash
+primer-finder design results/ -o assays/ --insilico-pcr <dir> --probe-mismatches 2
+```
 
-- **only the amplicons that needed no counted mismatch are looked at.** Those are reported at every
-  tolerance, so they are the ones the check could not have refused. An amplicon that bound through a
-  mismatch `--mismatches` allowed is the tolerance talking, not these bases, and is left out. This is what
-  makes the answer the same whatever tolerance was used: on the *Xylella* set the same 256 exclusion
-  amplifications are unrefusable at `--mismatches` 0, 1, 2 and 3;
-- **a genome counts only when none of those amplicons is an exact match.** One exact match is a real
-  amplification, and no number of trimmed ones beside it changes that.
+One more than `--mismatches` is a reasonable looser screen of the inclusion group. Note the other side of
+that thermodynamic coin, [below](#why-the-probe-does-not-count-towards-it): a probe that binds through
+mismatches is also poor evidence of specificity, which is why the probe never counts towards
+`--min-primer-differences` and why `pcr_selective` — the primer pair alone — is the verdict to argue from.
 
-When the count equals `*_exclusion_amplified`, **every** exclusion amplification behind the verdict is one
-insilicoPCR could not have refused, and the design is one in silico PCR cannot judge in either direction.
-That gets its own label rather than being lumped in with a cross-reaction: `*_selective` reads
-**`undecided (3' end)`**, and those assays are ranked above the ones this check refused on evidence it can
-defend and below the ones it cleared. On the *Xylella* set:
+### A `no` is now a verdict at the 3' end too
 
-| PCR mode, 465 usable assays | `pcr_selective` | |
-|---|---|---|
-| amplifies every inclusion genome, no exclusion genome | `yes` | 220 |
-| every exclusion amplification rests on an uncounted 3'-end difference | `undecided (3' end)` | **96** |
-| some of them do | `no` | 16 |
-| amplifies exclusion genomes on evidence the check can defend | `no` | 133 |
+primer-finder 1.9.x carried an **`undecided (3' end)`** label and `*_exclusion_terminal_only` columns,
+because insilicoPCR 0.6.x could not see the last two bases of a primer at all: blast trimmed an unmatched
+terminal base off the alignment and the primer was called bound, at every tolerance, so an exclusion
+amplification that rested only on such bases was one the tool could not have refused — a blind spot, not a
+cross-reaction, and it was labelled as such.
 
-Of those 96, **73** rest on a difference the ranking deliberately put at a 3' end: 63 of one base and 10 of
-two. Cut the other way, 80 are specific by a difference and 16 by absence — in the second case the
-amplification is an off-target amplicon somewhere else in an exclusion genome, which itself only binds
-through an ignored terminal mismatch, so a weak off-target rather than a clean one. Either way: the column
-tells you which verdict to argue with, and 149 rather than 245 is the number of assays this check rejects on
-its own evidence.
-
-The inclusion side needs no such column. Of 3,720 assay-and-genome amplifications in the inclusion group,
-**none** depended on a trimmed primer end: every inclusion genome that counted had at least one clean
-amplicon, which is what should happen when the assays were designed on sequence all of them share.
+insilicoPCR 0.8.0 closed the blind spot: unaligned 3' bases count against the budget, and any imperfection
+in the last five bases refuses the binding outright. An exclusion genome that differs from a primer at its
+3' end now simply does not amplify — the model's way of saying the polymerase has nothing matched to extend
+from — so the label and the columns are gone, and an assay whose specificity sits at a 3' end gets the
+`yes` it was designed for. Bear in mind what that is: a model of priming, not a reaction. A real polymerase
+reads through a terminal mismatch now and then, so a `yes` that rests on a single 3'-end difference is still
+the first thing to put on a bench.
 
 ### When the regions were found with `-p` below 1
 
@@ -612,8 +609,7 @@ design step reads the `-p` of the run out of its `run_info.json` and applies the
 |---|---|
 | `yes` | amplifies every inclusion genome and no exclusion genome |
 | `partial (88%)` | amplifies 88% of the inclusion genomes — at or above the run's `-p` — and no exclusion genome |
-| `undecided (3' end)` | covers the inclusion group, but it amplifies exclusion genomes only where a difference sits in the last two bases of a primer, which this check cannot see. `undecided (3' end, 88%)` when the inclusion coverage is partial as well. [What that means](#when-a-no-is-the-models-blind-spot) |
-| `no` | below the threshold, or it amplifies an exclusion genome on evidence the check can defend |
+| `no` | below the threshold, or it amplifies an exclusion genome |
 
 The percentage is also in `qpcr_inclusion_percent` and `pcr_inclusion_percent`, and is rounded down so that
 it never overstates the coverage. Amplifying an exclusion genome is never excused, whatever `-p` was. Assays
@@ -652,8 +648,8 @@ over bases that are absent rather than differing.
 | File | What it holds |
 |---|---|
 | `assays.tsv` | every assay, the usable ones first, with the numbers behind the order (see [Outputs](Outputs)) |
-| `assays_qpcr.fasta` | the assays that have a probe, for insilicoPCR in qPCR mode |
-| `assays_pcr.fasta` | every assay carried forward, primers only, for insilicoPCR in standard PCR mode. The ones `--min-primer-differences` set aside are in `assays.tsv` alone |
+| `assays_qpcr.fasta` | the assays that have a probe, with it: insilicoPCR only calls these positive when the probe binds inside the product |
+| `assays_pcr.fasta` | every assay carried forward, primers only, so the primer pair is judged alone. The ones `--min-primer-differences` set aside are in `assays.tsv` alone |
 | `run_insilico_pcr.sh` | the in silico PCR of both files against both groups, as staged in `insilico_genomes/`, to run later |
 | `design_info.json` | the parameters, the programs and their versions, and the counts |
 | `primer_finder_design.log` | the whole log of the command |

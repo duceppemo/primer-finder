@@ -169,11 +169,16 @@ def build_parser(max_cpu: int, max_mem: int) -> argparse.ArgumentParser:
                                     "release, its jar, or a launcher script.")
     design_parser.add_argument("--mismatches", metavar=str(design.DEFAULT_MISMATCHES), type=int,
                                default=design.DEFAULT_MISMATCHES,
-                               help="Mismatches insilicoPCR should let each primer bind through. Default "
+                               help="Mismatches insilicoPCR should let each primer bind through -- "
+                                    "substitutions, indels and unaligned 3' bases all count. Default "
                                     f"{design.DEFAULT_MISMATCHES}, since one mismatch is often not enough "
                                     "to stop a reaction; 0 assumes any mismatch does, and 2 is a stricter "
-                                    "check. It never applies to the last two bases of a primer, which "
-                                    "insilicoPCR does not count.")
+                                    "check. Whatever the budget, insilicoPCR refuses any imperfection in "
+                                    "the last five bases of a primer, where a mismatch hinders extension.")
+    design_parser.add_argument("--probe-mismatches", metavar="n", type=int, default=None,
+                               help="Mismatches insilicoPCR should let a probe bind through. Default: the "
+                                    "--mismatches value. A probe hybridizes hotter than its primers, so "
+                                    "one more than --mismatches is a reasonable looser screen.")
     design_parser.add_argument("--debug", action="store_true", help="Verbose logging.")
 
     convert = commands.add_parser(
@@ -267,6 +272,7 @@ def main(argv: list[str] | None = None) -> int:
                 max_regions=args.max_regions,
                 insilico_pcr=args.insilico_pcr,
                 mismatches=args.mismatches,
+                probe_mismatches=args.probe_mismatches,
                 command_line=["primer-finder", *given],
             ))
         threads = args.threads

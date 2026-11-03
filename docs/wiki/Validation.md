@@ -82,6 +82,12 @@ cannot reward a difference at the very 3' end, which is what the ranking cares m
 of the 1.2.0 page — that assays resting on a terminal run were selective in none of the cases seen — turned
 out to be the alignment's behaviour rather than anything about PCR. It has been withdrawn as evidence.
 
+These zones are insilicoPCR 0.6.1's, the release every record on this page was measured with. insilicoPCR
+0.8.0 — which primer-finder 1.10.0 requires — redrew them deliberately: unaligned 3' bases count against
+`-m`, any imperfection in a primer's last five bases refuses the binding, and up to five unaligned 5' bases
+are tolerated. A difference at the very 3' end is therefore rewarded now, and the `undecided (3' end)`
+verdict these pages derived from the old blind spot is gone; see [Designing assays](Designing-assays).
+
 The default is now `--mismatches 1`: 0 assumes any internal mismatch stops a primer, which hid 12 of the 30
 absence-based assays that amplify something off-target in an exclusion genome; 2 assumes two mismatches per
 primer still bind, which is what a deliberate allele-specific design uses to discriminate, so it is offered

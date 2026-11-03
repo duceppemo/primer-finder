@@ -140,8 +140,8 @@ every program — this is what to attach to a bug report, together with `run_inf
 ```
 assays/
 ├── assays.tsv              every assay, the usable ones first
-├── assays_qpcr.fasta       the assays that have a probe, for insilicoPCR in qPCR mode
-├── assays_pcr.fasta        every assay carried forward, primers only, for insilicoPCR in PCR mode
+├── assays_qpcr.fasta       the assays that have a probe, with it: a positive needs the probe to bind
+├── assays_pcr.fasta        every assay carried forward, primers only: does the pair discriminate alone?
 ├── run_insilico_pcr.sh     the in silico PCR of both files against both groups
 ├── design_info.json        parameters, programs and versions, counts (including
 │                        last_resort_regions: how many of the regions only a single
@@ -179,24 +179,19 @@ the ones that would amplify both groups are kept at the end for the record.
 | `primer_variant_weight` | the differences under the primers, weighted by the base each replaces: 1 for a G or C, 0.5 for an A or T, 0.75 when unknown |
 | `forward_strong_variants`, `forward_terminal_run`, `forward_near_3prime` | and the same for `reverse`: how many of its differences replace a G or a C, and where they sit relative to the 3' end |
 | `inclusion_total`, `exclusion_total` | how many genomes were tested, when in silico PCR was run. These and the verdict columns below it are absent when it was not run, and also when it failed: the table is still written, and the command exits 1 with the reason in the log |
-| `qpcr_inclusion_amplified`, `qpcr_inclusion_percent`, `qpcr_exclusion_amplified`, `qpcr_selective` | what insilicoPCR said in qPCR mode, with the probe |
-| `qpcr_exclusion_terminal_only` | of the exclusion genomes it amplified, how many did so **only** where a difference sits in the last two bases of a primer — bases insilicoPCR does not count. When this equals `qpcr_exclusion_amplified`, the verdict is `undecided (3' end)`: the model's blind spot, not a cross-reaction |
-| `pcr_inclusion_amplified`, `pcr_inclusion_percent`, `pcr_exclusion_amplified`, `pcr_exclusion_terminal_only`, `pcr_selective` | and the same in standard PCR mode, primers only |
+| `qpcr_inclusion_amplified`, `qpcr_inclusion_percent`, `qpcr_exclusion_amplified`, `qpcr_selective` | what insilicoPCR said of the whole assay, probe and all |
+| `pcr_inclusion_amplified`, `pcr_inclusion_percent`, `pcr_exclusion_amplified`, `pcr_selective` | and the same of the primer pair alone |
 
 The structure temperatures are predicted for the reaction the run was given (`--monovalent`, `--divalent`,
 `--dntp`, `--primer-conc`, `--probe-conc`), which `design_info.json` records under `parameters.conditions`.
 
 `selective` is `yes` when the assay amplified every inclusion genome and no exclusion genome, `partial
-(88%)` when it reached the `-p/--min-inclusion` the regions were found with but not all of them,
-`undecided (3' end)` when every exclusion genome it amplified did so only through a difference in the last
-two bases of a primer — or `undecided (3' end, 88%)` when that is true and the inclusion coverage is partial
-as well — and `no` otherwise.
+(88%)` when it reached the `-p/--min-inclusion` the regions were found with but not all of them, and `no`
+otherwise.
 
-**`undecided (3' end)` is not a near miss, it is the absence of a verdict.** insilicoPCR calls a primer
-bound when blast trims an unmatched base off its 3' end, at every `--mismatches`, so an amplification that
-needed that trim is one the tool could not have refused — and the 3' end is exactly where a selective assay
-puts its differences. Only the amplicons that needed no counted mismatch are weighed, so the count means the
-same at every tolerance, and a genome counts only when none of them is an exact match: one exact match makes
-it a real amplification and the verdict `no`. On the *Xylella* set, 96 of the 245 non-selective assays in
-PCR mode were `undecided`; the other 149 are `no`, 133 of them with no terminal amplification at all and 16
-with a mixture. Those 96 are the assays a bench would have to settle, and they are ranked above the 149.
+Since insilicoPCR 0.8.0, a difference in the last bases of a primer is judged rather than overlooked: any
+imperfection in the primer's last five bases refuses the binding (its `--3p-penalty` default), which is the
+model saying the polymerase has nothing matched to extend from. The `undecided (3' end)` verdict and the
+`*_exclusion_terminal_only` columns of primer-finder 1.9.x existed because older releases could not see
+those bases at all; with 0.8.0 they are gone, and an assay whose specificity sits at a 3' end gets a real
+verdict.

@@ -1,5 +1,52 @@
 # Changelog
 
+## 1.10.0
+
+primer-finder now speaks [insilicoPCR](https://github.com/duceppemo/insilicoPCR) **0.8.0**, whose
+amplification model changed under this tool, and requires it: an older release balking at the new command
+line is named as too old to speak to, and a report one has already written is refused with the reason,
+rather than read as if its rows still meant what they used to. Designs that must run against an older
+insilicoPCR belong on primer-finder 1.9.x.
+
+### Changed
+
+- **A report row is trusted as an amplicon, because it now is one.** insilicoPCR used to pair *every*
+  alignment of the forward primer with every alignment of the reverse on a contig — 21,014 rows for 28
+  assays on one 3.3 Mb genome, 71% of them pairings PCR cannot make — and 1.9.2 learned to re-check each
+  row against the detailed reports. 0.8.0 only reports a pair that sits on the same contig, faces each
+  other and falls within a size limit, so all of that re-checking is gone. The size limit is still pinned
+  by passing `-l 10000` explicitly, so the verdicts cannot move with insilicoPCR's own default (5000 bp).
+
+- **The `undecided (3' end)` verdict is gone, because the blind spot it named is gone.** insilicoPCR 0.6.x
+  could not see the last two bases of a primer — blast trimmed an unmatched terminal base off the alignment
+  and the primer was called bound, at every `-m` — so an exclusion amplification resting only on such bases
+  was one the tool could not have refused, and 1.6.0 gave it its own label rather than a false `no`. 0.8.0
+  counts unaligned 3' bases against the budget and refuses any imperfection in a primer's last five bases
+  outright, so a difference at a 3' end — exactly where the ranking puts them — now earns the assay a real
+  verdict. The label, the `qpcr_/pcr_exclusion_terminal_only` columns of `assays.tsv`, the `undecided`
+  count of `design_info.json` and the whole detailed-report reading behind them are removed.
+
+- **`--mismatches` governs more than it did.** The budget insilicoPCR 0.8.0 counts it against covers
+  substitutions, indels and unaligned 3' bases; its weighted 3'-end check sits on top at its default
+  (a perfect last five bases), and up to five unaligned 5' bases are tolerated for free. The default stays
+  1 — one internal mismatch is still often not enough to stop a reaction.
+
+- **A rerun cannot read the previous run's report.** insilicoPCR 0.8.0 writes `report(1).tsv` beside an
+  existing `report.tsv` instead of overwriting it, which the reader would never have looked at: a rerun
+  into the same output folder would have reported the previous run's verdicts. Both `insilico.run` and the
+  written `run_insilico_pcr.sh` clear stale reports before running.
+
+- The two primer files are unchanged but their reason has: 0.8.0 decides the probe requirement per assay,
+  so mixed files are legal — one file still cannot ask both "does the whole assay report positive" and
+  "does the primer pair discriminate alone" about the same assay, which is what the two files are for.
+
+### Added
+
+- **`--probe-mismatches`** passes insilicoPCR's probe budget through: a hydrolysis probe hybridizes hotter
+  than its primers, so one more than `--mismatches` is a reasonable looser screen. Unset, insilicoPCR's
+  own default applies (the `-m` value). Recorded in `design_info.json` and carried into
+  `run_insilico_pcr.sh`.
+
 ## 1.9.3
 
 The smaller findings of the twelve-part review whose large ones 1.9.2 released, and the two that needed a

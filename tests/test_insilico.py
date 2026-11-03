@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import gzip
 import os
-import shutil
 import stat
 from pathlib import Path
 
@@ -13,15 +12,12 @@ import pytest
 from primer_finder import PrimerFinderError
 from primer_finder.design import Assay, Oligo
 from primer_finder.insilico import (
-    LONGEST_TRIM,
+    LONGEST_PRODUCT,
     REPORT,
     Verdict,
-    _side_in,
-    _trimmed_primer_ends,
     command,
     count_genomes,
     read_report,
-    read_terminal_only,
     resolve,
     run,
     stage_genomes,
@@ -43,178 +39,27 @@ def assay(name: str, probe: bool = True) -> Assay:
     return one
 
 
-def write_report(folder: Path, rows: list[tuple[str, str]]) -> Path:
+# What insilicoPCR 0.8.0 writes; primer-finder reads Sample and Gene and insists the rest is not an older
+# release's report.
+COLUMNS = ("Sample", "Gene", "GenomeLocation", "AmpliconSize", "Contig", "Contig Description",
+           "ForwardPrimers", "ReversePrimers", "ForwardMismatches", "ReverseMismatches",
+           "Forward3PrimeMismatches", "Reverse3PrimeMismatches", "Strand")
+
+
+def write_report(folder: Path, rows: list[tuple[str, str]], description: str = "") -> Path:
     report = folder / REPORT
     report.parent.mkdir(parents=True, exist_ok=True)
     with report.open("w") as fh:
-        fh.write("Sample\tGene\tGenomeLocation\tAmpliconSize\n")
+        fh.write("\t".join(COLUMNS) + "\n")
         for sample, gene in rows:
-            fh.write(f"{sample}\t{gene}\t1-100\t100\n")
+            fh.write(f"{sample}\t{gene}\t1-100\t100\tchr\t{description}"
+                     f"\t{gene}-F\t{gene}-R\t0\t0\t0\t0\t+\n")
     return report
-
-
-def write_shaped_report(folder: Path, rows: list[dict[str, object]]) -> Path:
-    """A consolidated report with the columns the shape checks read, one row per dict."""
-    report = folder / REPORT
-    report.parent.mkdir(parents=True, exist_ok=True)
-    columns = ("Sample", "Gene", "GenomeLocation", "AmpliconSize", "Contig")
-    with report.open("w") as fh:
-        fh.write("\t".join(columns) + "\n")
-        for row in rows:
-            fh.write("\t".join(str(row.get(name, "")) for name in columns) + "\n")
-    return report
-
-
-def write_detailed(folder: Path, sample: str, rows: list[tuple[str, int, int, int, int]]) -> None:
-    """Primer alignments as insilicoPCR writes them: the genome is the query, the primer the subject, and
-    `sstart`/`send` run down where the primer aligned reversed."""
-    detailed = folder / "detailed_report" / sample
-    detailed.mkdir(parents=True, exist_ok=True)
-    header = ("qseqid\tsseqid\tslen\tlength\tqstart\tqend\tsstart\tsend\n")
-    with (detailed / f"{sample}.tsv").open("w") as fh:
-        fh.write(header)
-        for primer, qstart, qend, sstart, send in rows:
-            fh.write(f"chr\t{primer}\t20\t{abs(qend - qstart) + 1}\t{qstart}\t{qend}"
-                     f"\t{sstart}\t{send}\n")
-
-
-def test_a_row_too_long_to_be_one_product_is_not_an_amplification(tmp_path):
-    """insilicoPCR pairs every forward alignment with every reverse alignment on a contig, with no check
-    that the distance between them is a product. On one real 3.3 Mb genome that gave 21,014 rows for 28
-    assays, 71% of them pairs that cannot amplify, with spans up to 1.9 Mb; each counted as "this genome
-    amplified"."""
-    rows = [
-        {"Sample": "g1", "Gene": "a", "GenomeLocation": "1-200", "AmpliconSize": 200, "Contig": "chr"},
-        {"Sample": "g2", "Gene": "a", "GenomeLocation": "1-500000", "AmpliconSize": 500000,
-         "Contig": "chr"},
-    ]
-    write_shaped_report(tmp_path, rows)
-    assert read_report(tmp_path) == {"a": {"g1"}}
-    # and the old reading, for comparing with a report from before 1.9.2
-    assert read_report(tmp_path, check_shape=False) == {"a": {"g1", "g2"}}
-
-
-def test_two_primers_pointing_away_from_each_other_are_not_an_amplification(tmp_path):
-    """A product needs the primer at the low end of the span to have matched the genome as written and the
-    one at the high end to have matched it reversed. Both the other arrangements -- pointing away, or both
-    on one strand -- are two unrelated sites. Measured on insilicoPCR 0.6.x output for a genome built with
-    the reverse primer's site before the forward's."""
-    rows = [{"Sample": name, "Gene": "a", "GenomeLocation": "101-300", "AmpliconSize": 200,
-             "Contig": "chr"} for name in ("convergent", "divergent", "same_strand")]
-    write_shaped_report(tmp_path, rows)
-    # low end ascending, high end descending: a product
-    write_detailed(tmp_path, "convergent", [("a-F", 101, 120, 1, 20), ("a-R", 281, 300, 20, 1)])
-    # low end descending: the two point away from each other
-    write_detailed(tmp_path, "divergent", [("a-R", 101, 120, 20, 1), ("a-F", 281, 300, 1, 20)])
-    # both as written: the same strand, so no product either
-    write_detailed(tmp_path, "same_strand", [("a-F", 101, 120, 1, 20), ("a-R", 281, 300, 1, 20)])
-    assert read_report(tmp_path) == {"a": {"convergent"}}
-
-
-def test_two_primers_both_matching_reversed_are_not_an_amplification(tmp_path):
-    """The other half of the rule. A row whose low-end alignment faces outwards is refused by the first
-    test and one whose high-end alignment does by the second; both-descending needs the first, and a
-    reviewer showed that removing it left every test passing."""
-    write_shaped_report(tmp_path, [{"Sample": "both_down", "Gene": "a", "GenomeLocation": "101-300",
-                                    "AmpliconSize": 200, "Contig": "chr"}])
-    write_detailed(tmp_path, "both_down", [("a-F", 101, 120, 20, 1), ("a-R", 281, 300, 20, 1)])
-    assert read_report(tmp_path) == {}
-
-
-def test_a_primer_that_aligns_both_ways_at_one_site_still_amplifies(tmp_path):
-    """A palindromic primer aligns at its site in both directions, so the boundary carries an ascending
-    and a descending alignment. One facing the right way is enough -- asking that *every* alignment there
-    face the right way refuses a real amplicon, and on one real report 314 low and 313 high boundaries
-    carry both directions."""
-    write_shaped_report(tmp_path, [{"Sample": "pal", "Gene": "a", "GenomeLocation": "101-300",
-                                    "AmpliconSize": 200, "Contig": "chr"}])
-    write_detailed(tmp_path, "pal", [("a-F", 101, 120, 1, 20), ("a-F", 101, 120, 20, 1),
-                                     ("a-R", 281, 300, 20, 1), ("a-R", 281, 300, 1, 20)])
-    assert read_report(tmp_path) == {"a": {"pal"}}
-
-
-def test_a_size_that_is_not_a_number_counts_as_an_amplification(tmp_path):
-    """The cautious direction for an exclusion genome: a size column this cannot read is no reason to
-    decide the row is not a product."""
-    rows = [{"Sample": name, "Gene": "a", "GenomeLocation": "101-300", "AmpliconSize": size,
-             "Contig": "chr"}
-            for name, size in (("blank", ""), ("float", "200.0"), ("junk", "abc"), ("negative", "-5"))]
-    write_shaped_report(tmp_path, rows)
-    assert read_report(tmp_path) == {"a": {"blank", "float", "junk", "negative"}}
-
-
-def test_a_detailed_report_that_cannot_be_read_does_not_stop_the_run(tmp_path, caplog):
-    """insilicoPCR writes these, in a folder the user controls, and `read_report` now opens one for every
-    sample with a plausible row -- so an unreadable or binary one would have thrown away a whole design
-    run after the in silico PCR had already been paid for."""
-    write_shaped_report(tmp_path, [{"Sample": "g1", "Gene": "a", "GenomeLocation": "101-300",
-                                    "AmpliconSize": 200, "Contig": "chr"}])
-    detailed = tmp_path / "detailed_report" / "g1"
-    detailed.mkdir(parents=True)
-    (detailed / "g1.tsv").write_bytes(b"\xff\xfe\x00binary, not text\n")
-    with caplog.at_level("WARNING"):
-        assert read_report(tmp_path) == {"a": {"g1"}}      # counted: evidence we do not have
-    assert "could not be read" in caplog.text
-
-
-def test_a_phantom_pairing_does_not_excuse_an_assay_as_the_blind_spot(tmp_path):
-    """`read_terminal_only` had no shape test, so a pairing that cannot amplify but happens to carry a 3'
-    trim was counted as the model's blind spot -- which excuses the assay and ranks it above assays
-    refused on evidence. The real exact amplification in the other genome must still be the verdict."""
-    rows = [{"Sample": "phantom", "Gene": "a", "GenomeLocation": "101-299", "AmpliconSize": 199,
-             "Contig": "chr", "ForwardEndMismatch": -1, "ReverseEndMismatch": 0},
-            {"Sample": "real", "Gene": "a", "GenomeLocation": "101-300", "AmpliconSize": 200,
-             "Contig": "chr", "ForwardEndMismatch": 0, "ReverseEndMismatch": 0}]
-    report = tmp_path / REPORT
-    report.parent.mkdir(parents=True, exist_ok=True)
-    columns = ("Sample", "Gene", "GenomeLocation", "AmpliconSize", "Contig", "ForwardPrimers",
-               "ReversePrimers", "ForwardMismatches", "ReverseMismatches", "ProbeMismatches",
-               "ForwardEndMismatch", "ReverseEndMismatch")
-    with report.open("w") as fh:
-        fh.write("\t".join(columns) + "\n")
-        for row in rows:
-            row.setdefault("ForwardPrimers", "a-F")
-            row.setdefault("ReversePrimers", "a-R")
-            for name in ("ForwardMismatches", "ReverseMismatches", "ProbeMismatches"):
-                row.setdefault(name, 0)
-            fh.write("\t".join(str(row.get(name, "")) for name in columns) + "\n")
-    # The phantom's alignments point away from each other -- the reverse primer's site sits at the low
-    # end facing outwards -- and its forward alignment is 19 of 20 bases, i.e. exactly what a 3' trim
-    # looks like, which is what used to excuse the assay.
-    write_detailed(tmp_path, "phantom", [("a-R", 101, 120, 20, 1), ("a-F", 281, 299, 1, 19)])
-    write_detailed(tmp_path, "real", [("a-F", 101, 120, 1, 19), ("a-R", 281, 300, 20, 1)])
-    assert read_report(tmp_path) == {"a": {"real"}}
-    assert read_terminal_only(tmp_path) == {}
-
-
-def test_a_row_that_cannot_be_placed_is_counted_as_an_amplification(tmp_path):
-    """It takes positive evidence to refuse a row. With no detailed report, or no alignment reaching
-    either end of the span, the amplification is counted: for an exclusion genome that is the cautious
-    direction."""
-    rows = [{"Sample": "no_detail", "Gene": "a", "GenomeLocation": "101-300", "AmpliconSize": 200,
-             "Contig": "chr"},
-            {"Sample": "elsewhere", "Gene": "a", "GenomeLocation": "101-300", "AmpliconSize": 200,
-             "Contig": "chr"},
-            {"Sample": "no_span", "Gene": "a", "GenomeLocation": "", "AmpliconSize": 200,
-             "Contig": "chr"}]
-    write_shaped_report(tmp_path, rows)
-    write_detailed(tmp_path, "elsewhere", [("a-F", 900, 919, 1, 20)])   # nowhere near the span
-    write_detailed(tmp_path, "no_span", [("a-R", 101, 120, 20, 1)])
-    assert read_report(tmp_path) == {"a": {"no_detail", "elsewhere", "no_span"}}
-
-
-def test_an_alignment_too_short_to_be_the_primer_is_not_read_at_all(tmp_path):
-    """insilicoPCR's default `-e 1e5` fills the detailed report with 7- and 8-base matches: 569,373 rows
-    for one real genome, of which 336 were bindings. None of them can be the primer that bound -- blast
-    trims at most two bases off an end -- and dropping them as the file is read is what makes reading it
-    affordable."""
-    write_detailed(tmp_path, "g1", [("a-F", 101, 120, 1, 20), ("a-F", 500, 507, 1, 8)])
-    hits = _trimmed_primer_ends(tmp_path, "g1")
-    assert [(hit[0], hit[1]) for hit in hits[("chr", "a-F")]] == [(101, 120)]
 
 
 def test_the_two_kinds_of_primer_file(tmp_path):
-    """insilicoPCR runs one mode at a time: a probe in the file puts the whole report in qPCR mode."""
+    """One file per question: with the probe in the file a probe assay is only positive when the probe
+    binds, so whether its primer pair discriminates alone needs a file with the probe stripped."""
     assays = [assay("withprobe"), assay("noprobe", probe=False)]
     qpcr, pcr = tmp_path / "q.fasta", tmp_path / "p.fasta"
     assert write_primer_fasta(assays, qpcr, "qpcr") == 1
@@ -281,9 +126,20 @@ def test_resolve_a_jar_without_java(tmp_path, monkeypatch):
 
 
 def test_the_command_line(tmp_path):
+    """`-l` is always passed: insilicoPCR 0.8.0 applies the amplicon size cap itself, and naming it keeps
+    the verdicts counted the same however its default moves."""
     assert command(["java", "-jar", "x.jar"], Path("genomes"), Path("p.fasta"), Path("out"), 8, 1) == [
-        "java", "-jar", "x.jar", "-i", "genomes", "-p", "p.fasta", "-o", "out", "-t", "8", "-m", "1"
+        "java", "-jar", "x.jar", "-i", "genomes", "-p", "p.fasta", "-o", "out", "-t", "8", "-m", "1",
+        "-l", str(LONGEST_PRODUCT),
     ]
+
+
+def test_the_command_line_with_a_probe_tolerance(tmp_path):
+    """insilicoPCR's own default is the `-m` value, so the flag is only passed when the user chose one --
+    a None must not become the string \"None\" on the command line."""
+    with_probe = command(["x"], Path("g"), Path("p"), Path("o"), 1, 1, probe_mismatches=2)
+    assert with_probe[-2:] == ["--probe-mismatches", "2"]
+    assert "--probe-mismatches" not in command(["x"], Path("g"), Path("p"), Path("o"), 1, 1)
 
 
 def test_read_report(tmp_path):
@@ -294,6 +150,40 @@ def test_read_report(tmp_path):
 def test_read_a_report_with_no_positive(tmp_path):
     write_report(tmp_path, [])
     assert read_report(tmp_path) == {}
+
+
+def test_a_quote_in_a_genomes_header_does_not_swallow_the_rows_after_it(tmp_path):
+    """insilicoPCR writes the fasta description straight through, unquoted. Read with the default quote
+    handling, a description beginning with a quote character swallows the rest of its row and every row up
+    to the next one -- so amplifications vanish and a verdict moves."""
+    write_report(tmp_path, [("g0", "a_assay0"), ("g1", "a_assay0")], description='"strain x')
+    assert read_report(tmp_path) == {"a_assay0": {"g0", "g1"}}
+
+
+def test_a_report_without_the_columns_the_counts_come_from_is_an_error(tmp_path):
+    """Read as an empty report, every assay would amplify nothing: a clean-looking answer out of a report
+    nothing could be read from."""
+    report = tmp_path / REPORT
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text("sample\tgene\tForwardMismatches\n")  # lower case, as a later version might
+    with pytest.raises(PrimerFinderError, match="no Sample or Gene column"):
+        read_report(tmp_path)
+
+
+def test_an_old_releases_report_is_refused(tmp_path):
+    """Before 0.8.0 a row was every pairing of a forward and a reverse alignment on a contig -- on one
+    real 3.3 Mb genome, 21,014 rows for 28 assays of which 71% were pairings PCR cannot make. primer-finder
+    1.9.x re-checked them against the detailed reports; this version counts rows as amplicons, so counting
+    that report would call phantom pairings cross-reactions. The EndMismatch columns only those releases
+    write are the tell."""
+    report = tmp_path / REPORT
+    report.parent.mkdir(parents=True, exist_ok=True)
+    columns = ("Sample", "Gene", "GenomeLocation", "AmpliconSize", "Contig", "Contig Description",
+               "ForwardPrimers", "ReversePrimers", "ForwardMismatches", "ReverseMismatches",
+               "ForwardEndMismatch", "ReverseEndMismatch")
+    report.write_text("\t".join(columns) + "\n" + "g0\ta\t1-100\t100\tchr\t\ta-F\ta-R\t0\t0\t0\t0\n")
+    with pytest.raises(PrimerFinderError, match="older than 0.8.0"):
+        read_report(tmp_path)
 
 
 def test_run_insists_on_a_report(stubs, tmp_path, insilico_pcr):
@@ -312,6 +202,40 @@ def test_run_insists_on_a_report(stubs, tmp_path, insilico_pcr):
         run(launcher, genomes, primers, tmp_path / "quiet", threads=1)
 
 
+def test_a_stale_report_is_cleared_before_the_run(stubs, tmp_path, insilico_pcr):
+    """insilicoPCR 0.8.0 never overwrites a report: beside an existing report.tsv it writes
+    report(1).tsv, which the reader never looks at. Without the clearing, a rerun into the same folder
+    read the previous run's verdicts under the new run's name."""
+    launcher = resolve(insilico_pcr)
+    genomes = tmp_path / "inclusion"
+    genomes.mkdir()
+    (genomes / "g1.fasta").write_text(">chr\nACGT\n")
+    primers = tmp_path / "p.fasta"
+    primers.write_text(">a-F\nAAAA\n>a-R\nTTTT\n")
+    out = tmp_path / "out"
+    write_report(out, [("g1", "stale_assay")])
+    (out / REPORT).with_name("report(1).tsv").write_text((out / REPORT).read_text())
+    run(launcher, genomes, primers, out, threads=1)
+    assert read_report(out) == {"a": {"g1"}}
+    assert [path.name for path in (out / REPORT).parent.glob("report*.tsv")] == ["report.tsv"]
+
+
+def test_an_old_release_that_rejects_the_command_names_the_upgrade(tmp_path):
+    """An insilicoPCR older than 0.8.0 stops at the `-l` this run passes, before writing anything. The
+    usage dump it leaves never names a version, so the error has to say what is actually wrong. Measured
+    against a real 0.6.1 portable release, which prints exactly this line and exits 2."""
+    launcher = tmp_path / "old.sh"
+    launcher.write_text("#!/bin/sh\necho 'Unrecognized option: -l' >&2\nexit 2\n")
+    launcher.chmod(0o755)
+    genomes = tmp_path / "inclusion"
+    genomes.mkdir()
+    (genomes / "g1.fasta").write_text(">chr\nACGT\n")
+    primers = tmp_path / "p.fasta"
+    primers.write_text(">a-F\nAAAA\n>a-R\nTTTT\n")
+    with pytest.raises(PrimerFinderError, match="older than 0.8.0"):
+        run([str(launcher)], genomes, primers, tmp_path / "out", threads=1)
+
+
 def test_a_failing_run_is_reported(stubs, tmp_path, insilico_pcr):
     stubs(insilico_fail=True)
     genomes = tmp_path / "inclusion"
@@ -323,142 +247,6 @@ def test_a_failing_run_is_reported(stubs, tmp_path, insilico_pcr):
         run(resolve(insilico_pcr), genomes, primers, tmp_path / "out", threads=1)
 
 
-PRIMER_LENGTH = 20
-
-
-def write_hits(folder: Path, rows: list[tuple[str, str, int, int, int]], probe: bool = False,
-               end: str = "3") -> Path:
-    """A report with the mismatch columns, one row per amplicon:
-    (sample, gene, counted mismatches, bases trimmed off the forward primer, off the reverse).
-
-    Also writes the detailed report, which is the only place insilicoPCR says WHICH end of a primer it
-    trimmed -- `end` chooses, and the consolidated report reads the same either way. Each amplicon is
-    given its own place in the genome so that the two reports can be matched up, as they are for a sample
-    holding several amplicons of one assay.
-    """
-    report = folder / REPORT
-    report.parent.mkdir(parents=True, exist_ok=True)
-    columns = ["Sample", "Gene", "Contig", "GenomeLocation", "ForwardPrimers", "ReversePrimers",
-               "ForwardMismatches", "ReverseMismatches", "ForwardEndMismatch", "ReverseEndMismatch"]
-    detailed: dict[str, list[list[str]]] = {}
-    with report.open("w") as fh:
-        fh.write("\t".join(columns + (["ProbeMismatches"] if probe else [])) + "\n")
-        for number, (sample, gene, mismatches, forward, reverse) in enumerate(rows):
-            start = 1000 * number + 1          # Somewhere of its own in the genome
-            finish = start + 199
-            # A 5' trim takes a base off the outer end of the amplicon, so the reported extent moves in;
-            # a 3' trim leaves it where it is. Real insilicoPCR 0.6.1 reports exactly that.
-            low_end, high_end = (start + forward, finish - reverse) if end == "5" else (start, finish)
-            fields = [sample, gene, "chr", f"{low_end}-{high_end}", f"{gene}-F", f"{gene}-R",
-                      str(mismatches), "0", str(-forward), str(-reverse)]
-            fh.write("\t".join(fields + (["0"] if probe else [])) + "\n")
-            for primer, trimmed in ((f"{gene}-F", forward), (f"{gene}-R", reverse)):
-                # Trimmed off the 5' end the alignment starts at the primer's base 1 + n; off the 3' end
-                # it stops at its base length - n. Each primer's alignment reaches its end of the
-                # amplicon, which is how the binder is told from a second copy of the same site.
-                low, high = (1 + trimmed, PRIMER_LENGTH) if end == "5" else (1, PRIMER_LENGTH - trimmed)
-                span = high - low
-                reverse_primer = primer.endswith("-R")
-                where = high_end - span if reverse_primer else low_end
-                # The reverse primer aligns reversed, so its positions along the primer descend -- which
-                # is what the reader's min/max is for
-                on_primer = (high, low) if reverse_primer else (low, high)
-                detailed.setdefault(sample, []).append(
-                    ["chr", primer, str(PRIMER_LENGTH), str(span + 1),
-                     str(where), str(where + span), str(on_primer[0]), str(on_primer[1])])
-    for sample, hits in detailed.items():
-        path = folder / "detailed_report" / sample / f"{sample}.tsv"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("w") as fh:
-            fh.write("\t".join(["qseqid", "sseqid", "slen", "length",
-                                "qstart", "qend", "sstart", "send"]) + "\n")
-            for hit in hits:
-                fh.write("\t".join(hit) + "\n")
-    return report
-
-
-def test_an_amplicon_that_needed_a_trimmed_primer_end_is_recognised(tmp_path):
-    """insilicoPCR does not count the last two bases of a primer: blast trims an unmatched one off and the
-    primer is called bound. An amplification that needed that is one it could not have refused."""
-    write_hits(tmp_path, [("g0", "a_assay0", 0, 1, 0),   # the forward primer's last base
-                          ("g1", "a_assay0", 0, 0, 2),   # the reverse primer's last two
-                          ("g2", "a_assay0", 0, 0, 0)])  # a clean match: a real amplification
-    assert read_terminal_only(tmp_path) == {"a_assay0": {"g0", "g1"}}
-
-
-REAL_DETAILED_ROWS = """qseqid\tsseqid\tpositive\tmismatch\tgaps\tevalue\tbitscore\tslen\tlength\tqstart\tqend\tqseq\tsstart\tsend\tsseq
-chr\tassay-R\t20\t0\t0\t4.28e-08\t40.1\t20\t20\t681\t700\tTTGCCC\t20\t1\tTTGCCC
-chr\tassay-F\t19\t0\t0\t1.0e-07\t38.2\t20\t19\t501\t519\tCTGGAT\t1\t19\tCTGGAT
-chr\tassay-R\t8\t0\t0\t0.62\t16.4\t20\t8\t944\t951\tAACTAG\t12\t5\tAACTAG
-"""
-
-
-def test_the_trimmed_end_is_read_off_rows_the_real_program_writes(tmp_path):
-    """Copied from insilicoPCR 0.6.1's own output for a 3'-end mismatch under the forward primer. Note
-    the reverse primer's positions along the primer run *down* (20 to 1) because it aligns reversed,
-    while the forward primer's run up -- so the side cannot be read off the first and last values as
-    written, and a short spurious hit elsewhere sits among the real ones."""
-    sample = tmp_path / "detailed_report" / "g0"
-    sample.mkdir(parents=True)
-    (sample / "g0.tsv").write_text(REAL_DETAILED_ROWS)
-    hits = _trimmed_primer_ends(tmp_path, "g0")
-    assert _side_in(hits[("chr", "assay-F")], (501, 700)) == "3"   # 1-19 of 20: its last base is missing
-    assert _side_in(hits[("chr", "assay-R")], (501, 700)) == "none"  # 20-1 of 20: all of it aligned
-    # The spurious 8-base hit cannot be the primer that bound -- blast trims at most two bases off a
-    # primer's end -- so it is dropped as the report is read rather than filtered out later. That is also
-    # what makes these reports affordable: insilicoPCR's default `-e 1e5` filled one real genome's with
-    # 569,373 rows, of which 336 were bindings.
-    assert len(hits[("chr", "assay-R")]) == 1
-    assert all(hit[2] >= 20 - LONGEST_TRIM for hits_here in hits.values() for hit in hits_here)
-
-
-def test_the_primer_that_bound_is_the_one_reaching_the_end_of_the_amplicon(tmp_path):
-    """A second copy of a primer's site inside the amplicon is not the primer that bound. Taking the
-    longest alignment instead picked it whenever the two were the same length, which read a real 5'-end
-    amplification as the 3'-end blind spot -- the misranking this check exists to prevent."""
-    binder = (502, 520, 19, "5")        # At the amplicon's start, 5' base trimmed
-    inner_copy = (601, 619, 19, "3")    # Further in, same length, 3' base trimmed
-    assert _side_in([inner_copy, binder], (502, 700)) == "5"
-    assert _side_in([binder, inner_copy], (502, 700)) == "5"
-
-
-def test_a_quote_in_a_genomes_header_does_not_swallow_the_rows_after_it(tmp_path):
-    """insilicoPCR writes the fasta description straight through, unquoted. Read with the default quote
-    handling, a description beginning with a quote character swallows the rest of its row and every row up
-    to the next one -- so amplifications vanish and a verdict moves."""
-    write_hits(tmp_path, [("g0", "a_assay0", 0, 0, 0), ("g1", "a_assay0", 0, 0, 0)])
-    report = tmp_path / REPORT
-    lines = report.read_text().splitlines()
-    columns = lines[0].split("\t")
-    rows = [line.split("\t") for line in lines[1:]]
-    rows[0][columns.index("Contig Description") if "Contig Description" in columns else 2] = '"strain x'
-    report.write_text("\n".join(["\t".join(columns)] + ["\t".join(row) for row in rows]) + "\n")
-    assert read_report(tmp_path) == {"a_assay0": {"g0", "g1"}}
-
-
-def test_a_quote_in_a_genomes_header_does_not_lose_the_trimmed_end_tally(tmp_path):
-    """The same hazard in the other reader, which decides whether an amplification is excused."""
-    write_hits(tmp_path, [("g0", "a_assay0", 0, 1, 0), ("g1", "a_assay0", 0, 1, 0)])
-    report = tmp_path / REPORT
-    lines = report.read_text().splitlines()
-    columns = lines[0].split("\t")
-    rows = [line.split("\t") for line in lines[1:]]
-    rows[0][columns.index("Contig")] = '"chr'
-    report.write_text("\n".join(["\t".join(columns)] + ["\t".join(row) for row in rows]) + "\n")
-    # g0's own row is unusable, but g1's must survive it
-    assert read_terminal_only(tmp_path) == {"a_assay0": {"g1"}}
-
-
-def test_a_report_without_the_columns_the_counts_come_from_is_an_error(tmp_path):
-    """Read as an empty report, every assay would amplify nothing: a clean-looking answer out of a report
-    nothing could be read from."""
-    report = tmp_path / REPORT
-    report.parent.mkdir(parents=True, exist_ok=True)
-    report.write_text("sample\tgene\tForwardMismatches\n")  # lower case, as a later version might
-    with pytest.raises(PrimerFinderError, match="no Sample or Gene column"):
-        read_report(tmp_path)
-
-
 def test_a_genome_that_cannot_be_read_is_reported_before_the_design_is_lost(tmp_path):
     """Staging happens after Primer3 and every blast. A gzip that stops early passes the fasta check,
     which reads only the first line, and used to raise a bare EOFError from there."""
@@ -468,129 +256,6 @@ def test_a_genome_that_cannot_be_read_is_reported_before_the_design_is_lost(tmp_
     (folder / "g1.fasta.gz").write_bytes(whole[: len(whole) // 2])
     with pytest.raises(PrimerFinderError, match="Cannot read .*g1.fasta.gz"):
         stage_genomes(folder, into)
-
-
-def test_a_difference_at_a_primers_five_prime_end_is_a_real_amplification(tmp_path):
-    """`ForwardEndMismatch` says how many bases blast trimmed off a primer, not from which end, and the
-    two ends mean opposite things. A difference at the 3' end is the base polymerase extends from, which
-    is the blind spot this check exists for. One at the 5' end is a primer that binds and extends anyway,
-    so the amplification is real and must not be excused.
-
-    Measured on insilicoPCR 0.6.1, one mismatch under a 20-base forward primer: at its 5' base the
-    consolidated report reads `ForwardEndMismatch -1` with the amplicon one base shorter, at its 3' base
-    it reads `-1` with the amplicon unchanged. Only the detailed report tells them apart -- positions
-    2-20 of the primer against 1-19."""
-    write_hits(tmp_path, [("g0", "a_assay0", 0, 1, 0)], end="5")
-    assert read_terminal_only(tmp_path) == {}
-    # The same report, with the trim at the other end of the same primer
-    other = tmp_path / "three_prime"
-    write_hits(other, [("g0", "a_assay0", 0, 1, 0)], end="3")
-    assert read_terminal_only(other) == {"a_assay0": {"g0"}}
-
-
-def test_a_trimmed_end_that_cannot_be_placed_counts_as_a_real_amplification(tmp_path, caplog):
-    """Without the detailed report there is no telling which end was trimmed. Excusing the amplification
-    is the costly way to be wrong -- it ranks the assay above an honest cross-reaction -- so the benefit
-    of the doubt goes the other way, and the run says so."""
-    write_hits(tmp_path, [("g0", "a_assay0", 0, 1, 0)])
-    shutil.rmtree(tmp_path / "detailed_report")
-    with caplog.at_level("WARNING"):
-        assert read_terminal_only(tmp_path) == {}
-    assert "could not place on the primer" in caplog.text
-
-
-def test_an_amplicon_that_needed_a_counted_mismatch_is_not_the_blind_spot(tmp_path):
-    """It bound through a mismatch `-m` allowed, so at `-m 0` it would not amplify at all: that is the
-    tolerance the user chose talking, not the bases this check cannot see. The answer has to be the same
-    at every tolerance, which is only true if those amplicons are left out."""
-    write_hits(tmp_path, [("g0", "a_assay0", 1, 1, 0),   # trimmed, but it also needed a mismatch
-                          ("g1", "b_assay0", 2, 0, 0)])  # and this one needed two
-    assert read_terminal_only(tmp_path) == {}
-
-
-def test_a_genome_with_one_clean_amplicon_does_not_count_as_terminal(tmp_path):
-    """One assay can place several amplicons in the same genome. It only amplifies it through an ignored
-    difference if none of the amplicons that need no mismatch is an exact match."""
-    write_hits(tmp_path, [("g0", "a_assay0", 0, 1, 0), ("g0", "a_assay0", 0, 0, 0)])
-    assert read_terminal_only(tmp_path) == {}
-
-
-def test_a_trimmed_amplicon_still_counts_beside_one_that_needed_a_mismatch(tmp_path):
-    """The mismatch-bound amplicon is ignored rather than treated as a clean one, so it does not cancel
-    the trimmed amplicon sitting beside it."""
-    write_hits(tmp_path, [("g0", "a_assay0", 0, 2, 0), ("g0", "a_assay0", 1, 0, 0)])
-    assert read_terminal_only(tmp_path) == {"a_assay0": {"g0"}}
-
-
-def test_a_probe_bound_through_a_mismatch_is_not_the_blind_spot_either(tmp_path):
-    """In qPCR mode a positive needs the probe too, so a probe that only matched because of the tolerance
-    makes the amplification refusable in just the same way."""
-    report = write_hits(tmp_path, [("g0", "a_assay0", 0, 1, 0)], probe=True)
-    report.write_text(report.read_text().replace("\t0\n", "\t2\n"))  # ProbeMismatches=2
-    assert read_terminal_only(tmp_path) == {}
-
-
-def test_a_report_without_the_end_columns_says_so_rather_than_finding_nothing(tmp_path, caplog):
-    """An insilicoPCR that stopped reporting the trim would otherwise turn every blind spot into a
-    confident `no`, with nothing in the output to say the check had degraded."""
-    report = tmp_path / REPORT
-    report.parent.mkdir(parents=True, exist_ok=True)
-    report.write_text("Sample\tGene\tForwardMismatches\n" + "g0\ta_assay0\t0\n")
-    with caplog.at_level("WARNING"):
-        assert read_terminal_only(tmp_path) == {}
-    assert "ForwardEndMismatch" in caplog.text
-
-
-def test_a_mismatch_count_that_is_not_a_number_is_left_out_and_reported(tmp_path, caplog):
-    """One malformed cell must not lose a whole design: both in silico PCR runs are already done by the
-    time this is read."""
-    write_hits(tmp_path, [("g0", "a_assay0", 0, 1, 0), ("g1", "a_assay0", 0, 1, 0)])
-    report = tmp_path / REPORT
-    lines = report.read_text().splitlines()
-    columns = lines[0].split("\t")
-    rows = [line.split("\t") for line in lines[1:]]
-    for row in rows:  # g1's forward mismatch count, whatever column that is
-        if row[0] == "g1":
-            row[columns.index("ForwardMismatches")] = "NA"
-    report.write_text("\n".join(["\t".join(columns)] + ["\t".join(row) for row in rows]) + "\n")
-    with caplog.at_level("WARNING"):
-        assert read_terminal_only(tmp_path) == {"a_assay0": {"g0"}}
-    assert "not a whole number" in caplog.text
-
-
-def test_the_blind_spot_is_the_same_at_every_tolerance(tmp_path):
-    """The set of amplifications insilicoPCR could not have refused cannot depend on what the user allowed
-    it to bind through -- that is what makes it the blind spot and not the tolerance."""
-    for tolerance in (0, 1, 2, 3):
-        folder = tmp_path / f"m{tolerance}"
-        # What a higher tolerance adds is rows with counted mismatches; the trimmed ones are always there
-        rows = [("g0", "a_assay0", 0, 1, 0), ("g1", "a_assay0", 0, 0, 0)]
-        rows += [(f"x{n}", "a_assay0", n, 1, 0) for n in range(1, tolerance + 1)]
-        write_hits(folder, rows)
-        assert read_terminal_only(folder) == {"a_assay0": {"g0"}}, tolerance
-
-
-def test_a_verdict_whose_only_exclusion_hits_are_terminal_is_the_models_blind_spot():
-    """Not selective, but every exclusion genome it amplified rests on bases insilicoPCR cannot judge."""
-    blind = Verdict(8, 8, 3, 17, exclusion_terminal_only=3)
-    assert not blind.selective and blind.only_terminal
-    partly = Verdict(8, 8, 3, 17, exclusion_terminal_only=2)
-    assert not partly.only_terminal           # one of the three is a real amplification
-    assert not Verdict(8, 8, 0, 17).only_terminal          # selective: nothing to explain
-    assert not Verdict(7, 8, 1, 17, exclusion_terminal_only=1).only_terminal  # misses an inclusion genome
-
-
-def test_verdicts_carry_the_terminal_only_count(tmp_path):
-    inclusion, exclusion = tmp_path / "inclusion", tmp_path / "exclusion"
-    for folder, how_many in ((inclusion, 3), (exclusion, 2)):
-        folder.mkdir()
-        for number in range(how_many):
-            (folder / f"g{number}.fasta").write_text(">chr\nACGT\n")
-    found = verdicts([assay("a")], inclusion, exclusion,
-                     {"a_assay0": {"g0", "g1", "g2"}}, {"a_assay0": {"g0", "g1"}},
-                     exclusion_terminal={"a_assay0": {"g0", "g1"}})
-    assert found["a_assay0"].exclusion_terminal_only == 2
-    assert found["a_assay0"].only_terminal
 
 
 def test_verdicts_put_the_two_reports_together(tmp_path):
@@ -627,23 +292,17 @@ def test_a_verdict_on_no_inclusion_genome_at_all_is_not_a_pass():
     assert nothing.label == "no" and nothing.support == 0
 
 
-def test_the_label_of_a_verdict_this_check_cannot_make():
-    """`no` would say the assay amplifies an exclusion genome on evidence worth believing. It does not:
-    every amplification rests on bases insilicoPCR does not count, so the check has no verdict to give."""
-    assert Verdict(8, 8, 3, 17, exclusion_terminal_only=3).label == "undecided (3' end)"
-    assert Verdict(8, 8, 3, 17, exclusion_terminal_only=2).label == "no"   # one is a real amplification
-    assert Verdict(7, 8, 2, 17, threshold=0.75, exclusion_terminal_only=2).label == (
-        "undecided (3' end, 87%)")                                        # and it is short of the group
+def test_the_labels_of_a_verdict():
     assert Verdict(8, 8, 0, 17).label == "yes"
     assert Verdict(7, 8, 0, 17, threshold=0.75).label == "partial (87%)"
+    assert Verdict(8, 8, 3, 17).label == "no"
 
 
 def test_what_the_ranking_takes_from_a_verdict():
-    """An assay this check could not refuse is a better bet than one it refused on evidence it can
-    defend, and a worse one than an assay it cleared."""
-    assert Verdict(8, 8, 0, 17).support == 3
-    assert Verdict(7, 8, 0, 17, threshold=0.75).support == 2
-    assert Verdict(8, 8, 1, 17, exclusion_terminal_only=1).support == 1
+    """Amplifying the whole inclusion group and nothing else outranks merely meeting the run's threshold,
+    which outranks a missed group or any exclusion amplification."""
+    assert Verdict(8, 8, 0, 17).support == 2
+    assert Verdict(7, 8, 0, 17, threshold=0.75).support == 1
     assert Verdict(8, 8, 1, 17).support == 0
     assert Verdict(4, 8, 0, 17).support == 0  # does not cover the inclusion group at all
 
@@ -654,8 +313,18 @@ def test_the_script_runs_both_groups_and_both_files(tmp_path):
                         tmp_path / "inclusion", tmp_path / "exclusion", threads=4, mismatches=1)
     text = path.read_text()
     assert text.count("java -jar x.jar") == 4  # two files, two groups
-    assert "-t 4 -m 1" in text
+    assert f"-t 4 -m 1 -l {LONGEST_PRODUCT}" in text
+    assert "--probe-mismatches" not in text  # not chosen, so insilicoPCR's own default stands
+    # insilicoPCR writes report(1).tsv beside an existing report, which the find below never names
+    assert text.count("rm -f") == 4
     assert os.access(path, os.X_OK)
+
+
+def test_the_script_carries_the_probe_tolerance(tmp_path):
+    path = write_script(tmp_path / "run.sh", ["x"], [tmp_path / "q.fasta"],
+                        tmp_path / "inclusion", tmp_path / "exclusion", threads=2, mismatches=1,
+                        probe_mismatches=2)
+    assert "--probe-mismatches 2" in path.read_text()
 
 
 def test_the_script_without_a_launcher_asks_for_one(tmp_path):
@@ -727,8 +396,9 @@ def test_verdicts_pass_the_threshold_on(tmp_path):
 
 
 def test_staging_flattens_subfolders_and_decompresses(tmp_path):
-    """insilicoPCR reads only the top level of the folder it is given and hands each file to blast as it
-    stands, so a genome in a subfolder would be skipped and a gzipped one would fail."""
+    """insilicoPCR reads only the top level of the folder it is given, so a genome in a subfolder would be
+    skipped. Gzipped genomes are written out plain too, so a staged sample is one plain fasta whatever it
+    came from."""
     import gzip
 
     source = tmp_path / "inclusion"

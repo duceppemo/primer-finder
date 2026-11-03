@@ -242,11 +242,13 @@ def test_the_gc_clamp_can_be_turned_off():
 
 
 def test_in_silico_pcr_allows_one_mismatch_by_default():
-    """insilicoPCR does not count the last two bases of a primer at all, so this governs the mismatches
-    further in -- and one of those is often not enough to stop a reaction. Assuming it is would flatter
-    every assay that rests on a single difference."""
+    """insilicoPCR refuses any imperfection in the last five bases of a primer whatever the budget, so
+    this governs the mismatches further in -- and one of those is often not enough to stop a reaction.
+    Assuming it is would flatter every assay that rests on a single difference."""
     assert DEFAULT_MISMATCHES == 1
     assert DesignSettings(results=Path("r"), output=Path("o"), threads=1).mismatches == 1
+    # and no probe tolerance unless the user chose one: insilicoPCR's own default is the -m value
+    assert DesignSettings(results=Path("r"), output=Path("o"), threads=1).probe_mismatches is None
 
 
 def test_the_default_tolerance_reaches_insilico_pcr(stubs, finished_run, tmp_path, genomes, insilico_pcr):
@@ -257,6 +259,9 @@ def test_the_default_tolerance_reaches_insilico_pcr(stubs, finished_run, tmp_pat
     asked = [line for line in calls.read_text().splitlines() if line.startswith("insilico_pcr")]
     assert len(asked) == 4  # two modes, two groups
     assert all(" -m 1" in line for line in asked), asked
+    # The size cap is always named, so the verdicts do not move with insilicoPCR's own default
+    assert all(" -l 10000" in line for line in asked), asked
+    assert all("--probe-mismatches" not in line for line in asked), asked
 
 
 def test_another_tolerance_reaches_insilico_pcr(stubs, finished_run, tmp_path, genomes, insilico_pcr):
@@ -265,6 +270,17 @@ def test_another_tolerance_reaches_insilico_pcr(stubs, finished_run, tmp_path, g
     assert run(settings) == 0
     asked = [line for line in calls.read_text().splitlines() if line.startswith("insilico_pcr")]
     assert all(" -m 2" in line for line in asked), asked
+
+
+def test_a_probe_tolerance_reaches_insilico_pcr(stubs, finished_run, tmp_path, genomes, insilico_pcr):
+    """A probe hybridizes hotter than its primers, so the user can give it a budget of its own; it goes to
+    every run, and insilicoPCR applies it only to the probes it finds in the file."""
+    calls = stubs()
+    settings = design_settings(finished_run, tmp_path / "assays", insilico_pcr=insilico_pcr,
+                               probe_mismatches=2)
+    assert run(settings) == 0
+    asked = [line for line in calls.read_text().splitlines() if line.startswith("insilico_pcr")]
+    assert asked and all(" --probe-mismatches 2" in line for line in asked), asked
 
 
 def test_a_failed_check_keeps_the_assays_but_reports_the_failure(stubs, finished_run, tmp_path,
@@ -1547,7 +1563,7 @@ def test_design_writes_the_assays_and_the_primer_files(stubs, finished_run, tmp_
     rows = (output / "assays.tsv").read_text().splitlines()
     assert rows[0].split("\t")[:3] == ["assay", "region", "specific_by"]
     assert len(rows) > 1
-    # insilicoPCR cannot read both kinds in one file, so both are written
+    # One file cannot ask both questions about a probe assay, so both are written
     assert ">ctg1_assay0-F" in (output / "assays_qpcr.fasta").read_text()
     assert ">ctg1_assay0-P" in (output / "assays_qpcr.fasta").read_text()
     assert ">ctg1_assay0-P" not in (output / "assays_pcr.fasta").read_text()
@@ -1842,56 +1858,6 @@ def test_a_primer3_that_reports_no_structures_still_runs(stubs, finished_run, tm
     assert run(design_settings(finished_run, output)) == 0
     row = next(iter_rows(output / "assays.tsv"))
     assert row["forward_hairpin_tm"] == "0.0" and row["pair_dimer_tm"] == "0.0"
-
-
-def test_an_exclusion_amplification_that_rests_on_a_trimmed_primer_end_is_reported(stubs, finished_run,
-                                                                                   tmp_path, genomes,
-                                                                                   insilico_pcr):
-    """insilicoPCR said it amplified an exclusion genome, so it is not selective -- but the amplification
-    rests on bases insilicoPCR does not count, which it could not have refused. That gets its own label
-    rather than being lumped in with a cross-reaction."""
-    inclusion, exclusion = genomes
-    sample = sorted(path.name.split(".")[0] for path in exclusion.glob("*.fasta"))[0]
-    stubs(insilico_extra={"ctg1_assay0": [sample]}, insilico_terminal={"ctg1_assay0": [sample]})
-    output = tmp_path / "assays"
-    assert run(design_settings(finished_run, output, insilico_pcr=insilico_pcr)) == 0
-    rows = list(iter_rows(output / "assays.tsv"))
-    row = next(r for r in rows if r["assay"] == "ctg1_assay0")
-    for kind in ("pcr", "qpcr"):
-        assert row[f"{kind}_selective"] == "undecided (3' end)", kind
-        assert row[f"{kind}_exclusion_amplified"] == "1", kind
-        assert row[f"{kind}_exclusion_terminal_only"] == "1", kind
-    # below the assays nothing was found against, and above any the check refused on its own evidence
-    assert rows[0]["assay"] != "ctg1_assay0"
-    assert rows[0]["pcr_selective"] == "yes"
-
-
-def test_an_exclusion_amplification_through_a_primers_five_prime_end_is_a_cross_reaction(
-        stubs, finished_run, tmp_path, genomes, insilico_pcr):
-    """The same consolidated report, with the trim at the other end of the primer. A 5'-end difference
-    does not stop the polymerase extending, so that amplification is real and gets the plain `no` -- not
-    the benefit of the doubt that the 3'-end blind spot earns."""
-    inclusion, exclusion = genomes
-    sample = sorted(path.name.split(".")[0] for path in exclusion.glob("*.fasta"))[0]
-    stubs(insilico_extra={"ctg1_assay0": [sample]}, insilico_five_prime={"ctg1_assay0": [sample]})
-    output = tmp_path / "assays"
-    assert run(design_settings(finished_run, output, insilico_pcr=insilico_pcr)) == 0
-    row = next(r for r in iter_rows(output / "assays.tsv") if r["assay"] == "ctg1_assay0")
-    for kind in ("pcr", "qpcr"):
-        assert row[f"{kind}_selective"] == "no", kind
-        assert row[f"{kind}_exclusion_amplified"] == "1", kind
-        assert row[f"{kind}_exclusion_terminal_only"] == "0", kind
-
-
-def test_a_real_exclusion_amplification_is_not_counted_as_terminal(stubs, finished_run, tmp_path, genomes,
-                                                                   insilico_pcr):
-    inclusion, exclusion = genomes
-    sample = sorted(path.name.split(".")[0] for path in exclusion.glob("*.fasta"))[0]
-    stubs(insilico_extra={"ctg1_assay0": [sample]})
-    output = tmp_path / "assays"
-    assert run(design_settings(finished_run, output, insilico_pcr=insilico_pcr)) == 0
-    row = next(r for r in iter_rows(output / "assays.tsv") if r["assay"] == "ctg1_assay0")
-    assert row["pcr_exclusion_amplified"] == "1" and row["pcr_exclusion_terminal_only"] == "0"
 
 
 def test_an_assay_that_misses_an_inclusion_genome_is_not_selective(stubs, finished_run, tmp_path,

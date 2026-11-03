@@ -41,10 +41,11 @@ DEFAULT_ASSAYS_PER_REGION = 3
 # a G or a C there would throw away every allele-specific primer whose target is an A or a T.
 DEFAULT_GC_CLAMP = 1
 
-# How many mismatches insilicoPCR should let a primer bind through. It does not count the last two bases
-# of a primer -- blast trims a terminal mismatch off the alignment -- so this governs the mismatches five
-# or more bases from the 3' end; one of those is often not enough to stop a real reaction either, so
-# assuming it does would flatter an assay. See docs/wiki/Designing-assays.md.
+# How many mismatches insilicoPCR should let a primer bind through. Since insilicoPCR 0.8.0 the budget
+# counts substitutions, indels and the 3'-end bases blast trims off the alignment, and any imperfection in
+# the last five bases of a primer is refused outright (its --3p-penalty default) -- so this governs the
+# internal mismatches, and one of those is often not enough to stop a real reaction, so assuming it does
+# would flatter an assay. See docs/wiki/Designing-assays.md.
 DEFAULT_MISMATCHES = 1
 
 # How many differences one *primer* must cover, for an assay that rests on differences rather than on
@@ -1151,9 +1152,9 @@ COLUMNS = (
 )
 VERDICT_COLUMNS = ("inclusion_total", "exclusion_total",
                    "qpcr_inclusion_amplified", "qpcr_inclusion_percent", "qpcr_exclusion_amplified",
-                   "qpcr_exclusion_terminal_only", "qpcr_selective",
+                   "qpcr_selective",
                    "pcr_inclusion_amplified", "pcr_inclusion_percent", "pcr_exclusion_amplified",
-                   "pcr_exclusion_terminal_only", "pcr_selective")
+                   "pcr_selective")
 
 
 @dataclass
@@ -1173,6 +1174,7 @@ class DesignSettings:
     max_regions: int = DEFAULT_MAX_REGIONS  # 0 for every region
     insilico_pcr: Path | None = None
     mismatches: int = DEFAULT_MISMATCHES
+    probe_mismatches: int | None = None  # insilicoPCR's default is the --mismatches value
     command_line: list[str] = field(default_factory=list)
 
 
@@ -1232,7 +1234,6 @@ def assay_row(assay: Assay, verdict: dict[str, object] | None = None) -> dict[st
             f"{kind}_inclusion_amplified": one.inclusion_amplified,
             f"{kind}_inclusion_percent": one.percent,
             f"{kind}_exclusion_amplified": one.exclusion_amplified,
-            f"{kind}_exclusion_terminal_only": one.exclusion_terminal_only,
             f"{kind}_selective": one.label,
         })
     return row
@@ -1567,8 +1568,9 @@ def _design(settings: DesignSettings, final: Path, inclusion: Path, exclusion: P
             "from them by too little; --assays-per-region above the default gives Primer3 more tries."
         )
 
-    # Both kinds of primer file, because insilicoPCR runs one mode at a time: the qPCR file says whether
-    # the whole assay reports positive, the PCR file whether the primer pair alone discriminates.
+    # Both kinds of primer file: the qPCR file says whether the whole assay reports positive, probe and
+    # all, the PCR file whether the primer pair alone discriminates. insilicoPCR 0.8.0 can run both kinds
+    # mixed, but one file cannot ask both questions about the same assay.
     primer_files: dict[str, Path] = {}
     for kind, name in (("qpcr", insilico.QPCR_NAME), ("pcr", insilico.PCR_NAME)):
         path = settings.output / name
@@ -1577,9 +1579,9 @@ def _design(settings: DesignSettings, final: Path, inclusion: Path, exclusion: P
             primer_files[kind] = path
             log.info("%d assay(s) written for %s: %s", written, kind, path)
 
-    # insilicoPCR reads only the top level of a genome folder and cannot read a gzipped genome, so both
-    # groups are laid out flat and plain for it -- here rather than inside the run, because the script
-    # written for running it later needs the same folders
+    # insilicoPCR reads only the top level of a genome folder, so both groups are laid out flat for it --
+    # and plain, so a sample is one fasta file whatever it came from -- here rather than inside the run,
+    # because the script written for running it later needs the same folders
     staged = settings.output / insilico.STAGED
     inclusion_staged, exclusion_staged = staged / "inclusion", staged / "exclusion"
     staged_counts = (insilico.stage_genomes(inclusion, inclusion_staged),
@@ -1611,7 +1613,8 @@ def _design(settings: DesignSettings, final: Path, inclusion: Path, exclusion: P
             usable = sorted(usable, key=lambda assay: (-support_of(verdicts[assay.name]), rank_key(assay)))
     else:
         insilico.write_script(settings.output / insilico.SCRIPT_NAME, None, list(primer_files.values()),
-                              inclusion_staged, exclusion_staged, settings.threads, settings.mismatches)
+                              inclusion_staged, exclusion_staged, settings.threads, settings.mismatches,
+                              settings.probe_mismatches)
         log.info("In silico PCR was not run. To check the assays against both groups: %s",
                  settings.output / insilico.SCRIPT_NAME)
 
@@ -1630,6 +1633,7 @@ def _design(settings: DesignSettings, final: Path, inclusion: Path, exclusion: P
             "gc_clamp": settings.gc_clamp,
             "conditions": vars(settings.conditions),
             "mismatches": settings.mismatches,
+            "probe_mismatches": settings.probe_mismatches,
             "min_primer_differences": settings.min_primer_differences,
             "threads": settings.threads,
             "min_inclusion": threshold_of(settings),
@@ -1649,8 +1653,6 @@ def _design(settings: DesignSettings, final: Path, inclusion: Path, exclusion: P
                                     if kind in modes and modes[kind].complete),
                     "at_threshold": sum(1 for modes in verdicts.values()
                                         if kind in modes and modes[kind].selective),
-                    "undecided": sum(1 for modes in verdicts.values()
-                                     if kind in modes and modes[kind].only_terminal),
                 }
                 for kind in ("qpcr", "pcr")
             } if verdicts else None,
@@ -1699,23 +1701,22 @@ def run_insilico_pcr(settings: DesignSettings, assays: Sequence[Assay], primer_f
     together. Returns, per assay, a verdict per mode."""
     launcher = insilico.resolve(settings.insilico_pcr)
     insilico.write_script(settings.output / insilico.SCRIPT_NAME, launcher, list(primer_files.values()),
-                          inclusion, exclusion, settings.threads, settings.mismatches)
+                          inclusion, exclusion, settings.threads, settings.mismatches,
+                          settings.probe_mismatches)
     verdicts: dict[str, dict[str, object]] = {assay.name: {} for assay in assays}
     for kind, primer_file in primer_files.items():
         # Only the assays that are in this mode's primer file: a probe-less assay is not in the qPCR run,
         # and giving it a verdict there would read as a failure rather than as a question never asked
         tested = [assay for assay in assays if kind == "pcr" or assay.probe is not None]
         reports: dict[str, dict[str, set[str]]] = {}
-        terminal: dict[str, set[str]] = {}
         for group, folder in (("inclusion", inclusion), ("exclusion", exclusion)):
             log.info("In silico PCR (%s) against the %s genomes...", kind, group)
             output = settings.output / "insilico_pcr" / f"{kind}_{group}"
-            insilico.run(launcher, folder, primer_file, output, settings.threads, settings.mismatches)
+            insilico.run(launcher, folder, primer_file, output, settings.threads, settings.mismatches,
+                         settings.probe_mismatches)
             reports[group] = insilico.read_report(output)
-            if group == "exclusion":
-                terminal = insilico.read_terminal_only(output)
         mode = insilico.verdicts(tested, inclusion, exclusion, reports["inclusion"], reports["exclusion"],
-                                 threshold, terminal)
+                                 threshold)
         for name, verdict in mode.items():
             verdicts[name][kind] = verdict
         complete = sum(1 for verdict in mode.values() if verdict.complete)
@@ -1724,9 +1725,4 @@ def run_insilico_pcr(settings: DesignSettings, assays: Sequence[Assay], primer_f
         log.info("In silico PCR (%s): %d of %d assay(s) amplify every inclusion genome and no exclusion "
                  "genome%s", kind, complete, counted,
                  f", and {partial} more reach the -p threshold" if partial else "")
-        blind = sum(1 for verdict in mode.values() if verdict.only_terminal)
-        if blind:
-            log.info("In silico PCR (%s): %d of the rest amplify the exclusion genomes only where a "
-                     "difference sits in the last two bases of a primer, which insilicoPCR does not count "
-                     "(%s_selective is \"undecided (3' end)\")", kind, blind, kind)
     return verdicts
