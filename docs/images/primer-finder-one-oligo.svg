@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1150 240" width="1150" height="240"
+     role="img" aria-labelledby="oo-title oo-desc">
+  <title id="oo-title">Spending the differences on one oligo</title>
+  <desc id="oo-desc">A region with two differences, G and T, seven bases apart: not a run, but an 8-base
+span that fits under one oligo. Three placements each carry both: the left primer with its 3' end pinned on
+the second difference, the right primer with its 3' end on the first since it reads the other way, and the
+probe straddling the pair.</desc>
+
+  <style>
+    .f     { font-family: "DejaVu Sans", "Helvetica Neue", Arial, sans-serif; }
+    .mono  { font-family: "DejaVu Sans Mono", "SFMono-Regular", Menlo, Consolas, monospace; }
+
+    .row   { fill: #334155; font-weight: 600; font-size: 13px; }
+    .note  { fill: #64748b; font-size: 12px; }
+    .dotln { stroke: #94a3b8; stroke-width: 3.2; stroke-linecap: round; stroke-dasharray: 0 15; }
+    .diff  { fill: #c9781f; font-weight: 700; font-size: 15px; }
+    .guide { stroke: #c9781f; stroke-opacity: .45; stroke-width: 1.2; stroke-dasharray: 3 4; }
+    .brkt  { fill: none; stroke: #64748b; stroke-width: 1.4; }
+    .brktt { fill: #64748b; font-size: 12px; }
+
+    .pbar  { fill: #1d6fb8; fill-opacity: .14; stroke: #1d6fb8; stroke-opacity: .55; stroke-width: 1.5; }
+    .ptip  { fill: #1d6fb8; }
+    .plbl  { fill: #1d6fb8; font-weight: 700; font-size: 11px; }
+    .qbar  { fill: #2f8f5b; fill-opacity: .14; stroke: #2f8f5b; stroke-opacity: .55; stroke-width: 1.5; }
+    .five  { fill: #94a3b8; font-size: 10.5px; }
+    .mark  { fill: #c9781f; }
+    .markw { fill: #c9781f; stroke: #ffffff; stroke-width: 1; }
+
+    @media (prefers-color-scheme: dark) {
+      .row   { fill: #e6edf3; }
+      .note, .brktt { fill: #9aa8bc; }
+      .brkt  { stroke: #9aa8bc; }
+      .diff, .mark { fill: #d98a2b; }
+      .markw { fill: #d98a2b; stroke: #0d1117; }
+      .guide { stroke: #d98a2b; }
+      .pbar  { stroke: #58a6ff; fill: #58a6ff; }
+      .ptip  { fill: #2f81cf; }
+      .plbl  { fill: #58a6ff; }
+      .qbar  { stroke: #3fb27a; fill: #3fb27a; }
+    }
+  </style>
+
+  <!-- the two difference columns, carried down through every placement -->
+  <line class="guide" x1="382.5" y1="58" x2="382.5" y2="212"/>
+  <line class="guide" x1="487.5" y1="58" x2="487.5" y2="212"/>
+
+  <!-- the target: the span the find rule kept the region for -->
+  <path class="brkt" d="M 375 52 V 44 H 495 V 52"/>
+  <text class="f brktt" x="505" y="49">8 bases, 2 differences — both fit under one oligo (a 25-base span at most)</text>
+
+  <!-- the region -->
+  <text class="f row" x="150" y="78" text-anchor="end">region</text>
+  <line class="dotln" x1="172.5" y1="73" x2="367.5" y2="73"/>
+  <text class="mono diff" x="382.5" y="78" text-anchor="middle">G</text>
+  <line class="dotln" x1="397.5" y1="73" x2="472.5" y2="73"/>
+  <text class="mono diff" x="487.5" y="78" text-anchor="middle">T</text>
+  <line class="dotln" x1="502.5" y1="73" x2="817.5" y2="73"/>
+
+  <!-- left primer: 3' end pinned on the second difference -->
+  <text class="f row" x="150" y="124" text-anchor="end">left primer</text>
+  <text class="f five" x="190" y="124" text-anchor="end">5'</text>
+  <rect class="pbar" x="195" y="111.5" width="286" height="17" rx="3"/>
+  <polygon class="ptip" points="481,109.5 497,120 481,130.5"/>
+  <circle class="mark" cx="382.5" cy="120" r="3"/>
+  <circle class="markw" cx="487.5" cy="120" r="3.2"/>
+  <text class="f plbl" x="503" y="124">3'</text>
+  <text class="f note" x="700" y="124">3' end pinned on the second difference, so both sit under the primer</text>
+
+  <!-- right primer: 3' end on the first, reading the other way -->
+  <text class="f row" x="150" y="164" text-anchor="end">right primer</text>
+  <text class="f plbl" x="369" y="164" text-anchor="end">3'</text>
+  <polygon class="ptip" points="391,149.5 375,160 391,170.5"/>
+  <rect class="pbar" x="391" y="151.5" width="284" height="17" rx="3"/>
+  <circle class="markw" cx="382.5" cy="160" r="3.2"/>
+  <circle class="mark" cx="487.5" cy="160" r="3"/>
+  <text class="f five" x="681" y="164">5'</text>
+  <text class="f note" x="700" y="164">3' end on the first, since it reads the other way</text>
+
+  <!-- probe: no 3' end to pin, so it straddles the pair -->
+  <text class="f row" x="150" y="204" text-anchor="end">probe</text>
+  <rect class="qbar" x="300" y="191.5" width="270" height="17" rx="8.5"/>
+  <circle class="mark" cx="382.5" cy="200" r="3"/>
+  <circle class="mark" cx="487.5" cy="200" r="3"/>
+  <text class="f note" x="700" y="204">straddles the pair</text>
+</svg>

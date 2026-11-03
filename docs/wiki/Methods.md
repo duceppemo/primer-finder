@@ -162,21 +162,14 @@ A contig is kept when, judged on that cigar string:
 - an end of the contig is clipped over at least 21 bases, which means the aligner could not place a whole
   primer's worth of sequence anywhere in that genome.
 
-Drawn, with a stretch of contig against the exclusion genome it mapped to — `·` where they agree, `X` a
-mismatch, `I` a base the contig has and the exclusion genome does not, `-` the other way round, and `S` an
-end the aligner could not place at all. Each of these is what `is_candidate` actually answers:
+Drawn, each row a stretch of contig against the exclusion genome it mapped to. Each is what `is_candidate`
+actually answers:
 
-```
-  kept    ··········XX··········          a run of two: one oligo covers both
-  kept    ·····X·······················X···  23 between them, a span of 25: the widest primer covers both
-  no      ·····X························X···  24 between them, a span of 26: no primer reaches both
-  kept    ··········X-X·········          either side of a deleted base, which takes up none of the contig
-  kept    ··········III·········          three bases the exclusion genome does not have
-  kept    SSSSSSSSSSSSSSSSSSSSSSS·······  23 bases unplaceable: a whole primer's worth is simply absent
-  no      ··········X···········          one mismatch, and nothing else near it
-  no      ··········I···········          one inserted base, likewise
-  no      SSSSSSSSSSSSSSSSSSSS··         20 clipped: not quite a primer's worth
-```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/duceppemo/primer-finder/main/docs/images/primer-finder-candidate-rule.svg"
+       alt="Nine stretches of contig against the exclusion genome each mapped to, and the verdict on each. Kept: a run of two mismatches; two mismatches spanning 25 bases, the widest primer; two either side of a deleted base; three inserted bases; 23 clipped bases, a whole primer's worth unplaceable. Not kept: the same two mismatches spanning 26 bases, which no primer reaches; one lone mismatch; one lone inserted base; 20 clipped bases, not quite a primer's worth."
+       width="920">
+</p>
 
 The last three are the point of the rule. A contig that differs by a single base is *specific* — but no
 oligo placed on it discriminates well enough to be worth designing, so it is not a candidate.

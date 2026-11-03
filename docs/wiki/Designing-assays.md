@@ -70,13 +70,11 @@ reason it is a candidate is that an oligo can be placed to carry two or more mis
 
 Drawn — a region with two differences seven bases apart, which is not a run but is well within one oligo:
 
-```
-  region        ··········G······T······················
-  target                  └──────┘                        8 bases, 2 differences
-  left primer                    ▶   its 3' end on the SECOND difference, so both sit under the primer
-  right primer            ◀           its 3' end on the FIRST, since it reads the other way
-  probe                       ╳       straddling the middle of the two
-```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/duceppemo/primer-finder/main/docs/images/primer-finder-one-oligo.svg"
+       alt="A region with two differences, G and T, seven bases apart: an 8-base span that fits under one oligo. Three placements each carry both differences — the left primer with its 3' end pinned on the second difference, the right primer with its 3' end on the first since it reads the other way, and the probe straddling the pair."
+       width="920">
+</p>
 
 Up to 1.3.0 there was no target here at all: two differences seven apart are two runs of one, so a request
 pinned a 3' end on `G` **or** on `T`, and whichever primer came back carried a single mismatch.

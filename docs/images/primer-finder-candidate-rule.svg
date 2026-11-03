@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1150 440" width="1150" height="440"
+     role="img" aria-labelledby="cr-title cr-desc">
+  <title id="cr-title">The differences worth an assay</title>
+  <desc id="cr-desc">Nine stretches of contig against the exclusion genome each mapped to, and what
+is_candidate answers for each. Kept: a run of two mismatches; two mismatches spanning 25 bases, the widest
+primer; two either side of a deleted base; three inserted bases; 23 clipped bases, a whole primer's worth
+unplaceable. Not kept: the same two mismatches spanning 26 bases, which no primer reaches; one lone
+mismatch; one lone inserted base; 20 clipped bases, not quite a primer's worth.</desc>
+
+  <style>
+    .f     { font-family: "DejaVu Sans", "Helvetica Neue", Arial, sans-serif; }
+    .mono  { font-family: "DejaVu Sans Mono", "SFMono-Regular", Menlo, Consolas, monospace; }
+
+    .note  { fill: #64748b; font-size: 12px; }
+    .dotln { stroke: #94a3b8; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 0 11.5; }
+    .diff  { fill: #c9781f; font-weight: 700; font-size: 13px; }
+    .clip  { fill: #64748b; font-weight: 700; font-size: 13px; letter-spacing: 0; }
+    .brkt  { fill: none; stroke: #64748b; stroke-width: 1.2; }
+    .brktt { fill: #64748b; font-size: 11px; }
+
+    .chipg  { fill: #2f8f5b; fill-opacity: .08; stroke: #2f8f5b; stroke-opacity: .40; stroke-width: 1.5; }
+    .chiptg { fill: #2f8f5b; font-weight: 700; font-size: 12.5px; }
+    .chips  { fill: #94a3b8; fill-opacity: .10; stroke: #94a3b8; stroke-opacity: .50; stroke-width: 1.5; }
+    .chipts { fill: #475569; font-weight: 700; font-size: 12.5px; }
+
+    @media (prefers-color-scheme: dark) {
+      .note, .brktt, .clip { fill: #9aa8bc; }
+      .brkt   { stroke: #9aa8bc; }
+      .diff   { fill: #d98a2b; }
+      .chipg  { stroke: #3fb27a; fill: #3fb27a; }
+      .chiptg { fill: #3fb27a; }
+      .chipts { fill: #c3cedb; }
+    }
+  </style>
+
+  <!-- legend: the contig against the exclusion genome it mapped to -->
+  <circle cx="134" cy="26" r="1.5" fill="#94a3b8"/>
+  <text class="f note" x="143" y="30">match</text>
+  <text class="mono diff" x="215" y="30">X</text>
+  <text class="f note" x="227" y="30">mismatch</text>
+  <text class="mono diff" x="320" y="30">I</text>
+  <text class="f note" x="332" y="30">inserted base</text>
+  <text class="mono diff" x="445" y="30">–</text>
+  <text class="f note" x="457" y="30">deleted base</text>
+  <text class="mono clip" x="565" y="30">S</text>
+  <text class="f note" x="577" y="30">clipped — the aligner could not place it</text>
+
+  <!-- 1. a run of two -->
+  <rect class="chipg" x="30" y="57" width="56" height="21" rx="10.5"/>
+  <text class="f chiptg" x="58" y="76" text-anchor="middle">kept</text>
+  <line class="dotln" x1="135.75" y1="72" x2="239.25" y2="72"/>
+  <text class="mono diff" x="250.75" y="76.5" text-anchor="middle">X</text>
+  <text class="mono diff" x="262.25" y="76.5" text-anchor="middle">X</text>
+  <line class="dotln" x1="273.75" y1="72" x2="377.25" y2="72"/>
+  <text class="f note" x="545" y="76">a run of two: one oligo covers both</text>
+
+  <!-- 2. a span of 25: the widest primer covers both -->
+  <rect class="chipg" x="30" y="97" width="56" height="21" rx="10.5"/>
+  <text class="f chiptg" x="58" y="116" text-anchor="middle">kept</text>
+  <line class="dotln" x1="135.75" y1="112" x2="181.75" y2="112"/>
+  <text class="mono diff" x="193.25" y="116.5" text-anchor="middle">X</text>
+  <line class="dotln" x1="204.75" y1="112" x2="457.75" y2="112"/>
+  <text class="mono diff" x="469.25" y="116.5" text-anchor="middle">X</text>
+  <line class="dotln" x1="480.75" y1="112" x2="503.75" y2="112"/>
+  <path class="brkt" d="M 187.5 124 v 5 H 475 v -5"/>
+  <text class="f brktt" x="331" y="139" text-anchor="middle">a span of 25</text>
+  <text class="f note" x="545" y="116">23 matching bases between them — the widest primer covers both</text>
+
+  <!-- 3. a span of 26: no primer reaches both -->
+  <rect class="chips" x="30" y="147" width="56" height="21" rx="10.5"/>
+  <text class="f chipts" x="58" y="166" text-anchor="middle">no</text>
+  <line class="dotln" x1="135.75" y1="162" x2="181.75" y2="162"/>
+  <text class="mono diff" x="193.25" y="166.5" text-anchor="middle">X</text>
+  <line class="dotln" x1="204.75" y1="162" x2="469.25" y2="162"/>
+  <text class="mono diff" x="480.75" y="166.5" text-anchor="middle">X</text>
+  <line class="dotln" x1="492.25" y1="162" x2="515.25" y2="162"/>
+  <path class="brkt" d="M 187.5 174 v 5 H 486.5 v -5"/>
+  <text class="f brktt" x="337" y="189" text-anchor="middle">a span of 26</text>
+  <text class="f note" x="545" y="166">24 between them — no primer reaches both</text>
+
+  <!-- 4. either side of a deleted base -->
+  <rect class="chipg" x="30" y="197" width="56" height="21" rx="10.5"/>
+  <text class="f chiptg" x="58" y="216" text-anchor="middle">kept</text>
+  <line class="dotln" x1="135.75" y1="212" x2="239.25" y2="212"/>
+  <text class="mono diff" x="250.75" y="216.5" text-anchor="middle">X</text>
+  <text class="mono diff" x="262.25" y="216.5" text-anchor="middle">–</text>
+  <text class="mono diff" x="273.75" y="216.5" text-anchor="middle">X</text>
+  <line class="dotln" x1="285.25" y1="212" x2="377.25" y2="212"/>
+  <text class="f note" x="545" y="216">either side of a deleted base, which takes up no base of the contig</text>
+
+  <!-- 5. three inserted bases -->
+  <rect class="chipg" x="30" y="237" width="56" height="21" rx="10.5"/>
+  <text class="f chiptg" x="58" y="256" text-anchor="middle">kept</text>
+  <line class="dotln" x1="135.75" y1="252" x2="239.25" y2="252"/>
+  <g><text class="mono diff" x="250.75" y="256.5" text-anchor="middle">I</text><text class="mono diff" x="262.25" y="256.5" text-anchor="middle">I</text><text class="mono diff" x="273.75" y="256.5" text-anchor="middle">I</text></g>
+  <line class="dotln" x1="285.25" y1="252" x2="377.25" y2="252"/>
+  <text class="f note" x="545" y="256">three bases the exclusion genome does not have</text>
+
+  <!-- 6. a whole primer's worth unplaceable -->
+  <rect class="chipg" x="30" y="277" width="56" height="21" rx="10.5"/>
+  <text class="f chiptg" x="58" y="296" text-anchor="middle">kept</text>
+  <g><text class="mono clip" x="135.75" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="147.25" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="158.75" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="170.25" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="181.75" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="193.25" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="204.75" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="216.25" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="227.75" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="239.25" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="250.75" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="262.25" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="273.75" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="285.25" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="296.75" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="308.25" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="319.75" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="331.25" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="342.75" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="354.25" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="365.75" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="377.25" y="296.5" text-anchor="middle">S</text><text class="mono clip" x="388.75" y="296.5" text-anchor="middle">S</text></g>
+  <line class="dotln" x1="400.25" y1="292" x2="469.25" y2="292"/>
+  <text class="f note" x="545" y="296">23 bases unplaceable: a whole primer's worth is simply absent</text>
+
+  <!-- 7. one lone mismatch -->
+  <rect class="chips" x="30" y="317" width="56" height="21" rx="10.5"/>
+  <text class="f chipts" x="58" y="336" text-anchor="middle">no</text>
+  <line class="dotln" x1="135.75" y1="332" x2="239.25" y2="332"/>
+  <text class="mono diff" x="250.75" y="336.5" text-anchor="middle">X</text>
+  <line class="dotln" x1="262.25" y1="332" x2="377.25" y2="332"/>
+  <text class="f note" x="545" y="336">one mismatch, and nothing else near it</text>
+
+  <!-- 8. one lone inserted base -->
+  <rect class="chips" x="30" y="357" width="56" height="21" rx="10.5"/>
+  <text class="f chipts" x="58" y="376" text-anchor="middle">no</text>
+  <line class="dotln" x1="135.75" y1="372" x2="239.25" y2="372"/>
+  <text class="mono diff" x="250.75" y="376.5" text-anchor="middle">I</text>
+  <line class="dotln" x1="262.25" y1="372" x2="377.25" y2="372"/>
+  <text class="f note" x="545" y="376">one inserted base, likewise</text>
+
+  <!-- 9. not quite a primer's worth clipped -->
+  <rect class="chips" x="30" y="397" width="56" height="21" rx="10.5"/>
+  <text class="f chipts" x="58" y="416" text-anchor="middle">no</text>
+  <g><text class="mono clip" x="135.75" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="147.25" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="158.75" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="170.25" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="181.75" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="193.25" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="204.75" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="216.25" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="227.75" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="239.25" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="250.75" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="262.25" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="273.75" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="285.25" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="296.75" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="308.25" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="319.75" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="331.25" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="342.75" y="416.5" text-anchor="middle">S</text><text class="mono clip" x="354.25" y="416.5" text-anchor="middle">S</text></g>
+  <line class="dotln" x1="365.75" y1="412" x2="377.25" y2="412"/>
+  <text class="f note" x="545" y="416">20 clipped: not quite a primer's worth</text>
+</svg>
