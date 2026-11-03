@@ -30,6 +30,12 @@ spliced across a tandem repeat, which is reported shorter than the genome's own 
 what blast masks, what that did to a run end to end, and what the fix changes on the Xylella panel
 (nothing at all).
 
+`2026-11-03_v1.10.0_insilico080/` is the move to insilicoPCR 0.8.0, which replaced the accidental
+alignment zones of `2026-10-08_v1.3.0/` with a deliberate hit model. It measures each of the new model's
+claims the way that record measured the old one's accidents, then designs the same Xylella find results
+under 1.9.3 + 0.6.1 and 1.10.0 + 0.8.0 and joins the verdicts per assay: every `undecided (3' end)`
+verdict dissolves to `yes`, and the rest of the movement cuts both ways on grounds the model can defend.
+
 Not every record is about an assay. `2026-10-14_v1.7.0_unitig/` measures what a change to the code does to
 a panel whose answer is already known — the question any change to the find or assembly rules has to
 answer before it can become a default.
