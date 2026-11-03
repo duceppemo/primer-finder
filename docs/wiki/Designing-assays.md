@@ -529,14 +529,18 @@ genome; the other values it can take are below.
 insilicoPCR takes a mismatch tolerance, and primer-finder passes `--mismatches 1` by default. Since
 insilicoPCR 0.8.0 the budget counts substitutions, indels **and** the 3'-end bases blast leaves unaligned,
 and a second, weighted check guards the primer's 3' end on top of it (its `--3p-window`/`--3p-penalty`,
-left at their defaults). A primer still has three zones, but they are now a model of priming rather than an
-artifact of the alignment:
+left at their defaults). The zones were measured on 0.8.0 rather than quoted from it — the same one-base-
+at-a-time synthetic-template test as for 0.6.1
+([`2026-11-03_v1.10.0_insilico080/mismatch_zones.py`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-11-03_v1.10.0_insilico080/mismatch_zones.py))
+— and two of them sit somewhere other than where insilicoPCR's own penalty table suggests:
 
-| Where the mismatch is | What insilicoPCR 0.8.0 does |
+| Where the difference is | What insilicoPCR 0.8.0 does, measured |
 |---|---|
-| the last 5 bases | **refused**, whatever the budget: any imperfection in the 3' window scores above the default `--3p-penalty 0`. This is where the polymerase extends from, and a mismatch there is the strongest block a template can offer. |
+| the 3'-terminal base | **refused** at every `--mismatches` (0 to 10 tested). This is the base the polymerase extends from. Rescuable deliberately: `--3p-penalty` 3 for an A/T-ending primer, 4 for G/C-ending, plus the one unit of `--mismatches` the trimmed base consumes. |
+| 2–4 bases from the 3' end | **refused**, and not rescuable even at `--3p-penalty 4` with `-m 4`: blast trims the whole tail rather than aligning through, so every unaligned base scores in the window and the penalties stack. |
+| 5 bases from the 3' end | **refused** at the default; rescuable at `--3p-penalty 1`. |
 | 6 or more bases in | **what `--mismatches` decides**, counted per primer: at `--mismatches 1` each primer may carry one, so an assay may carry two. |
-| unaligned 5' bases | **tolerated** up to its `--5p-truncation` (5): blast trims a 5'-proximal mismatch as several unaligned bases, and a 5'-end difference barely affects priming anyway. |
+| 1–4 bases from the **5' end** | **free**, at `--mismatches 0` even: blast trims the tail, and a 5'-end difference barely affects priming anyway. `--5p-truncation` narrows it. A difference 5 bases in is kept in the alignment instead and costs one unit of `-m`. |
 
 A consequence worth noting: a difference at the very 3' end — what the forced-end requests aim for — is now
 rewarded by this check. Under insilicoPCR 0.6.x the last two bases were invisible to it (blast trimmed them
@@ -562,8 +566,10 @@ primer-finder design results/ -o assays/ --insilico-pcr <dir> --mismatches 2    
 
 An assay that still passes at `--mismatches 2` rests on something the model cannot explain away. Raising the
 tolerance only ever finds more exclusion amplification, never less, so it can only take assays away. (The
-counts above were measured with insilicoPCR 0.6.1; 0.8.0 draws the 3'-end line differently, so the exact
-figures will move, but not the direction of the argument.)
+counts above were measured with insilicoPCR 0.6.1; the panel has since been rescored by both tool pairs on
+identical assays —
+[`2026-11-03_v1.10.0_insilico080/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-11-03_v1.10.0_insilico080/SUMMARY.md)
+— and the direction of the argument held.)
 
 ### The probe has a budget of its own
 
@@ -576,9 +582,15 @@ through under the same name:
 primer-finder design results/ -o assays/ --insilico-pcr <dir> --probe-mismatches 2
 ```
 
-One more than `--mismatches` is a reasonable looser screen of the inclusion group. Note the other side of
-that thermodynamic coin, [above](#why-the-probe-does-not-count-towards-it): a probe that binds through
-mismatches is also poor evidence of specificity, which is why the probe never counts towards
+What one more than `--mismatches` buys was measured rather than assumed, and on the *Xylella* panel it is
+the opposite of an inclusivity rescue: the assays are designed on sequence every inclusion genome shares,
+so the looser budget had nothing to rescue there, and all it could do was find more exclusion probe
+bindings — **13 qPCR verdicts moved, every one `yes` to `no`, none the other way**
+([`2026-11-03_v1.10.0_insilico080/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-11-03_v1.10.0_insilico080/SUMMARY.md)).
+So the default stands, and `--probe-mismatches 2` is best read as a *stricter* second screen: an assay
+whose `yes` survives it does not depend on the probe refusing a near-match. That is the same
+thermodynamic coin as [above](#why-the-probe-does-not-count-towards-it): a probe that binds through
+mismatches is poor evidence of specificity, which is why the probe never counts towards
 `--min-primer-differences` and why `pcr_selective` — the primer pair alone — is the verdict to argue from.
 
 ### A `no` is now a verdict at the 3' end too
@@ -593,9 +605,14 @@ insilicoPCR 0.8.0 closed the blind spot: unaligned 3' bases count against the bu
 in the last five bases refuses the binding outright. An exclusion genome that differs from a primer at its
 3' end now simply does not amplify — the model's way of saying the polymerase has nothing matched to extend
 from — so the label and the columns are gone, and an assay whose specificity sits at a 3' end gets the
-`yes` it was designed for. Bear in mind what that is: a model of priming, not a reaction. A real polymerase
-reads through a terminal mismatch now and then, so a `yes` that rests on a single 3'-end difference is still
-the first thing to put on a bench.
+`yes` it was designed for. Measured on the *Xylella* panel, with identical assays scored by both tool
+pairs: **every assay the old pair had parked as `undecided` — 34 in PCR mode, 12 in qPCR mode — is a clean
+`yes` under 0.8.0**, full inclusion coverage and zero exclusion amplification
+([`2026-11-03_v1.10.0_insilico080/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-11-03_v1.10.0_insilico080/SUMMARY.md)).
+
+Bear in mind what a `yes` is: a model of priming, not a reaction. A real polymerase reads through a
+terminal mismatch now and then, so a `yes` that rests on a single 3'-end difference is still the first
+thing to put on a bench.
 
 ### When the regions were found with `-p` below 1
 
