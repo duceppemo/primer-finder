@@ -34,7 +34,15 @@ insilicoPCR belong on primer-finder 1.9.x.
 - **A rerun cannot read the previous run's report.** insilicoPCR 0.8.0 writes `report(1).tsv` beside an
   existing `report.tsv` instead of overwriting it, which the reader would never have looked at: a rerun
   into the same output folder would have reported the previous run's verdicts. Both `insilico.run` and the
-  written `run_insilico_pcr.sh` clear stale reports before running.
+  written `run_insilico_pcr.sh` set the old report aside as `report.tsv.previous` before running — kept
+  rather than deleted, since it may be hours of insilicoPCR a failed rerun would otherwise leave nothing
+  of — and touch only the names insilicoPCR itself writes, never a file saved beside them.
+
+- **An older insilicoPCR is refused before any of the work.** `design` asks the launcher its version up
+  front — 0.6.x does not know `-v` at all, which is itself the answer — so an old release stops the run
+  before Primer3 instead of after it. A report is likewise only counted when it carries a column 0.8.0
+  writes: one with the old `EndMismatch` columns, or with neither kind, is refused with the reason rather
+  than read as amplicons.
 
 - The two primer files are unchanged but their reason has: 0.8.0 decides the probe requirement per assay,
   so mixed files are legal — one file still cannot ask both "does the whole assay report positive" and

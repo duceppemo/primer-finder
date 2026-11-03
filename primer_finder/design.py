@@ -1433,8 +1433,9 @@ def run(settings: DesignSettings) -> int:
     if settings.insilico_pcr is not None:
         # Looked at now rather than at the end. Until this, what --insilico-pcr pointed at was first
         # resolved after Primer3 and both amplicon searches had run, so a mistyped path -- or a portable
-        # release whose `java` is missing -- threw the whole design run away at its last step.
-        insilico.resolve(settings.insilico_pcr)
+        # release whose `java` is missing, or one older than insilicoPCR 0.8.0, which does not even know
+        # the options this run passes -- threw the whole design run away at its last step.
+        log.info("insilicoPCR: %s", insilico.check_version(insilico.resolve(settings.insilico_pcr)))
     with system.lock_output(settings.output, "design"):
         return _design(settings, final, inclusion, exclusion, started)
 

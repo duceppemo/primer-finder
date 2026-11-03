@@ -24,6 +24,7 @@ from __future__ import annotations
 import csv
 import logging
 import os
+import re
 import shutil
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
@@ -46,6 +47,11 @@ SAMPLE_COLUMN, ASSAY_COLUMN = "Sample", "Gene"
 # reports here. 0.8.0 calls amplicons itself, dropped these columns, and made the re-checking obsolete, so
 # finding one of them is finding a report this reader must not count rows from.
 OLD_COLUMNS = ("ForwardEndMismatch", "ReverseEndMismatch")
+# Columns only 0.8.0 and newer write. A report carrying neither kind is not known to be amplicons either,
+# and counting it anyway would fail open -- phantom pairings read as cross-reactions -- so it is refused.
+NEW_COLUMNS = ("Forward3PrimeMismatches", "Strand")
+# The oldest insilicoPCR whose reports this module reads.
+REQUIRED_VERSION = (0, 8, 0)
 # The longest span that can be one product, passed to insilicoPCR as `-l`. It applies the limit itself
 # since 0.8.0, but its default (5000) is its own to move, and the verdicts should not move with it.
 # Well above anything this tool designs for -- Primer3 is asked for 70-150 bases by default.
@@ -226,6 +232,33 @@ def resolve(given: Path) -> list[str]:
     return [str(given)]
 
 
+def check_version(launcher: Sequence[str]) -> str:
+    """Ask the launcher its version, and insist on 0.8.0 or newer. Returns the version line.
+
+    Called before any of the expensive work: an older release only announced itself at the in-silico step,
+    after Primer3 and every blast had already run. 0.6.x does not know `-v` at all -- it prints an
+    "Unrecognized option" usage dump and exits non-zero -- which is itself the answer.
+    """
+    needed = ".".join(map(str, REQUIRED_VERSION))
+    try:
+        output = tools.run([*launcher, "-v"])
+    except tools.ToolError as error:
+        raise PrimerFinderError(
+            f"insilicoPCR could not say its version, which a release older than {needed} cannot "
+            f"(it does not know -v). primer-finder needs {needed} or newer: "
+            f"https://github.com/duceppemo/insilicoPCR/releases\n{error}"
+        ) from error
+    match = re.search(r"\b(\d+)\.(\d+)(?:\.(\d+))?\b", output)
+    if match is None or tuple(int(part or 0) for part in match.groups()) < REQUIRED_VERSION:
+        found = match.group(0) if match else f"no version in {output.strip()!r}"
+        raise PrimerFinderError(
+            f"insilicoPCR {found} is older than the {needed} primer-finder needs, whose report rows are "
+            "amplicons rather than raw primer pairings. Upgrade it from "
+            "https://github.com/duceppemo/insilicoPCR/releases, or design with primer-finder 1.9.x."
+        )
+    return output.strip()
+
+
 def _java() -> str:
     java = shutil.which("java")
     if java is None:
@@ -253,9 +286,20 @@ def run(launcher: Sequence[str], genomes: Path, primers: Path, output: Path,
     if report.parent.is_dir():
         # insilicoPCR 0.8.0 never overwrites a report: beside an existing report.tsv it writes
         # report(1).tsv, which the reader below would never look at -- so a rerun into the same folder
-        # would hand this run the previous run's verdicts.
-        for stale in report.parent.glob("report*.tsv"):
-            stale.unlink()
+        # would hand this run the previous run's verdicts. The old report is set aside rather than
+        # deleted -- it may be hours of insilicoPCR a failed rerun would otherwise leave nothing of --
+        # and only the names insilicoPCR itself writes are touched, not anything a user saved beside them.
+        try:
+            if report.exists():
+                report.replace(report.with_name(report.name + ".previous"))
+            for stale in report.parent.glob("report(*).tsv"):
+                stale.unlink()
+        except OSError as error:
+            # Not PrimerFinderError's subclass of its own accord, and anything else would escape the
+            # design command's "a failed check must not lose the design" net.
+            raise PrimerFinderError(
+                f"Cannot set aside the previous consolidated report in {report.parent}: {error}"
+            ) from error
     try:
         tools.run(command(launcher, genomes, primers, output, threads, mismatches, probe_mismatches))
     except tools.ToolError as error:
@@ -316,6 +360,14 @@ def _insist_on_columns(fieldnames: Sequence[str] | None, report: Path) -> None:
             "this version of primer-finder no longer re-checks. Upgrade insilicoPCR "
             "(https://github.com/duceppemo/insilicoPCR/releases), or design with primer-finder 1.9.x."
         )
+    if not any(name in (fieldnames or ()) for name in NEW_COLUMNS):
+        # Failing open here would count rows that may be raw pairings; refusing is the honest answer.
+        raise PrimerFinderError(
+            f"{report} carries none of the columns insilicoPCR 0.8.0 writes "
+            f"({' or '.join(NEW_COLUMNS)}), so there is no telling that its rows are amplicons rather "
+            "than raw primer pairings. Upgrade insilicoPCR "
+            "(https://github.com/duceppemo/insilicoPCR/releases)."
+        )
 
 
 def count_genomes(folder: Path) -> int:
@@ -364,8 +416,11 @@ def write_script(path: Path, launcher: Sequence[str] | None, primers: Sequence[P
         for group, folder in (("inclusion", inclusion), ("exclusion", exclusion)):
             lines += [
                 # insilicoPCR writes report(1).tsv beside an existing report.tsv rather than over it, so
-                # a rerun would leave the old verdicts where the find below looks
-                f'rm -f "${{out}}/{primer_file.stem}_{group}/consolidated_report/"report*.tsv',
+                # a rerun would leave the old verdicts where the find below looks. The old report is set
+                # aside, not deleted, and nothing a user saved beside it is touched.
+                f'dir="${{out}}/{primer_file.stem}_{group}/consolidated_report"',
+                'mv -f "${dir}/report.tsv" "${dir}/report.tsv.previous" 2>/dev/null || true',
+                'rm -f "${dir}/report("*").tsv"',
                 f"{start} \\",
                 f'    -i "{folder}" \\',
                 f'    -p "{primer_file}" \\',

@@ -58,7 +58,8 @@ assembler you ask for has to be installed, and `-a unitig` asks for none.
 
 [insilicoPCR](https://github.com/duceppemo/insilicoPCR) is **not** installed with primer-finder and is not
 needed to run it. It is a separate program, and `primer-finder design --insilico-pcr` points at an extracted
-portable release of it (which brings its own Java, BBMap and BLAST+). See
+portable release of it (which brings its own Java, BBMap and BLAST+) — **release 0.8.0 or newer**: an older
+one is refused before any of the work, since primer-finder no longer reads its reports. See
 [Designing assays](Designing-assays).
 
 ## Checking the installation
@@ -71,7 +72,7 @@ pipeline must find. It takes a few seconds.
 bash example/run_example.sh
 
 # Or, with primer-finder installed from conda
-curl -sL https://github.com/duceppemo/primer-finder/archive/refs/tags/v1.9.3.tar.gz | tar -xz --strip-components=1 primer-finder-1.9.3/example
+curl -sL https://github.com/duceppemo/primer-finder/archive/refs/tags/v1.10.0.tar.gz | tar -xz --strip-components=1 primer-finder-1.10.0/example
 bash example/run_example.sh
 ```
 

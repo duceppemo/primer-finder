@@ -15,6 +15,7 @@ from primer_finder.insilico import (
     LONGEST_PRODUCT,
     REPORT,
     Verdict,
+    check_version,
     command,
     count_genomes,
     read_report,
@@ -186,6 +187,44 @@ def test_an_old_releases_report_is_refused(tmp_path):
         read_report(tmp_path)
 
 
+def test_a_report_without_any_column_of_0_8_0_is_refused(tmp_path):
+    """The other way a report can be too old to count: the EndMismatch columns are a 0.6.x tell, but a
+    report carrying neither those nor anything 0.8.0 writes is just as unknowable, and counting it anyway
+    would fail open -- raw pairings read as cross-reactions."""
+    report = tmp_path / REPORT
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text("Sample\tGene\tGenomeLocation\tAmpliconSize\n" + "g0\ta\t1-100\t100\n")
+    with pytest.raises(PrimerFinderError, match="none of the columns insilicoPCR 0.8.0 writes"):
+        read_report(tmp_path)
+
+
+def script_that(tmp_path, body: str) -> list[str]:
+    launcher = tmp_path / "insilico.sh"
+    launcher.write_text(f"#!/bin/sh\n{body}\n")
+    launcher.chmod(0o755)
+    return [str(launcher)]
+
+
+def test_check_version_accepts_a_current_release(tmp_path):
+    assert check_version(script_that(tmp_path, 'echo "insilicoPCR 0.8.0"')) == "insilicoPCR 0.8.0"
+    assert check_version(script_that(tmp_path, 'echo "insilicoPCR 1.2"')) == "insilicoPCR 1.2"
+
+
+def test_check_version_refuses_a_release_that_does_not_know_itself(tmp_path):
+    """0.6.x has no -v at all: it prints an "Unrecognized option" usage dump and exits non-zero. That is
+    the answer, and it has to arrive here -- before Primer3 and every blast -- not at the last step."""
+    old = script_that(tmp_path, "echo 'Unrecognized option: -v' >&2\nexit 2")
+    with pytest.raises(PrimerFinderError, match="needs 0.8.0 or newer"):
+        check_version(old)
+
+
+def test_check_version_refuses_a_release_below_0_8_0(tmp_path):
+    with pytest.raises(PrimerFinderError, match="older than the 0.8.0"):
+        check_version(script_that(tmp_path, 'echo "insilicoPCR 0.7.0"'))
+    with pytest.raises(PrimerFinderError, match="no version"):
+        check_version(script_that(tmp_path, 'echo "ready"'))
+
+
 def test_run_insists_on_a_report(stubs, tmp_path, insilico_pcr):
     """A run that writes no consolidated report is a failed run, however it exited."""
     launcher = resolve(insilico_pcr)
@@ -202,10 +241,12 @@ def test_run_insists_on_a_report(stubs, tmp_path, insilico_pcr):
         run(launcher, genomes, primers, tmp_path / "quiet", threads=1)
 
 
-def test_a_stale_report_is_cleared_before_the_run(stubs, tmp_path, insilico_pcr):
+def test_a_stale_report_is_set_aside_before_the_run(stubs, tmp_path, insilico_pcr):
     """insilicoPCR 0.8.0 never overwrites a report: beside an existing report.tsv it writes
     report(1).tsv, which the reader never looks at. Without the clearing, a rerun into the same folder
-    read the previous run's verdicts under the new run's name."""
+    read the previous run's verdicts under the new run's name. The old report may be hours of insilicoPCR
+    a failed rerun would otherwise leave nothing of, so it is renamed rather than deleted -- and a file a
+    user saved beside it is not insilicoPCR's to lose, so only the names it writes itself are touched."""
     launcher = resolve(insilico_pcr)
     genomes = tmp_path / "inclusion"
     genomes.mkdir()
@@ -214,10 +255,15 @@ def test_a_stale_report_is_cleared_before_the_run(stubs, tmp_path, insilico_pcr)
     primers.write_text(">a-F\nAAAA\n>a-R\nTTTT\n")
     out = tmp_path / "out"
     write_report(out, [("g1", "stale_assay")])
-    (out / REPORT).with_name("report(1).tsv").write_text((out / REPORT).read_text())
+    parent = (out / REPORT).parent
+    (parent / "report(1).tsv").write_text((out / REPORT).read_text())
+    (parent / "report_baseline.tsv").write_text("saved by hand: not a name insilicoPCR writes\n")
     run(launcher, genomes, primers, out, threads=1)
     assert read_report(out) == {"a": {"g1"}}
-    assert [path.name for path in (out / REPORT).parent.glob("report*.tsv")] == ["report.tsv"]
+    assert sorted(path.name for path in parent.glob("report*")) == [
+        "report.tsv", "report.tsv.previous", "report_baseline.tsv"]
+    assert "stale_assay" in (parent / "report.tsv.previous").read_text()
+    assert "saved by hand" in (parent / "report_baseline.tsv").read_text()
 
 
 def test_an_old_release_that_rejects_the_command_names_the_upgrade(tmp_path):
@@ -315,8 +361,10 @@ def test_the_script_runs_both_groups_and_both_files(tmp_path):
     assert text.count("java -jar x.jar") == 4  # two files, two groups
     assert f"-t 4 -m 1 -l {LONGEST_PRODUCT}" in text
     assert "--probe-mismatches" not in text  # not chosen, so insilicoPCR's own default stands
-    # insilicoPCR writes report(1).tsv beside an existing report, which the find below never names
-    assert text.count("rm -f") == 4
+    # insilicoPCR writes report(1).tsv beside an existing report, which the find below never names -- the
+    # old report is set aside, not deleted, and nothing a user saved beside it is touched
+    assert text.count('mv -f "${dir}/report.tsv" "${dir}/report.tsv.previous"') == 4
+    assert text.count('rm -f "${dir}/report("*").tsv"') == 4
     assert os.access(path, os.X_OK)
 
 

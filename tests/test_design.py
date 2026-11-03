@@ -2023,6 +2023,20 @@ def test_a_mistyped_insilico_pcr_path_is_refused_before_any_of_the_work(stubs, f
     assert not (output / "assays.tsv").exists()
 
 
+def test_an_insilico_pcr_older_than_0_8_0_is_refused_before_any_of_the_work(stubs, finished_run,
+                                                                            tmp_path):
+    """The same early stop for a release this version no longer speaks: 0.6.x does not know the options
+    the run passes, and discovering that after Primer3 and both amplicon searches threw the design away."""
+    old = tmp_path / "old-insilico.sh"
+    old.write_text("#!/bin/sh\necho 'Unrecognized option: -v' >&2\nexit 2\n")
+    old.chmod(0o755)
+    output = tmp_path / "assays"
+    with pytest.raises(PrimerFinderError, match="needs 0.8.0 or newer"):
+        run(design_settings(finished_run, output, insilico_pcr=old))
+    assert not (output / "primer3").exists(), "Primer3 ran before the version was looked at"
+    assert not (output / "assays.tsv").exists()
+
+
 def test_two_design_runs_cannot_share_an_output_folder(stubs, finished_run, tmp_path):
     """Both would stage genomes into the same folders -- which are emptied before they are filled -- and
     build their amplicon databases on top of each other."""

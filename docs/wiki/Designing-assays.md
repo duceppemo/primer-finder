@@ -579,7 +579,7 @@ primer-finder design results/ -o assays/ --insilico-pcr <dir> --probe-mismatches
 ```
 
 One more than `--mismatches` is a reasonable looser screen of the inclusion group. Note the other side of
-that thermodynamic coin, [below](#why-the-probe-does-not-count-towards-it): a probe that binds through
+that thermodynamic coin, [above](#why-the-probe-does-not-count-towards-it): a probe that binds through
 mismatches is also poor evidence of specificity, which is why the probe never counts towards
 `--min-primer-differences` and why `pcr_selective` — the primer pair alone — is the verdict to argue from.
 

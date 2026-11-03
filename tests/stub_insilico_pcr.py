@@ -43,6 +43,11 @@ def report_path(folder: Path) -> Path:
 
 
 def main(argv: list[str]) -> int:
+    if "-v" in argv:
+        # The version probe `design` sends before any of the work. Not logged to PRIMER_FINDER_CALLS:
+        # the tests count the amplification runs, and this is not one.
+        print("insilicoPCR 0.8.0")
+        return 0
     options = dict(zip(argv[::2], argv[1::2], strict=False))
     scenario = json.loads(os.environ.get("PRIMER_FINDER_STUBS", "{}"))
     calls = os.environ.get("PRIMER_FINDER_CALLS")
