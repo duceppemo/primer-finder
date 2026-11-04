@@ -180,7 +180,8 @@ the ones that would amplify both groups are kept at the end for the record.
 | `forward_strong_variants`, `forward_terminal_run`, `forward_near_3prime` | and the same for `reverse`: how many of its differences replace a G or a C, and where they sit relative to the 3' end |
 | `inclusion_total`, `exclusion_total` | how many genomes were tested, when in silico PCR was run. These and the verdict columns below it are absent when it was not run, and also when it failed: the table is still written, and the command exits 1 with the reason in the log |
 | `qpcr_inclusion_amplified`, `qpcr_inclusion_percent`, `qpcr_exclusion_amplified`, `qpcr_selective` | what insilicoPCR said of the whole assay, probe and all |
-| `pcr_inclusion_amplified`, `pcr_inclusion_percent`, `pcr_exclusion_amplified`, `pcr_selective` | and the same of the primer pair alone |
+| `qpcr_exclusion_held_by_3prime` | of the exclusion genomes that do **not** amplify, how many amplify once an imperfection at the far 3' end is tolerated: genomes held off only by a primer's last base or the one five bases in, which a real polymerase occasionally reads through. The verdict does not move with it — the model's position is that the base refuses extension — but the ranking breaks ties away from assays that rest on it, and it names the assays to put on a bench first. `0` when `--no-3prime-check` skipped the extra exclusion run |
+| `pcr_inclusion_amplified`, `pcr_inclusion_percent`, `pcr_exclusion_amplified`, `pcr_exclusion_held_by_3prime`, `pcr_selective` | and the same of the primer pair alone |
 
 The structure temperatures are predicted for the reaction the run was given (`--monovalent`, `--divalent`,
 `--dntp`, `--primer-conc`, `--probe-conc`), which `design_info.json` records under `parameters.conditions`.

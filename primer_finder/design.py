@@ -1152,9 +1152,9 @@ COLUMNS = (
 )
 VERDICT_COLUMNS = ("inclusion_total", "exclusion_total",
                    "qpcr_inclusion_amplified", "qpcr_inclusion_percent", "qpcr_exclusion_amplified",
-                   "qpcr_selective",
+                   "qpcr_exclusion_held_by_3prime", "qpcr_selective",
                    "pcr_inclusion_amplified", "pcr_inclusion_percent", "pcr_exclusion_amplified",
-                   "pcr_selective")
+                   "pcr_exclusion_held_by_3prime", "pcr_selective")
 
 
 @dataclass
@@ -1175,6 +1175,9 @@ class DesignSettings:
     insilico_pcr: Path | None = None
     mismatches: int = DEFAULT_MISMATCHES
     probe_mismatches: int | None = None  # insilicoPCR's default is the --mismatches value
+    # Rerun the exclusion group tolerating an imperfection at the far 3' end, to count the genomes an
+    # assay is held off only there -- by bases a real polymerase occasionally reads through.
+    three_prime_check: bool = True
     command_line: list[str] = field(default_factory=list)
 
 
@@ -1234,6 +1237,7 @@ def assay_row(assay: Assay, verdict: dict[str, object] | None = None) -> dict[st
             f"{kind}_inclusion_amplified": one.inclusion_amplified,
             f"{kind}_inclusion_percent": one.percent,
             f"{kind}_exclusion_amplified": one.exclusion_amplified,
+            f"{kind}_exclusion_held_by_3prime": one.exclusion_held_by_three_prime,
             f"{kind}_selective": one.label,
         })
     return row
@@ -1609,13 +1613,15 @@ def _design(settings: DesignSettings, final: Path, inclusion: Path, exclusion: P
             log.error("In silico PCR failed, so the assays are written without its verdicts: %s", error)
             checked = False
         else:
-            # Amplifying every inclusion genome comes before merely meeting the threshold, and an assay
-            # this check could not refuse comes before one it refused on evidence it can defend
-            usable = sorted(usable, key=lambda assay: (-support_of(verdicts[assay.name]), rank_key(assay)))
+            # Amplifying every inclusion genome comes before merely meeting the threshold; between
+            # equally backed assays, the one whose exclusion silence does not rest on a lone 3'-terminal
+            # base comes first
+            usable = sorted(usable, key=lambda assay: (-support_of(verdicts[assay.name]),
+                                                       held_of(verdicts[assay.name]), rank_key(assay)))
     else:
         insilico.write_script(settings.output / insilico.SCRIPT_NAME, None, list(primer_files.values()),
                               inclusion_staged, exclusion_staged, settings.threads, settings.mismatches,
-                              settings.probe_mismatches)
+                              settings.probe_mismatches, settings.three_prime_check)
         log.info("In silico PCR was not run. To check the assays against both groups: %s",
                  settings.output / insilico.SCRIPT_NAME)
 
@@ -1635,6 +1641,7 @@ def _design(settings: DesignSettings, final: Path, inclusion: Path, exclusion: P
             "conditions": vars(settings.conditions),
             "mismatches": settings.mismatches,
             "probe_mismatches": settings.probe_mismatches,
+            "three_prime_check": settings.three_prime_check,
             "min_primer_differences": settings.min_primer_differences,
             "threads": settings.threads,
             "min_inclusion": threshold_of(settings),
@@ -1654,6 +1661,9 @@ def _design(settings: DesignSettings, final: Path, inclusion: Path, exclusion: P
                                     if kind in modes and modes[kind].complete),
                     "at_threshold": sum(1 for modes in verdicts.values()
                                         if kind in modes and modes[kind].selective),
+                    "held_by_3prime": sum(1 for modes in verdicts.values()
+                                          if kind in modes and modes[kind].selective
+                                          and modes[kind].exclusion_held_by_three_prime),
                 }
                 for kind in ("qpcr", "pcr")
             } if verdicts else None,
@@ -1685,6 +1695,13 @@ def rank_key(assay: Assay) -> tuple:
     )
 
 
+def held_of(modes: dict[str, object]) -> int:
+    """Exclusion genomes held off only by the far 3' end of a primer, summed over the modes: the
+    tiebreak that prefers, between equally backed assays, the one whose silence does not rest on
+    bases a polymerase can read through."""
+    return sum(verdict.exclusion_held_by_three_prime for verdict in modes.values())
+
+
 def support_of(modes: dict[str, object]) -> float:
     """How far in silico PCR backs taking an assay to a bench, averaged over the modes it was run in.
 
@@ -1703,7 +1720,7 @@ def run_insilico_pcr(settings: DesignSettings, assays: Sequence[Assay], primer_f
     launcher = insilico.resolve(settings.insilico_pcr)
     insilico.write_script(settings.output / insilico.SCRIPT_NAME, launcher, list(primer_files.values()),
                           inclusion, exclusion, settings.threads, settings.mismatches,
-                          settings.probe_mismatches)
+                          settings.probe_mismatches, settings.three_prime_check)
     verdicts: dict[str, dict[str, object]] = {assay.name: {} for assay in assays}
     for kind, primer_file in primer_files.items():
         # Only the assays that are in this mode's primer file: a probe-less assay is not in the qPCR run,
@@ -1716,8 +1733,22 @@ def run_insilico_pcr(settings: DesignSettings, assays: Sequence[Assay], primer_f
             insilico.run(launcher, folder, primer_file, output, settings.threads, settings.mismatches,
                          settings.probe_mismatches)
             reports[group] = insilico.read_report(output)
+        held: dict[str, set[str]] = {}
+        if settings.three_prime_check:
+            # The same exclusion genomes with the far 3' end readmitted (and the extra budget unit
+            # it consumes; the probes stay at the strict budget so nothing else loosens with it): a
+            # genome that amplifies only here is held off by bases a polymerase can read through.
+            log.info("In silico PCR (%s) against the exclusion genomes again, tolerating an "
+                     "imperfection at the far 3' end...", kind)
+            output = settings.output / "insilico_pcr" / f"{kind}_exclusion_3prime"
+            insilico.run(launcher, exclusion, primer_file, output, settings.threads,
+                         settings.mismatches + 1,
+                         settings.probe_mismatches if settings.probe_mismatches is not None
+                         else settings.mismatches,
+                         three_prime_penalty=insilico.LENIENT_PENALTY)
+            held = insilico.read_three_prime_held(output, settings.mismatches)
         mode = insilico.verdicts(tested, inclusion, exclusion, reports["inclusion"], reports["exclusion"],
-                                 threshold)
+                                 threshold, held)
         for name, verdict in mode.items():
             verdicts[name][kind] = verdict
         complete = sum(1 for verdict in mode.values() if verdict.complete)
@@ -1726,4 +1757,11 @@ def run_insilico_pcr(settings: DesignSettings, assays: Sequence[Assay], primer_f
         log.info("In silico PCR (%s): %d of %d assay(s) amplify every inclusion genome and no exclusion "
                  "genome%s", kind, complete, counted,
                  f", and {partial} more reach the -p threshold" if partial else "")
+        depending = sum(1 for verdict in mode.values()
+                        if verdict.selective and verdict.exclusion_held_by_three_prime)
+        if depending:
+            log.info("In silico PCR (%s): %d of those are held off an exclusion genome only by the "
+                     "far 3' end of a primer, which a polymerase can read through; "
+                     "%s_exclusion_held_by_3prime counts the genomes and the ranking breaks ties "
+                     "away from it", kind, depending, kind)
     return verdicts

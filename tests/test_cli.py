@@ -428,7 +428,8 @@ def test_another_mismatch_tolerance_reaches_insilico_pcr(stubs, genomes, tmp_pat
                  "--insilico-pcr", str(insilico_pcr)]) == 0
     assert json.loads((out / "design_info.json").read_text())["parameters"]["mismatches"] == 2
     asked = [line for line in calls.read_text().splitlines() if line.startswith("insilico_pcr")]
-    assert asked and all(" -m 2" in line for line in asked), asked
+    assert asked and all(" -m 2" in line for line in asked if "--3p-penalty" not in line), asked
+    assert any("--3p-penalty" in line and " -m 3" in line for line in asked), asked
 
 
 def test_a_product_size_range_primer3_cannot_read_stops_the_design_command(stubs, tmp_path, capsys):

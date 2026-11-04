@@ -9,6 +9,10 @@ the other stub programs:
 
     insilico_misses    {assay: [sample, ...]}  samples of the inclusion group that do not amplify
     insilico_extra     {assay: [sample, ...]}  samples of the exclusion group that do amplify
+    insilico_3prime_held {assay: [sample, ...]}  exclusion samples that amplify only in the lenient
+                                               3'-end run (--3p-penalty on the command line), with a
+                                               3'-window imperfection on their rows -- how the real
+                                               program reports a genome held off by a terminal base
     insilico_fail      true to exit non-zero, as a failing run would
     insilico_no_report true to exit 0 having written no consolidated report at all
 
@@ -66,6 +70,7 @@ def main(argv: list[str]) -> int:
     with_probe = {name.rsplit("-", 1)[0] for name in headers if name.endswith("-P")}
     samples = sorted(path.name.split(".")[0] for path in genomes.glob("*.fasta"))
     inclusion = "inclusion" in genomes.name
+    lenient = "--3p-penalty" in options and options["--3p-penalty"] != "0"
     columns = COLUMNS + PROBE_COLUMNS if with_probe else COLUMNS
 
     if scenario.get("insilico_no_report"):
@@ -76,12 +81,16 @@ def main(argv: list[str]) -> int:
     for assay in assays:
         misses = set(scenario.get("insilico_misses", {}).get(assay, []))
         extra = set(scenario.get("insilico_extra", {}).get(assay, []))
+        held = set(scenario.get("insilico_3prime_held", {}).get(assay, [])) if lenient else set()
         for sample in samples:
-            amplifies = (sample not in misses) if inclusion else (sample in extra)
+            amplifies = (sample not in misses) if inclusion else (sample in extra or sample in held)
             if not amplifies:
                 continue
+            # A held sample's binding carries the tolerated 3'-terminal imperfection: one mismatch in
+            # the forward primer's window, which is also the one unit of -m the trimmed base consumes
+            forward, window = ("1", "1") if sample in held and sample not in extra else ("0", "0")
             row = [sample, assay, "1-100", "100", "chr", "",
-                   f"{assay}-F", f"{assay}-R", "0", "0", "0", "0", "+"]
+                   f"{assay}-F", f"{assay}-R", forward, "0", window, "0", "+"]
             if with_probe:
                 row += ([f"{assay}-P", "20-40", "20", "0"] if assay in with_probe else ["", "", "", ""])
             rows.append(row)

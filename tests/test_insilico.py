@@ -12,6 +12,7 @@ import pytest
 from primer_finder import PrimerFinderError
 from primer_finder.design import Assay, Oligo
 from primer_finder.insilico import (
+    LENIENT_PENALTY,
     LONGEST_PRODUCT,
     REPORT,
     Verdict,
@@ -19,6 +20,7 @@ from primer_finder.insilico import (
     command,
     count_genomes,
     read_report,
+    read_three_prime_held,
     resolve,
     run,
     stage_genomes,
@@ -141,6 +143,75 @@ def test_the_command_line_with_a_probe_tolerance(tmp_path):
     with_probe = command(["x"], Path("g"), Path("p"), Path("o"), 1, 1, probe_mismatches=2)
     assert with_probe[-2:] == ["--probe-mismatches", "2"]
     assert "--probe-mismatches" not in command(["x"], Path("g"), Path("p"), Path("o"), 1, 1)
+
+
+def test_the_command_line_with_a_three_prime_penalty(tmp_path):
+    """The lenient rerun names the penalty; the strict runs leave insilicoPCR's default 0 alone."""
+    lenient = command(["x"], Path("g"), Path("p"), Path("o"), 1, 2, three_prime_penalty=LENIENT_PENALTY)
+    assert lenient[-2:] == ["--3p-penalty", str(LENIENT_PENALTY)]
+    assert "--3p-penalty" not in command(["x"], Path("g"), Path("p"), Path("o"), 1, 2)
+
+
+def write_lenient_report(folder: Path, rows: list[tuple[str, str, int, int, int, int]]) -> Path:
+    """A consolidated report as the lenient rerun writes it: (sample, gene, forward mismatches, forward
+    3'-window imperfections, reverse mismatches, reverse 3'-window imperfections)."""
+    report = folder / REPORT
+    report.parent.mkdir(parents=True, exist_ok=True)
+    with report.open("w") as fh:
+        fh.write("\t".join(COLUMNS) + "\n")
+        for sample, gene, m_f, w_f, m_r, w_r in rows:
+            fh.write(f"{sample}\t{gene}\t1-100\t100\tchr\t\t{gene}-F\t{gene}-R"
+                     f"\t{m_f}\t{m_r}\t{w_f}\t{w_r}\t+\n")
+    return report
+
+
+def test_a_genome_held_off_only_by_the_terminal_base_is_counted(tmp_path):
+    """The lenient run readmits the 3'-terminal base and the one unit of -m the trim consumes. A sample
+    whose every amplicon carries a window imperfection, with everything outside the window inside the
+    user's own budget, is held off by that base alone."""
+    write_lenient_report(tmp_path, [("g0", "a", 1, 1, 0, 0),    # the readmitted terminal base
+                                    ("g1", "a", 2, 1, 0, 0),    # window plus one internal: budget 1 holds
+                                    ("g2", "a", 0, 0, 1, 1)])   # the reverse primer's terminal base
+    assert read_three_prime_held(tmp_path, budget=1) == {"a": {"g0", "g1", "g2"}}
+
+
+def test_a_clean_lenient_amplicon_is_amplification_for_another_reason(tmp_path):
+    """A row without a window imperfection did not need the 3'-end tolerance, so the sample is not held
+    by the 3' end -- one such row beside a rescued one decides it."""
+    write_lenient_report(tmp_path, [("g0", "a", 1, 1, 0, 0),
+                                    ("g0", "a", 0, 0, 0, 0)])   # a second site, clean
+    assert read_three_prime_held(tmp_path, budget=1) == {}
+
+
+def test_an_internal_mismatch_over_the_budget_is_not_the_terminal_base(tmp_path):
+    """The lenient run's extra -m unit exists to pay for the trimmed terminal base. A row that spends it
+    on a second internal mismatch instead would not amplify at the user's own budget however the 3' end
+    read, so it must not be attributed to the 3' end."""
+    write_lenient_report(tmp_path, [("g0", "a", 3, 1, 0, 0)])   # window 1, internals 2, budget 1
+    assert read_three_prime_held(tmp_path, budget=1) == {}
+    assert read_three_prime_held(tmp_path, budget=2) == {"a": {"g0"}}
+
+
+def test_an_unreadable_count_is_not_claimed_as_the_terminal_base(tmp_path):
+    report = write_lenient_report(tmp_path, [("g0", "a", 1, 1, 0, 0)])
+    report.write_text(report.read_text().replace("\t1\t0\t1", "\tNA\t0\t1"))
+    assert read_three_prime_held(tmp_path, budget=1) == {}
+
+
+def test_verdicts_leave_real_cross_reactions_out_of_the_held_count(tmp_path):
+    """A genome the strict run already counts as amplified is a cross-reaction on the model's own terms;
+    only genomes the lenient run ADDS are held by the 3' end."""
+    inclusion, exclusion = tmp_path / "inclusion", tmp_path / "exclusion"
+    for folder, how_many in ((inclusion, 2), (exclusion, 3)):
+        folder.mkdir()
+        for number in range(how_many):
+            (folder / f"g{number}.fasta").write_text(">chr\nACGT\n")
+    found = verdicts([assay("a")], inclusion, exclusion,
+                     {"a_assay0": {"g0", "g1"}}, {"a_assay0": {"g0"}},
+                     exclusion_held={"a_assay0": {"g0", "g1"}})
+    assert found["a_assay0"].exclusion_amplified == 1
+    assert found["a_assay0"].exclusion_held_by_three_prime == 1  # g1 alone: g0 is a real cross-reaction
+    assert found["a_assay0"].label == "no"  # the held count never moves the verdict
 
 
 def test_read_report(tmp_path):
@@ -358,21 +429,34 @@ def test_the_script_runs_both_groups_and_both_files(tmp_path):
                         [tmp_path / "q.fasta", tmp_path / "p.fasta"],
                         tmp_path / "inclusion", tmp_path / "exclusion", threads=4, mismatches=1)
     text = path.read_text()
-    assert text.count("java -jar x.jar") == 4  # two files, two groups
+    assert text.count("java -jar x.jar") == 6  # two files, two groups and the lenient exclusion rerun
     assert f"-t 4 -m 1 -l {LONGEST_PRODUCT}" in text
-    assert "--probe-mismatches" not in text  # not chosen, so insilicoPCR's own default stands
+    # The lenient rerun: the terminal base readmitted, the budget unit it consumes, probes pinned strict
+    assert text.count(f"-t 4 -m 2 -l {LONGEST_PRODUCT} --probe-mismatches 1 "
+                      f"--3p-penalty {LENIENT_PENALTY}") == 2
+    assert text.count("_exclusion_3prime") == 5  # the header's word, then two files x (dir= and -o)
     # insilicoPCR writes report(1).tsv beside an existing report, which the find below never names -- the
     # old report is set aside, not deleted, and nothing a user saved beside it is touched
-    assert text.count('mv -f "${dir}/report.tsv" "${dir}/report.tsv.previous"') == 4
-    assert text.count('rm -f "${dir}/report("*").tsv"') == 4
+    assert text.count('mv -f "${dir}/report.tsv" "${dir}/report.tsv.previous"') == 6
+    assert text.count('rm -f "${dir}/report("*").tsv"') == 6
     assert os.access(path, os.X_OK)
 
 
-def test_the_script_carries_the_probe_tolerance(tmp_path):
+def test_the_script_without_the_three_prime_check_runs_two_groups_only(tmp_path):
     path = write_script(tmp_path / "run.sh", ["x"], [tmp_path / "q.fasta"],
                         tmp_path / "inclusion", tmp_path / "exclusion", threads=2, mismatches=1,
-                        probe_mismatches=2)
-    assert "--probe-mismatches 2" in path.read_text()
+                        three_prime_check=False)
+    text = path.read_text()
+    assert "--3p-penalty" not in text and "_exclusion_3prime" not in text
+
+
+def test_the_script_carries_the_probe_tolerance(tmp_path):
+    text = write_script(tmp_path / "run.sh", ["x"], [tmp_path / "q.fasta"],
+                        tmp_path / "inclusion", tmp_path / "exclusion", threads=2, mismatches=1,
+                        probe_mismatches=2).read_text()
+    assert "--probe-mismatches 2" in text
+    # and the lenient rerun keeps the chosen probe budget rather than loosening it with -m
+    assert f"-m 2 -l {LONGEST_PRODUCT} --probe-mismatches 2 --3p-penalty {LENIENT_PENALTY}" in text
 
 
 def test_the_script_without_a_launcher_asks_for_one(tmp_path):

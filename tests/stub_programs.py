@@ -78,7 +78,7 @@ KNOWN_KEYS = frozenset({
     "amplicon_split", "amplicon_evalue",
     "primer3_pairs", "primer3_probe", "primer3_structures", "primer3_error", "primer3_sleep",
     # `stub_insilico_pcr.py` reads the same variable, so its keys are known here too
-    "insilico_fail", "insilico_misses", "insilico_extra", "insilico_no_report",
+    "insilico_fail", "insilico_misses", "insilico_extra", "insilico_3prime_held", "insilico_no_report",
 })
 
 

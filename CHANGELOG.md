@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Which `yes` rests on the 3' end alone.** After the strict runs, the exclusion group is run once more
+  tolerating an imperfection at the far 3' end — `--3p-penalty 4`, measured in
+  `validation/results/2026-11-03_v1.10.0_insilico080/` to readmit the terminal base and a mismatch five
+  bases in, nothing between, plus the one unit of `-m` the trimmed base consumes, with the probe pinned
+  at its strict budget so nothing else loosens with it. `qpcr_/pcr_exclusion_held_by_3prime` count the
+  exclusion genomes that amplify only
+  there: genomes an assay is held off by bases a real polymerase occasionally reads through. The
+  verdict does not move — the refusal is the model's considered position — but the ranking breaks ties
+  away from assays that rest on it, and the count is the bench's priority list. `--no-3prime-check`
+  skips the extra run; `run_insilico_pcr.sh` carries it the same way.
+
+- The remeasurement record behind the setting: the 0.8.0 hit-filtering zones measured one base at a time,
+  and the whole *Xylella* panel scored by 1.9.3 + 0.6.1 and 1.10.0 + 0.8.0 on identical assays — every
+  formerly-`undecided (3' end)` verdict resolves to `yes`, and `--probe-mismatches 2` proves a stricter
+  screen, not a looser one (`validation/results/2026-11-03_v1.10.0_insilico080/SUMMARY.md`).
+
 ## 1.10.0
 
 primer-finder now speaks [insilicoPCR](https://github.com/duceppemo/insilicoPCR) **0.8.0**, whose

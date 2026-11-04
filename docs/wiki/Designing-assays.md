@@ -612,7 +612,15 @@ pairs: **every assay the old pair had parked as `undecided` — 34 in PCR mode, 
 
 Bear in mind what a `yes` is: a model of priming, not a reaction. A real polymerase reads through a
 terminal mismatch now and then, so a `yes` that rests on a single 3'-end difference is still the first
-thing to put on a bench.
+thing to put on a bench — and the table says which ones those are. After the strict runs, the exclusion
+group is run once more tolerating an imperfection at the far 3' end (`--3p-penalty 4`, which the
+measurements above show readmits the terminal base and the fifth, nothing between, plus the one unit of
+`-m` the trimmed base consumes, with
+the probe pinned at its strict budget). **`qpcr_exclusion_held_by_3prime`** and
+**`pcr_exclusion_held_by_3prime`** count the exclusion genomes that amplify only there: genomes held off
+by the far 3' end alone. The verdict does not move — the refusal is the model's considered position — but
+between equally backed assays the ranking prefers the one whose silence does not rest on it, and the
+count is the bench's priority list. `--no-3prime-check` skips the extra run.
 
 ### When the regions were found with `-p` below 1
 

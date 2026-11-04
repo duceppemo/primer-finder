@@ -177,8 +177,16 @@ def build_parser(max_cpu: int, max_mem: int) -> argparse.ArgumentParser:
                                     "the last five bases of a primer, where a mismatch hinders extension.")
     design_parser.add_argument("--probe-mismatches", metavar="n", type=int, default=None,
                                help="Mismatches insilicoPCR should let a probe bind through. Default: the "
-                                    "--mismatches value. A probe hybridizes hotter than its primers, so "
-                                    "one more than --mismatches is a reasonable looser screen.")
+                                    "--mismatches value. One more than --mismatches is a stricter screen, "
+                                    "not a looser one: a probe that hybridizes hotter also binds exclusion "
+                                    "near-matches the default refuses.")
+    design_parser.add_argument("--no-3prime-check", dest="three_prime_check", action="store_false",
+                               help="Skip the extra exclusion run that tolerates an imperfection at the "
+                                    "far 3' end. With the check, *_exclusion_held_by_3prime counts the "
+                                    "exclusion genomes an assay is held off only by the far 3' end of a "
+                                    "primer -- the last base, or one five bases in, which a polymerase "
+                                    "occasionally reads through -- and the ranking breaks ties away "
+                                    "from such assays.")
     design_parser.add_argument("--debug", action="store_true", help="Verbose logging.")
 
     convert = commands.add_parser(
@@ -273,6 +281,7 @@ def main(argv: list[str] | None = None) -> int:
                 insilico_pcr=args.insilico_pcr,
                 mismatches=args.mismatches,
                 probe_mismatches=args.probe_mismatches,
+                three_prime_check=args.three_prime_check,
                 command_line=["primer-finder", *given],
             ))
         threads = args.threads

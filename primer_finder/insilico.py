@@ -56,6 +56,17 @@ REQUIRED_VERSION = (0, 8, 0)
 # since 0.8.0, but its default (5000) is its own to move, and the verdicts should not move with it.
 # Well above anything this tool designs for -- Primer3 is asked for 70-150 bases by default.
 LONGEST_PRODUCT = 10_000
+# What the 3'-end dependence check hands insilicoPCR as --3p-penalty. Measured on 0.8.0
+# (validation/results/2026-11-03_v1.10.0_insilico080/): 4 readmits the 3'-TERMINAL base, whatever it
+# replaces -- an A/T pair scores 3 there, a G/C pair 4 -- and a mismatch five bases in (scored 1), but
+# nothing 2-4 bases in, which blast trims as a tail whose stacked penalties pass 4. The report does not
+# say where in the window the imperfection sat, so the count reads "held off only by the last five bases
+# of a primer" -- usually the terminal base, the zone the ranking aims differences at, and in every
+# admissible case a base a real polymerase occasionally reads through.
+LENIENT_PENALTY = 4
+# The per-primer mismatch count and the share of it inside the 3' window, per direction.
+MISMATCH_COLUMNS = ("ForwardMismatches", "ReverseMismatches")
+WINDOW_COLUMNS = ("Forward3PrimeMismatches", "Reverse3PrimeMismatches")
 
 QPCR_NAME = "assays_qpcr.fasta"
 PCR_NAME = "assays_pcr.fasta"
@@ -77,6 +88,10 @@ class Verdict:
     exclusion_amplified: int
     exclusion_total: int
     threshold: float = 1.0
+    # Exclusion genomes this assay amplifies only once an imperfection at the far 3' end is tolerated:
+    # genomes held off by bases a real polymerase occasionally reads through. An annotation, not a
+    # verdict -- the label and support do not move with it, but the ranking breaks ties away from it.
+    exclusion_held_by_three_prime: int = 0
 
     @property
     def fraction(self) -> float:
@@ -270,16 +285,20 @@ def _java() -> str:
 
 
 def command(launcher: Sequence[str], genomes: Path, primers: Path, output: Path,
-            threads: int, mismatches: int, probe_mismatches: int | None = None) -> list[str]:
+            threads: int, mismatches: int, probe_mismatches: int | None = None,
+            three_prime_penalty: int | None = None) -> list[str]:
     invocation = [*launcher, "-i", str(genomes), "-p", str(primers), "-o", str(output),
                   "-t", str(threads), "-m", str(mismatches), "-l", str(LONGEST_PRODUCT)]
     if probe_mismatches is not None:
         invocation += ["--probe-mismatches", str(probe_mismatches)]
+    if three_prime_penalty is not None:
+        invocation += ["--3p-penalty", str(three_prime_penalty)]
     return invocation
 
 
 def run(launcher: Sequence[str], genomes: Path, primers: Path, output: Path,
-        threads: int, mismatches: int = 0, probe_mismatches: int | None = None) -> Path:
+        threads: int, mismatches: int = 0, probe_mismatches: int | None = None,
+        three_prime_penalty: int | None = None) -> Path:
     """Run insilicoPCR over a folder of genomes. Returns the folder it wrote."""
     output.mkdir(parents=True, exist_ok=True)
     report = output / REPORT
@@ -301,7 +320,8 @@ def run(launcher: Sequence[str], genomes: Path, primers: Path, output: Path,
                 f"Cannot set aside the previous consolidated report in {report.parent}: {error}"
             ) from error
     try:
-        tools.run(command(launcher, genomes, primers, output, threads, mismatches, probe_mismatches))
+        tools.run(command(launcher, genomes, primers, output, threads, mismatches, probe_mismatches,
+                      three_prime_penalty))
     except tools.ToolError as error:
         hint = ""
         if "Unrecognized option" in str(error):
@@ -370,15 +390,78 @@ def _insist_on_columns(fieldnames: Sequence[str] | None, report: Path) -> None:
         )
 
 
+def read_three_prime_held(output: Path, budget: int) -> dict[str, set[str]]:
+    """Which samples each assay amplifies *only* once an imperfection at the far 3' end is tolerated.
+
+    Read from the lenient exclusion rerun: `--3p-penalty` LENIENT_PENALTY, which readmits the terminal
+    base or a mismatch five bases in and nothing between (measured, see LENIENT_PENALTY), and one more
+    `-m` than the user's budget, which is what the readmitted base consumes. A sample counts for an assay when every amplicon row of the pair is
+    one that rescue explains: a primer carries a 3'-window imperfection, and what each primer carries
+    *outside* the window still fits the user's own budget. A row that binds clean at the lenient settings,
+    or that needed the extra `-m` unit for an internal mismatch, is amplification for another reason, and
+    one such row means the sample is not held off by the 3' end alone.
+
+    The outside-the-window count is `ForwardMismatches - Forward3PrimeMismatches` (and the reverse pair),
+    which counts an indel as one like everything else; a row whose counts cannot be read is not claimed.
+    """
+    report = output / REPORT
+    rescued: dict[tuple[str, str], bool] = {}
+    with report.open(newline="") as fh:
+        rows = csv.DictReader(fh, delimiter="\t", quoting=csv.QUOTE_NONE)
+        _insist_on_columns(rows.fieldnames, report)
+        for row in rows:
+            assay, sample = (row.get(ASSAY_COLUMN) or "").strip(), (row.get(SAMPLE_COLUMN) or "").strip()
+            if not assay or not sample:
+                continue
+            key = (assay, sample)
+            rescued[key] = rescued.get(key, True) and _three_prime_explains(row, budget)
+    found: dict[str, set[str]] = {}
+    for (assay, sample), only in rescued.items():
+        if only:
+            found.setdefault(assay, set()).add(sample)
+    return found
+
+
+def _three_prime_explains(row: dict[str, str], budget: int) -> bool:
+    """Whether the lenient run's 3'-end tolerance is what let this row through."""
+    counted = []
+    for mismatches, window in zip(MISMATCH_COLUMNS, WINDOW_COLUMNS, strict=True):
+        m, w = _int(row.get(mismatches)), _int(row.get(window))
+        if m is None or w is None:
+            return False
+        counted.append((m, w))
+    if not any(w for _, w in counted):
+        return False
+    return all(m - w <= budget for m, w in counted)
+
+
+def _int(value: str | None) -> int | None:
+    """A count column: blank is nothing reported and so zero, anything not a whole number is None."""
+    text = (value or "").strip()
+    if not text:
+        return 0
+    try:
+        return int(text)
+    except ValueError:
+        return None
+
+
 def count_genomes(folder: Path) -> int:
     return len(seqio.find_genomes(folder))
 
 
 def verdicts(assays: Iterable[Assay], inclusion: Path, exclusion: Path,
              inclusion_report: dict[str, set[str]], exclusion_report: dict[str, set[str]],
-             threshold: float = 1.0) -> dict[str, Verdict]:
-    """Put the two reports together, one verdict per assay."""
+             threshold: float = 1.0,
+             exclusion_held: dict[str, set[str]] | None = None) -> dict[str, Verdict]:
+    """Put the two reports together, one verdict per assay.
+
+    `exclusion_held` is `read_three_prime_held` of the lenient exclusion rerun; a genome the strict run
+    already counts as amplified is a real cross-reaction, not a held one, so it is left out of the count
+    however the lenient rows read.
+    """
     inclusion_total, exclusion_total = count_genomes(inclusion), count_genomes(exclusion)
+    held = exclusion_held or {}
     return {
         assay.name: Verdict(
             inclusion_amplified=len(inclusion_report.get(assay.name, set())),
@@ -386,6 +469,8 @@ def verdicts(assays: Iterable[Assay], inclusion: Path, exclusion: Path,
             exclusion_amplified=len(exclusion_report.get(assay.name, set())),
             exclusion_total=exclusion_total,
             threshold=threshold,
+            exclusion_held_by_three_prime=len(
+                held.get(assay.name, set()) - exclusion_report.get(assay.name, set())),
         )
         for assay in assays
     }
@@ -393,7 +478,7 @@ def verdicts(assays: Iterable[Assay], inclusion: Path, exclusion: Path,
 
 def write_script(path: Path, launcher: Sequence[str] | None, primers: Sequence[Path],
                  inclusion: Path, exclusion: Path, threads: int, mismatches: int,
-                 probe_mismatches: int | None = None) -> Path:
+                 probe_mismatches: int | None = None, three_prime_check: bool = True) -> Path:
     """A script that runs insilicoPCR over both groups, for running the check by hand later."""
     start = " ".join(launcher) if launcher else (
         '"${INSILICO_PCR:?point INSILICO_PCR at the folder of an extracted insilicoPCR release}"'
@@ -402,18 +487,37 @@ def write_script(path: Path, launcher: Sequence[str] | None, primers: Sequence[P
     settings = f"-t {threads} -m {mismatches} -l {LONGEST_PRODUCT}"
     if probe_mismatches is not None:
         settings += f" --probe-mismatches {probe_mismatches}"
+    # The 3'-end dependence rerun: the far 3' end readmitted, the extra -m unit it consumes, and the
+    # probes pinned at the strict budget so nothing else loosens with it.
+    lenient = (f"-t {threads} -m {mismatches + 1} -l {LONGEST_PRODUCT} "
+               f"--probe-mismatches {probe_mismatches if probe_mismatches is not None else mismatches} "
+               f"--3p-penalty {LENIENT_PENALTY}")
     lines = [
         "#!/usr/bin/env bash",
         "# In silico PCR of the designed assays against both groups of genomes, with insilicoPCR 0.8.0+:",
         "#   https://github.com/duceppemo/insilicoPCR",
         "# An assay is selective when it amplifies every inclusion genome and no exclusion genome.",
+    ]
+    if three_prime_check:
+        lines += [
+            "# The *_exclusion_3prime runs redo the exclusion group tolerating an imperfection at the "
+            "far 3' end:",
+            "# a genome that amplifies only there is held off by bases a polymerase can read "
+            "through.",
+        ]
+    lines += [
         "set -euo pipefail",
         "",
         f'out="${{1:-{path.parent}/insilico_pcr}}"',
         "",
     ]
+    passes: list[tuple[str, Path, str]] = []
+    for group, folder in (("inclusion", inclusion), ("exclusion", exclusion)):
+        passes.append((group, folder, settings))
+    if three_prime_check:
+        passes.append(("exclusion_3prime", exclusion, lenient))
     for primer_file in primers:
-        for group, folder in (("inclusion", inclusion), ("exclusion", exclusion)):
+        for group, folder, chosen in passes:
             lines += [
                 # insilicoPCR writes report(1).tsv beside an existing report.tsv rather than over it, so
                 # a rerun would leave the old verdicts where the find below looks. The old report is set
@@ -425,7 +529,7 @@ def write_script(path: Path, launcher: Sequence[str] | None, primers: Sequence[P
                 f'    -i "{folder}" \\',
                 f'    -p "{primer_file}" \\',
                 f'    -o "${{out}}/{primer_file.stem}_{group}" \\',
-                f"    {settings}",
+                f"    {chosen}",
                 "",
             ]
     lines += [

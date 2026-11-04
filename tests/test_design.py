@@ -257,11 +257,19 @@ def test_the_default_tolerance_reaches_insilico_pcr(stubs, finished_run, tmp_pat
     calls = stubs()
     assert run(design_settings(finished_run, tmp_path / "assays", insilico_pcr=insilico_pcr)) == 0
     asked = [line for line in calls.read_text().splitlines() if line.startswith("insilico_pcr")]
-    assert len(asked) == 4  # two modes, two groups
-    assert all(" -m 1" in line for line in asked), asked
+    strict = [line for line in asked if "--3p-penalty" not in line]
+    lenient = [line for line in asked if "--3p-penalty" in line]
+    assert len(strict) == 4  # two modes, two groups
+    assert all(" -m 1" in line for line in strict), strict
     # The size cap is always named, so the verdicts do not move with insilicoPCR's own default
     assert all(" -l 10000" in line for line in asked), asked
-    assert all("--probe-mismatches" not in line for line in asked), asked
+    assert all("--probe-mismatches" not in line for line in strict), strict
+    # The 3'-end dependence rerun: exclusion only, the terminal base readmitted, the budget unit it
+    # consumes, and the probe pinned at the strict budget so nothing else loosens with it
+    assert len(lenient) == 2  # two modes, the exclusion group
+    assert all(" -m 2" in line and "--3p-penalty 4" in line and "--probe-mismatches 1" in line
+               for line in lenient), lenient
+    assert all("exclusion" in line for line in lenient), lenient
 
 
 def test_another_tolerance_reaches_insilico_pcr(stubs, finished_run, tmp_path, genomes, insilico_pcr):
@@ -269,7 +277,8 @@ def test_another_tolerance_reaches_insilico_pcr(stubs, finished_run, tmp_path, g
     settings = design_settings(finished_run, tmp_path / "assays", insilico_pcr=insilico_pcr, mismatches=2)
     assert run(settings) == 0
     asked = [line for line in calls.read_text().splitlines() if line.startswith("insilico_pcr")]
-    assert all(" -m 2" in line for line in asked), asked
+    assert all(" -m 2" in line for line in asked if "--3p-penalty" not in line), asked
+    assert all(" -m 3" in line for line in asked if "--3p-penalty" in line), asked
 
 
 def test_a_probe_tolerance_reaches_insilico_pcr(stubs, finished_run, tmp_path, genomes, insilico_pcr):
@@ -281,6 +290,43 @@ def test_a_probe_tolerance_reaches_insilico_pcr(stubs, finished_run, tmp_path, g
     assert run(settings) == 0
     asked = [line for line in calls.read_text().splitlines() if line.startswith("insilico_pcr")]
     assert asked and all(" --probe-mismatches 2" in line for line in asked), asked
+
+
+def test_a_genome_held_only_by_the_terminal_base_is_counted_and_ranked_behind(stubs, finished_run,
+                                                                              tmp_path, genomes,
+                                                                              insilico_pcr):
+    """The lenient exclusion rerun finds the genomes an assay is held off only by a primer's last base.
+    The verdict stays `yes` -- the model's position is that the base refuses extension -- but the count
+    is in the table, and between equally backed assays the ranking prefers the one not resting on it."""
+    inclusion, exclusion = genomes
+    sample = sorted(path.name.split(".")[0] for path in exclusion.glob("*.fasta"))[0]
+    stubs(insilico_3prime_held={"ctg1_assay0": [sample]})
+    output = tmp_path / "assays"
+    assert run(design_settings(finished_run, output, insilico_pcr=insilico_pcr)) == 0
+    rows = list(iter_rows(output / "assays.tsv"))
+    held = next(row for row in rows if row["assay"] == "ctg1_assay0")
+    for kind in ("pcr", "qpcr"):
+        assert held[f"{kind}_selective"] == "yes", kind
+        assert held[f"{kind}_exclusion_amplified"] == "0", kind
+        assert held[f"{kind}_exclusion_held_by_3prime"] == "1", kind
+    # every other judged assay reads 0 and outranks it at equal support
+    others = [row for row in rows if row["assay"] != "ctg1_assay0" and row["pcr_selective"] == "yes"]
+    assert others and all(row["pcr_exclusion_held_by_3prime"] == "0" for row in others)
+    assert rows[0]["assay"] != "ctg1_assay0"
+
+
+def test_the_three_prime_check_can_be_skipped(stubs, finished_run, tmp_path, genomes, insilico_pcr):
+    """--no-3prime-check: no lenient runs, and the columns read 0 rather than vanishing, so a table from
+    a run without the check still has the same shape."""
+    calls = stubs()
+    output = tmp_path / "assays"
+    assert run(design_settings(finished_run, output, insilico_pcr=insilico_pcr,
+                               three_prime_check=False)) == 0
+    asked = [line for line in calls.read_text().splitlines() if line.startswith("insilico_pcr")]
+    assert len(asked) == 4 and all("--3p-penalty" not in line for line in asked), asked
+    row = next(iter_rows(output / "assays.tsv"))
+    assert row["pcr_exclusion_held_by_3prime"] == "0"
+    assert "--3p-penalty" not in (output / "run_insilico_pcr.sh").read_text()
 
 
 def test_a_failed_check_keeps_the_assays_but_reports_the_failure(stubs, finished_run, tmp_path,
