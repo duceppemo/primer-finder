@@ -620,7 +620,10 @@ the probe pinned at its strict budget). **`qpcr_exclusion_held_by_3prime`** and
 **`pcr_exclusion_held_by_3prime`** count the exclusion genomes that amplify only there: genomes held off
 by the far 3' end alone. The verdict does not move — the refusal is the model's considered position — but
 between equally backed assays the ranking prefers the one whose silence does not rest on it, and the
-count is the bench's priority list. `--no-3prime-check` skips the extra run.
+count is the bench's priority list. `--no-3prime-check` skips the extra run. On the *Xylella* panel the
+flag marks one selective assay in six in PCR mode and one in nine in qPCR mode
+(`validation/results/2026-11-03_3prime_dependence/`) — most of them assays the old tool pair passed or
+refused with nothing attached, because the held bindings sat at sites it never reported at all.
 
 ### When the regions were found with `-p` below 1
 

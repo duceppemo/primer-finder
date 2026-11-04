@@ -36,6 +36,12 @@ claims the way that record measured the old one's accidents, then designs the sa
 under 1.9.3 + 0.6.1 and 1.10.0 + 0.8.0 and joins the verdicts per assay: every `undecided (3' end)`
 verdict dissolves to `yes`, and the rest of the movement cuts both ways on grounds the model can defend.
 
+`2026-11-03_3prime_dependence/` measures what the `*_exclusion_held_by_3prime` columns find on the same
+panel: one selective assay in six (PCR mode) is held off an exclusion genome only by the far 3' end of
+a primer — ten times the reach of the retired `undecided (3' end)` verdict, which could only see the
+cases its own blind spots left over. The flag catches the parked assays a single readable base held and
+correctly passes over the ones a run of two refused.
+
 Not every record is about an assay. `2026-10-14_v1.7.0_unitig/` measures what a change to the code does to
 a panel whose answer is already known — the question any change to the find or assembly rules has to
 answer before it can become a default.

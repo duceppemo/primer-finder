@@ -13,7 +13,11 @@
   there: genomes an assay is held off by bases a real polymerase occasionally reads through. The
   verdict does not move — the refusal is the model's considered position — but the ranking breaks ties
   away from assays that rest on it, and the count is the bench's priority list. `--no-3prime-check`
-  skips the extra run; `run_insilico_pcr.sh` carries it the same way.
+  skips the extra run; `run_insilico_pcr.sh` carries it the same way. Measured on the *Xylella* panel
+  (`validation/results/2026-11-03_3prime_dependence/`), the flag marks one selective assay in six in
+  PCR mode and one in nine in qPCR mode — ten times the reach of the retired `undecided (3' end)`
+  verdict, whose parked assays it catches where a single readable base held them and correctly leaves
+  where a run of two did.
 
 - The remeasurement record behind the setting: the 0.8.0 hit-filtering zones measured one base at a time,
   and the whole *Xylella* panel scored by 1.9.3 + 0.6.1 and 1.10.0 + 0.8.0 on identical assays — every
