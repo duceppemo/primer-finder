@@ -395,7 +395,8 @@ def read_three_prime_held(output: Path, budget: int) -> dict[str, set[str]]:
 
     Read from the lenient exclusion rerun: `--3p-penalty` LENIENT_PENALTY, which readmits the terminal
     base or a mismatch five bases in and nothing between (measured, see LENIENT_PENALTY), and one more
-    `-m` than the user's budget, which is what the readmitted base consumes. A sample counts for an assay when every amplicon row of the pair is
+    `-m` than the user's budget, which is what the readmitted base consumes. A sample counts for an
+    assay when every amplicon row of the pair is
     one that rescue explains: a primer carries a 3'-window imperfection, and what each primer carries
     *outside* the window still fits the user's own budget. A row that binds clean at the lenient settings,
     or that needed the extra `-m` unit for an internal mismatch, is amplification for another reason, and

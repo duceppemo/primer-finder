@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.11.0
+
+The in silico PCR check learns to say *which* of its `yes` verdicts rest on the far 3' end of a primer —
+the bases a real polymerase occasionally reads through — and to rank accordingly, with the whole
+mechanism measured on the *Xylella* panel before it became a default.
 
 ### Added
 
