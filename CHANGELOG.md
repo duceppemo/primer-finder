@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.12.0
 
 primer-finder now needs [insilicoPCR](https://github.com/duceppemo/insilicoPCR) **0.11.0**, because the
 primer files it writes say something only that release can read.

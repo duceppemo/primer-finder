@@ -5,8 +5,8 @@ title: "primer-finder: group-specific kmers for selective qPCR assays"
 authors:
   - family-names: Duceppe
     given-names: Marc-Olivier
-version: 1.11.0
-date-released: "2026-11-03"
+version: 1.12.0
+date-released: "2026-11-10"
 doi: 10.5281/zenodo.23937085
 identifiers:
   - type: doi
