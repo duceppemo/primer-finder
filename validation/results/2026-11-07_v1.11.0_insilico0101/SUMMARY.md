@@ -78,7 +78,8 @@ The four designs took 7 minutes side by side on 8 threads each, as under 0.8.0.
 ## Reproducing
 
 ```bash
-# the work folder of ../2026-11-03_v1.10.0_insilico080/ (its run_panel.sh builds it), then:
-bash run_panel.sh                       # edit W, O and I0101 at the top
+# the work folder of ../2026-11-03_v1.10.0_insilico080/ (its run_panel.sh builds it), with the
+# assays_held arm of ../2026-11-03_3prime_dependence/ designed in it, then:
+bash run_panel.sh <work> <out> /path/to/insilicoPCR-0.10.1 8
 python compare_versions.py <work> <out>  # exits 1 if anything moved outside a Primer3 wobble
 ```

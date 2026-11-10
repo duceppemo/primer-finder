@@ -1,20 +1,46 @@
 #!/usr/bin/env bash
 # Design the Xylella panel with primer-finder 1.11.0 + insilicoPCR 0.10.1, on the SAME find results the
-# 0.8.0 arms of ../2026-11-03_v1.10.0_insilico080/ and ../2026-11-03_3prime_dependence/ used (that
-# record's run_panel.sh builds the work folder), so the two insilicoPCR releases can be joined per assay.
-# The four targets run side by side, 8 threads each.
+# 0.8.0 arms of ../2026-11-03_v1.10.0_insilico080/ and ../2026-11-03_3prime_dependence/ used, so the two
+# insilicoPCR releases can be joined per assay. The four targets run side by side.
+#
+#   bash run_panel.sh <work_folder> <output_folder> <insilicoPCR-0.10.1> [threads_per_target]
+#
+# <work_folder>         the one ../2026-11-03_v1.10.0_insilico080/run_panel.sh builds, with the 3'-end
+#                       record's assays_held/ arm designed in it (see that record's SUMMARY)
+# <output_folder>       gets one design folder and one log per target
+# <insilicoPCR-0.10.1>  an extracted portable release, its jar, or a launcher script
+#
+# Runs the primer-finder this script sits in; check out v1.11.0 to reproduce the record exactly. blast
+# and primer3_core must be on PATH; $PYTHON picks the interpreter. Then:
+#   python compare_versions.py <work_folder> <output_folder>
 set -uo pipefail
 
-W=/tmp/claude-1000/-home-bioinfo-prog-primer-finder/1df804a1-6989-4610-bef1-ce42c6758ed4/scratchpad/xylella-v1.10.0
-O=/tmp/claude-1000/-home-bioinfo-prog-primer-finder/fe284be5-8be0-4894-9428-65d4739733cf/scratchpad/xylella-0101
-ENVBIN=/home/bioinfo/miniconda3/envs/primer-finder_dev/bin
-export PATH=$ENVBIN:$PATH
-I0101=/home/bioinfo/prog/insilicoPCR-linux-x64   # the v0.10.1 linux-x64 release, sha256-checked
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+usage="usage: run_panel.sh <work_folder> <output_folder> <insilicoPCR-0.10.1> [threads_per_target]"
+W="${1:?${usage}}"
+O="${2:?${usage}}"
+I0101="${3:?${usage}}"
+threads="${4:-8}"
+PY="${PYTHON:-$(command -v python || command -v python3 || true)}"
+PF="${here}/../../../primer_finder.py"
+
+if [ -z "${PY}" ]; then
+    echo "No python interpreter found on PATH" >&2
+    exit 1
+fi
 
 mkdir -p "$O"
+status=0
+pids=()
 for t in multiplex fastidiosa pauca morus; do
-    ( $ENVBIN/python /home/bioinfo/prog/primer-finder/primer_finder.py design "$W/$t/results" -o "$O/$t" \
-          -t 8 --insilico-pcr "$I0101" > "$O/$t.log" 2>&1
-      echo "$t exit $? $(date +%T)" ) &
+    ( "$PY" "$PF" design "$W/$t/results" -o "$O/$t" -t "$threads" \
+          --insilico-pcr "$I0101" > "$O/$t.log" 2>&1
+      code=$?
+      echo "$t exit $code $(date +%T)"
+      exit $code ) &
+    pids+=($!)
 done
-wait
+for pid in "${pids[@]}"; do
+    wait "$pid" || status=1
+done
+exit $status
