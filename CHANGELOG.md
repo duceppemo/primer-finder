@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+primer-finder now needs [insilicoPCR](https://github.com/duceppemo/insilicoPCR) **0.11.0**, because the
+primer files it writes say something only that release can read.
+
+### Added
+
+- **The primer files declare each assay's product size.** The forward primer's header in
+  `assays_qpcr.fasta` and `assays_pcr.fasta` now reads `>name-F size=<bp>`, the size the assay was
+  designed to give. insilicoPCR 0.11.0 labels every product it reports against it — a `SizeCheck` column
+  at the end of `report.tsv`, `target` within 10 bases of the size and `unexpected` otherwise — and the
+  `report.html` it writes beside each report counts a sample as positive only on a product of that size.
+  Nothing is filtered by it, there or here: a product of another size is still counted as an
+  amplification, on the exclusion group still as a cross-reaction, so no verdict moves. On the example,
+  `assays.tsv` is byte-identical to what 1.11.0 writes, every one of the 136 inclusion rows is `target`
+  at exactly the declared size, and the reports are those of 1.11.0 with the one column added.
+
+### Changed
+
+- **insilicoPCR 0.11.0 or newer is required** (it was 0.8.0). A release from 0.8.0 to 0.10.1 reads a
+  primer header whole, as the primer's name, so with a size declared it finds no primer among its own
+  alignments and writes an empty report — exit 0, not a word. Measured on the example with 0.10.1: no
+  row where 0.11.0 writes 68. On the exclusion group an empty report is the answer of a perfectly
+  selective assay, so nothing downstream would have noticed. Three things now stand in the way: `design`
+  refuses such a release before Primer3, saying why; `run_insilico_pcr.sh` asks the release its version
+  before it runs anything, and stops on one too old or one that cannot say; and a report without the
+  `SizeCheck` column is refused rather than counted. primer-finder 1.11.0 remains the release for
+  insilicoPCR 0.8.0 to 0.10.1.
+
 ## 1.11.0
 
 The in silico PCR check learns to say *which* of its `yes` verdicts rest on the far 3' end of a primer —

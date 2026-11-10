@@ -1438,7 +1438,9 @@ def run(settings: DesignSettings) -> int:
         # Looked at now rather than at the end. Until this, what --insilico-pcr pointed at was first
         # resolved after Primer3 and both amplicon searches had run, so a mistyped path -- or a portable
         # release whose `java` is missing, or one older than insilicoPCR 0.8.0, which does not even know
-        # the options this run passes -- threw the whole design run away at its last step.
+        # the options this run passes -- threw the whole design run away at its last step. A release
+        # from 0.8.0 to 0.10.1 would do worse than fail: it cannot read the product size the primer files
+        # declare, and would report that nothing amplified.
         log.info("insilicoPCR: %s", insilico.check_version(insilico.resolve(settings.insilico_pcr)))
     with system.lock_output(settings.output, "design"):
         return _design(settings, final, inclusion, exclusion, started)

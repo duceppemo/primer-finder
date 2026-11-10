@@ -2059,6 +2059,40 @@ def test_an_assay_missing_an_inclusion_genome_counts_when_the_run_allowed_it(stu
     assert info["counts"]["selective"]["qpcr"]["at_threshold"] >= info["counts"]["selective"]["qpcr"]["complete"]
 
 
+def test_the_primer_files_declare_the_product_size_of_each_assay(stubs, finished_run, tmp_path,
+                                                                 insilico_pcr):
+    """End to end through `run`: the size on a forward primer's header is the assay's `product_size` in
+    the table, in both files, and the reports that come back for it are read as before."""
+    output = tmp_path / "assays"
+    assert run(design_settings(finished_run, output, insilico_pcr=insilico_pcr)) == 0
+    rows = list(iter_rows(output / "assays.tsv"))
+    sizes = {row["assay"]: row["product_size"] for row in rows}
+    for name in ("assays_pcr.fasta", "assays_qpcr.fasta"):
+        headers = [line[1:].split() for line in (output / name).read_text().splitlines()
+                   if line.startswith(">")]
+        forward = {header[0][:-2]: header[1:] for header in headers if header[0].endswith("-F")}
+        assert forward and all(words == [f"size={sizes[assay]}"] for assay, words in forward.items())
+        assert all(len(header) == 1 for header in headers if not header[0].endswith("-F"))
+    report = (output / "insilico_pcr" / "pcr_inclusion" / "consolidated_report" / "report.tsv").read_text()
+    assert report.splitlines()[0].endswith("\tSizeCheck")
+    assert all(row["pcr_selective"] == "yes" for row in rows if row["pcr_selective"])
+
+
+def test_an_insilico_pcr_that_cannot_read_the_declared_size_is_refused_before_any_of_the_work(
+        stubs, finished_run, tmp_path):
+    """0.8.0 to 0.10.1 would run to the end and report that nothing amplified, having read the size
+    declared on a primer's header as part of its name. That is the one failure a design could not see
+    afterwards, so it stops here, before Primer3."""
+    old = tmp_path / "insilico-0.10.1.sh"
+    old.write_text("#!/bin/sh\necho 'insilicoPCR 0.10.1'\n")
+    old.chmod(0o755)
+    output = tmp_path / "assays"
+    with pytest.raises(PrimerFinderError, match="insilicoPCR 0.10.1 is older than the 0.11.0"):
+        run(design_settings(finished_run, output, insilico_pcr=old))
+    assert not (output / "primer3").exists(), "Primer3 ran before the version was looked at"
+    assert not (output / "assays.tsv").exists()
+
+
 def test_a_mistyped_insilico_pcr_path_is_refused_before_any_of_the_work(stubs, finished_run, tmp_path):
     """What --insilico-pcr points at was first looked at after Primer3 and both amplicon searches had
     run, so a typo threw away the whole design run at its last step."""
@@ -2077,7 +2111,7 @@ def test_an_insilico_pcr_older_than_0_8_0_is_refused_before_any_of_the_work(stub
     old.write_text("#!/bin/sh\necho 'Unrecognized option: -v' >&2\nexit 2\n")
     old.chmod(0o755)
     output = tmp_path / "assays"
-    with pytest.raises(PrimerFinderError, match="needs 0.8.0 or newer"):
+    with pytest.raises(PrimerFinderError, match="needs 0.11.0 or newer"):
         run(design_settings(finished_run, output, insilico_pcr=old))
     assert not (output / "primer3").exists(), "Primer3 ran before the version was looked at"
     assert not (output / "assays.tsv").exists()

@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import os
 import stat
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -42,11 +43,11 @@ def assay(name: str, probe: bool = True) -> Assay:
     return one
 
 
-# What insilicoPCR 0.8.0 writes; primer-finder reads Sample and Gene and insists the rest is not an older
-# release's report.
+# What insilicoPCR 0.11.0 writes for a primer file that declares product sizes, as every file written
+# here does; primer-finder reads Sample and Gene and insists the rest is not an older release's report.
 COLUMNS = ("Sample", "Gene", "GenomeLocation", "AmpliconSize", "Contig", "Contig Description",
            "ForwardPrimers", "ReversePrimers", "ForwardMismatches", "ReverseMismatches",
-           "Forward3PrimeMismatches", "Reverse3PrimeMismatches", "Strand")
+           "Forward3PrimeMismatches", "Reverse3PrimeMismatches", "Strand", "SizeCheck")
 
 
 def write_report(folder: Path, rows: list[tuple[str, str]], description: str = "") -> Path:
@@ -56,7 +57,7 @@ def write_report(folder: Path, rows: list[tuple[str, str]], description: str = "
         fh.write("\t".join(COLUMNS) + "\n")
         for sample, gene in rows:
             fh.write(f"{sample}\t{gene}\t1-100\t100\tchr\t{description}"
-                     f"\t{gene}-F\t{gene}-R\t0\t0\t0\t0\t+\n")
+                     f"\t{gene}-F\t{gene}-R\t0\t0\t0\t0\t+\ttarget\n")
     return report
 
 
@@ -68,11 +69,27 @@ def test_the_two_kinds_of_primer_file(tmp_path):
     assert write_primer_fasta(assays, qpcr, "qpcr") == 1
     assert write_primer_fasta(assays, pcr, "pcr") == 2
 
-    names = [line[1:] for line in qpcr.read_text().splitlines() if line.startswith(">")]
+    names = [line[1:].split()[0] for line in qpcr.read_text().splitlines() if line.startswith(">")]
     assert names == ["withprobe_assay0-F", "withprobe_assay0-R", "withprobe_assay0-P"]
-    names = [line[1:] for line in pcr.read_text().splitlines() if line.startswith(">")]
+    names = [line[1:].split()[0] for line in pcr.read_text().splitlines() if line.startswith(">")]
     assert names == ["withprobe_assay0-F", "withprobe_assay0-R", "noprobe_assay0-F", "noprobe_assay0-R"]
     assert "-P" not in pcr.read_text()
+
+
+def test_the_forward_primer_declares_the_product_size(tmp_path):
+    """insilicoPCR 0.11.0 reads `size=` after a primer's name as the product the assay is designed to
+    give, and labels every product it reports against it. One declaration per assay is enough, and it
+    sits in one place -- the forward primer -- in both files."""
+    assays = [assay("withprobe"), assay("noprobe", probe=False)]
+    for kind in ("qpcr", "pcr"):
+        path = tmp_path / f"{kind}.fasta"
+        write_primer_fasta(assays, path, kind)
+        headers = [line[1:] for line in path.read_text().splitlines() if line.startswith(">")]
+        assert "withprobe_assay0-F size=100" in headers
+        # Nothing but the name on the others: a second declaration would have to agree with the first
+        assert all(" " not in header for header in headers if not header.endswith("size=100"))
+        assert sum(header.endswith("size=100") for header in headers) == len(headers) // (3 if kind == "qpcr"
+                                                                                         else 2)
 
 
 def test_nothing_to_write(tmp_path):
@@ -161,7 +178,7 @@ def write_lenient_report(folder: Path, rows: list[tuple[str, str, int, int, int,
         fh.write("\t".join(COLUMNS) + "\n")
         for sample, gene, m_f, w_f, m_r, w_r in rows:
             fh.write(f"{sample}\t{gene}\t1-100\t100\tchr\t\t{gene}-F\t{gene}-R"
-                     f"\t{m_f}\t{m_r}\t{w_f}\t{w_r}\t+\n")
+                     f"\t{m_f}\t{m_r}\t{w_f}\t{w_r}\t+\ttarget\n")
     return report
 
 
@@ -269,6 +286,31 @@ def test_a_report_without_any_column_of_0_8_0_is_refused(tmp_path):
         read_report(tmp_path)
 
 
+def test_a_report_without_the_size_column_is_refused(tmp_path):
+    """Every primer file written here declares product sizes, and 0.11.0 answers with a SizeCheck column
+    -- on an empty report too. A release from 0.8.0 to 0.10.1 reads `<name>-F size=<bp>` as the primer's
+    name, matches no alignment to it and writes an empty table, exit 0: measured on the example with
+    0.10.1, 0 rows where 0.11.0 writes 68. Read as a report, that is every exclusion genome silent."""
+    report = tmp_path / REPORT
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text("\t".join(COLUMNS[:-1]) + "\n")
+    with pytest.raises(PrimerFinderError, match="no SizeCheck column.*older than 0.11.0"):
+        read_report(tmp_path)
+    with pytest.raises(PrimerFinderError, match="no SizeCheck column"):
+        read_three_prime_held(tmp_path, budget=1)
+
+
+def test_an_unexpected_size_is_still_an_amplification(tmp_path):
+    """The size check labels a product and removes none, and neither does the reading: a product of
+    another size than the one designed is still a product, and on the exclusion group still a
+    cross-reaction."""
+    report = write_report(tmp_path, [("g0", "a_assay0"), ("g1", "a_assay0")])
+    lines = report.read_text().splitlines()
+    lines[2] = lines[2].replace("\t100\t", "\t583\t").replace("\ttarget", "\tunexpected")
+    report.write_text("\n".join(lines) + "\n")
+    assert read_report(tmp_path) == {"a_assay0": {"g0", "g1"}}
+
+
 def script_that(tmp_path, body: str) -> list[str]:
     launcher = tmp_path / "insilico.sh"
     launcher.write_text(f"#!/bin/sh\n{body}\n")
@@ -277,7 +319,7 @@ def script_that(tmp_path, body: str) -> list[str]:
 
 
 def test_check_version_accepts_a_current_release(tmp_path):
-    assert check_version(script_that(tmp_path, 'echo "insilicoPCR 0.8.0"')) == "insilicoPCR 0.8.0"
+    assert check_version(script_that(tmp_path, 'echo "insilicoPCR 0.11.0"')) == "insilicoPCR 0.11.0"
     assert check_version(script_that(tmp_path, 'echo "insilicoPCR 1.2"')) == "insilicoPCR 1.2"
 
 
@@ -285,15 +327,24 @@ def test_check_version_refuses_a_release_that_does_not_know_itself(tmp_path):
     """0.6.x has no -v at all: it prints an "Unrecognized option" usage dump and exits non-zero. That is
     the answer, and it has to arrive here -- before Primer3 and every blast -- not at the last step."""
     old = script_that(tmp_path, "echo 'Unrecognized option: -v' >&2\nexit 2")
-    with pytest.raises(PrimerFinderError, match="needs 0.8.0 or newer"):
+    with pytest.raises(PrimerFinderError, match="needs 0.11.0 or newer"):
         check_version(old)
 
 
 def test_check_version_refuses_a_release_below_0_8_0(tmp_path):
-    with pytest.raises(PrimerFinderError, match="older than the 0.8.0"):
+    with pytest.raises(PrimerFinderError, match="older than the 0.11.0.*raw primer pairings"):
         check_version(script_that(tmp_path, 'echo "insilicoPCR 0.7.0"'))
     with pytest.raises(PrimerFinderError, match="no version"):
         check_version(script_that(tmp_path, 'echo "ready"'))
+
+
+@pytest.mark.parametrize("release", ["0.8.0", "0.9.0", "0.10.1"])
+def test_check_version_refuses_a_release_that_cannot_read_the_declared_size(tmp_path, release):
+    """These releases write amplicon reports, know every option a run passes and exit 0 -- having read
+    `<name>-F size=<bp>` as a primer's name and so reported nothing. Nothing downstream would stop a
+    design from calling every assay silent on the exclusion group, so the version has to."""
+    with pytest.raises(PrimerFinderError, match=f"insilicoPCR {release} is older than the 0.11.0.*size="):
+        check_version(script_that(tmp_path, f'echo "insilicoPCR {release}"'))
 
 
 def test_run_insists_on_a_report(stubs, tmp_path, insilico_pcr):
@@ -323,7 +374,7 @@ def test_a_stale_report_is_set_aside_before_the_run(stubs, tmp_path, insilico_pc
     genomes.mkdir()
     (genomes / "g1.fasta").write_text(">chr\nACGT\n")
     primers = tmp_path / "p.fasta"
-    primers.write_text(">a-F\nAAAA\n>a-R\nTTTT\n")
+    primers.write_text(">a-F size=100\nAAAA\n>a-R\nTTTT\n")
     out = tmp_path / "out"
     write_report(out, [("g1", "stale_assay")])
     parent = (out / REPORT).parent
@@ -429,7 +480,8 @@ def test_the_script_runs_both_groups_and_both_files(tmp_path):
                         [tmp_path / "q.fasta", tmp_path / "p.fasta"],
                         tmp_path / "inclusion", tmp_path / "exclusion", threads=4, mismatches=1)
     text = path.read_text()
-    assert text.count("java -jar x.jar") == 6  # two files, two groups and the lenient exclusion rerun
+    # two files, two groups and the lenient exclusion rerun -- after asking the release its version once
+    assert text.count("java -jar x.jar") == 7 and text.count("java -jar x.jar -v") == 1
     assert f"-t 4 -m 1 -l {LONGEST_PRODUCT}" in text
     # The lenient rerun: the terminal base readmitted, the budget unit it consumes, probes pinned strict
     assert text.count(f"-t 4 -m 2 -l {LONGEST_PRODUCT} --probe-mismatches 1 "
@@ -463,6 +515,33 @@ def test_the_script_without_a_launcher_asks_for_one(tmp_path):
     path = write_script(tmp_path / "run.sh", None, [tmp_path / "q.fasta"],
                         tmp_path / "inclusion", tmp_path / "exclusion", threads=2, mismatches=0)
     assert "INSILICO_PCR" in path.read_text()
+    ran = subprocess.run(["bash", str(path), str(tmp_path / "out")], capture_output=True, text=True,
+                         env={key: value for key, value in os.environ.items() if key != "INSILICO_PCR"})
+    assert ran.returncode != 0 and "point INSILICO_PCR at" in ran.stderr
+
+
+@pytest.mark.parametrize("says, runs", [("insilicoPCR 0.11.0", True), ("insilicoPCR 1.0", True),
+                                        ("insilicoPCR 0.10.1", False), ("insilicoPCR 0.8.0", False),
+                                        ("", False)])
+def test_the_script_refuses_a_release_that_cannot_read_the_declared_size(tmp_path, says, runs):
+    """A design checks the release before it starts; the script is run by hand, later, against whatever
+    INSILICO_PCR or the recorded launcher is by then. An older release would exit 0 with empty reports,
+    so the script asks first -- and runs nothing when the answer is too old or no answer."""
+    launcher = tmp_path / "insilico.sh"
+    launcher.write_text("#!/bin/sh\n"
+                        f'if [ "$1" = "-v" ]; then echo "{says}"; exit 0; fi\n'
+                        f'echo ran >> "{tmp_path}/calls"\n')
+    launcher.chmod(0o755)
+    path = write_script(tmp_path / "run.sh", [str(launcher)], [tmp_path / "q.fasta"],
+                        tmp_path / "inclusion", tmp_path / "exclusion", threads=2, mismatches=1)
+    (tmp_path / "out").mkdir()  # The real program makes it; the script ends by listing what is in it
+    ran = subprocess.run(["bash", str(path), str(tmp_path / "out")], capture_output=True, text=True)
+    if runs:
+        assert ran.returncode == 0, ran.stderr
+        assert (tmp_path / "calls").read_text().count("ran") == 3
+    else:
+        assert ran.returncode == 1 and "0.11.0 or newer is needed" in ran.stderr
+        assert not (tmp_path / "calls").exists()
 
 
 def test_a_threshold_below_one_accepts_an_assay_that_misses_a_genome():

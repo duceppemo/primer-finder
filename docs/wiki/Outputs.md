@@ -142,6 +142,8 @@ assays/
 ├── assays.tsv              every assay, the usable ones first
 ├── assays_qpcr.fasta       the assays that have a probe, with it: a positive needs the probe to bind
 ├── assays_pcr.fasta        every assay carried forward, primers only: does the pair discriminate alone?
+│                           In both, the forward primer's header declares the assay's product size
+│                           (size=), which insilicoPCR 0.11.0 or newer labels each product against
 ├── run_insilico_pcr.sh     the in silico PCR of both files against both groups
 ├── design_info.json        parameters, programs and versions, counts (including
 │                        last_resort_regions: how many of the regions only a single
@@ -153,7 +155,9 @@ assays/
 │                           group of plain fasta files. Subfolders are flattened, gzipped genomes are
 │                           written out plain, and a name used twice is numbered. This is what
 │                           run_insilico_pcr.sh reads and what the verdicts are counted against
-└── insilico_pcr/           what insilicoPCR wrote, when it was run
+└── insilico_pcr/           what insilicoPCR wrote, when it was run: for each file and group a
+                            consolidated_report/ holding report.tsv, which the verdicts are counted
+                            from, and report.html, the same results as a page to open in a browser
 ```
 
 ### assays.tsv

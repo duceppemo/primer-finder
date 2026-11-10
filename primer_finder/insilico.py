@@ -5,15 +5,23 @@ that amplifies in silico against assemblies or reads with BBMap and BLAST+. prim
 it. It writes the primer fasta files insilicoPCR expects, and, when told where to find it, runs it over the
 inclusion and the exclusion genomes and reads its consolidated report.
 
-This module speaks insilicoPCR 0.8.0 or newer. Since that release a row of the consolidated report is a
-called amplicon -- the two primers on the same contig, facing each other, within a size limit, and for a
-probe assay with an accepted probe hit inside the product -- so counting rows is counting amplifications.
-A report from an older release, whose rows were every pairing of two primer alignments and needed
+This module speaks insilicoPCR 0.11.0 or newer. Since 0.8.0 a row of the consolidated report is a called
+amplicon -- the two primers on the same contig, facing each other, within a size limit, and for a probe
+assay with an accepted probe hit inside the product -- so counting rows is counting amplifications. A
+report from an older release, whose rows were every pairing of two primer alignments and needed
 re-checking here, is refused rather than counted; primer-finder 1.9.x carries that reading.
 
-Two rules of insilicoPCR still shape what is written here:
+0.11.0 is needed for what is written rather than for what is read: the primer files declare the product
+size each assay was designed to give (`size=` on the forward primer's header), which 0.11.0 turns into a
+`SizeCheck` column saying whether a product is the one designed. A release from 0.8.0 to 0.10.1 reads the
+whole header as the primer's name, finds no such primer among its own alignments, and reports an empty
+table without a word -- on the exclusion group, the answer of a perfectly selective assay. So those
+releases are refused too, up front, and a report without the column is not counted.
+
+Three rules of insilicoPCR shape what is written here:
 
 - an assay is `<name>-F`, `<name>-R` and optionally `<name>-P`;
+- what follows the name on a header is a description, of which `size=<bp>` declares the product size;
 - an assay whose probe is in the primer file is only positive when the probe binds inside the product.
   Whether its primer pair discriminates *alone* is a different question, so the assays are also written
   with the probes stripped, and that file is run separately.
@@ -50,8 +58,14 @@ OLD_COLUMNS = ("ForwardEndMismatch", "ReverseEndMismatch")
 # Columns only 0.8.0 and newer write. A report carrying neither kind is not known to be amplicons either,
 # and counting it anyway would fail open -- phantom pairings read as cross-reactions -- so it is refused.
 NEW_COLUMNS = ("Forward3PrimeMismatches", "Strand")
-# The oldest insilicoPCR whose reports this module reads.
-REQUIRED_VERSION = (0, 8, 0)
+# The column 0.11.0 ends the report with when the primer file declares product sizes -- which every file
+# written here does. Its absence says the release that wrote the report read the declaration as part of
+# the primer's name, and so matched no primer at all: an empty report that proves nothing.
+SIZE_COLUMN = "SizeCheck"
+# The oldest insilicoPCR this module runs: the first to read a primer header's description as one.
+REQUIRED_VERSION = (0, 11, 0)
+# The oldest whose report rows are amplicons, and the oldest that can say its version (`-v`).
+AMPLICON_VERSION = (0, 8, 0)
 # The longest span that can be one product, passed to insilicoPCR as `-l`. It applies the limit itself
 # since 0.8.0, but its default (5000) is its own to move, and the verdicts should not move with it.
 # Well above anything this tool designs for -- Primer3 is asked for 70-150 bases by default.
@@ -155,6 +169,12 @@ def write_primer_fasta(assays: Sequence[Assay], path: Path, kind: str) -> int:
     insilicoPCR 0.8.0 can run both kinds of assay from one file -- the probe requirement follows each assay
     -- but one file cannot ask both questions about the same assay, so the probe assays are written twice
     and the two files are run separately.
+
+    The forward primer's header declares the product size the assay was designed to give, `size=<bp>`,
+    which insilicoPCR 0.11.0 reads: its report then says of every product whether it is that one
+    (`target`, within 10 bases of the size) or another (`unexpected`), and its HTML report counts a sample
+    as positive only on the first. Nothing is filtered by it, there or here. The declaration sits on the
+    forward primer alone -- one is enough, and one place is one convention.
     """
     if kind not in ("qpcr", "pcr"):  # pragma: no cover - the caller is this package
         raise PrimerFinderError(f"Unknown assay type {kind!r}")
@@ -163,7 +183,7 @@ def write_primer_fasta(assays: Sequence[Assay], path: Path, kind: str) -> int:
         return 0
     records: list[seqio.Record] = []
     for assay in chosen:
-        records.append(seqio.Record(f"{assay.name}-F", "", assay.forward.sequence))
+        records.append(seqio.Record(f"{assay.name}-F", f"size={assay.product_size}", assay.forward.sequence))
         records.append(seqio.Record(f"{assay.name}-R", "", assay.reverse.sequence))
         if kind == "qpcr" and assay.probe is not None:
             records.append(seqio.Record(f"{assay.name}-P", "", assay.probe.sequence))
@@ -248,28 +268,40 @@ def resolve(given: Path) -> list[str]:
 
 
 def check_version(launcher: Sequence[str]) -> str:
-    """Ask the launcher its version, and insist on 0.8.0 or newer. Returns the version line.
+    """Ask the launcher its version, and insist on 0.11.0 or newer. Returns the version line.
 
     Called before any of the expensive work: an older release only announced itself at the in-silico step,
     after Primer3 and every blast had already run. 0.6.x does not know `-v` at all -- it prints an
-    "Unrecognized option" usage dump and exits non-zero -- which is itself the answer.
+    "Unrecognized option" usage dump and exits non-zero -- which is itself the answer. A release from
+    0.8.0 to 0.10.1 would not announce itself at all: it reads the product size declared on a primer's
+    header as part of the primer's name and reports that nothing amplified.
     """
     needed = ".".join(map(str, REQUIRED_VERSION))
+    amplicons = ".".join(map(str, AMPLICON_VERSION))
     try:
         output = tools.run([*launcher, "-v"])
     except tools.ToolError as error:
         raise PrimerFinderError(
-            f"insilicoPCR could not say its version, which a release older than {needed} cannot "
+            f"insilicoPCR could not say its version, which a release older than {amplicons} cannot "
             f"(it does not know -v). primer-finder needs {needed} or newer: "
             f"https://github.com/duceppemo/insilicoPCR/releases\n{error}"
         ) from error
     match = re.search(r"\b(\d+)\.(\d+)(?:\.(\d+))?\b", output)
-    if match is None or tuple(int(part or 0) for part in match.groups()) < REQUIRED_VERSION:
-        found = match.group(0) if match else f"no version in {output.strip()!r}"
+    found = tuple(int(part or 0) for part in match.groups()) if match else None
+    if found is None or found < AMPLICON_VERSION:
+        said = match.group(0) if match else f"no version in {output.strip()!r}"
         raise PrimerFinderError(
-            f"insilicoPCR {found} is older than the {needed} primer-finder needs, whose report rows are "
-            "amplicons rather than raw primer pairings. Upgrade it from "
+            f"insilicoPCR {said} is older than the {needed} primer-finder needs: before {amplicons} its "
+            "report rows were raw primer pairings rather than amplicons. Upgrade it from "
             "https://github.com/duceppemo/insilicoPCR/releases, or design with primer-finder 1.9.x."
+        )
+    if found < REQUIRED_VERSION:
+        raise PrimerFinderError(
+            f"insilicoPCR {match.group(0)} is older than the {needed} primer-finder needs. The primer "
+            "files declare each assay's product size on the forward primer's header (size=), which an "
+            "older release reads as part of the primer's name: it would report that nothing amplified, "
+            "on the exclusion group the answer of a selective assay. Upgrade it from "
+            "https://github.com/duceppemo/insilicoPCR/releases, or design with primer-finder 1.11.0."
         )
     return output.strip()
 
@@ -364,8 +396,8 @@ def read_report(output: Path) -> dict[str, set[str]]:
 def _insist_on_columns(fieldnames: Sequence[str] | None, report: Path) -> None:
     """The two columns every verdict is counted from. Without them every assay would read as amplifying
     nothing at all, which looks like a clean answer rather than an unreadable report. A report of an old
-    insilicoPCR has both and is still refused: its rows are not amplicons, and counting them moves
-    verdicts."""
+    insilicoPCR has both and is still refused: before 0.8.0 its rows are not amplicons, and counting them
+    moves verdicts; from 0.8.0 to 0.10.1 it could not read the primer file, and its rows are none."""
     missing = [name for name in (SAMPLE_COLUMN, ASSAY_COLUMN) if name not in (fieldnames or ())]
     if missing:
         raise PrimerFinderError(
@@ -387,6 +419,16 @@ def _insist_on_columns(fieldnames: Sequence[str] | None, report: Path) -> None:
             f"({' or '.join(NEW_COLUMNS)}), so there is no telling that its rows are amplicons rather "
             "than raw primer pairings. Upgrade insilicoPCR "
             "(https://github.com/duceppemo/insilicoPCR/releases)."
+        )
+    if SIZE_COLUMN not in (fieldnames or ()):
+        # The report of a release that took `<name>-F size=<bp>` for a primer's name. It found no such
+        # primer among its alignments, so the table is empty whatever the genomes hold -- and an empty
+        # table on the exclusion group is exactly what a selective assay would give.
+        raise PrimerFinderError(
+            f"{report} has no {SIZE_COLUMN} column, so it was written by an insilicoPCR older than "
+            "0.11.0. Those releases read the product size declared in the primer file as part of the "
+            "primer's name and report that nothing amplified, whatever the genomes hold. Upgrade "
+            "insilicoPCR (https://github.com/duceppemo/insilicoPCR/releases)."
         )
 
 
@@ -495,7 +537,7 @@ def write_script(path: Path, launcher: Sequence[str] | None, primers: Sequence[P
                f"--3p-penalty {LENIENT_PENALTY}")
     lines = [
         "#!/usr/bin/env bash",
-        "# In silico PCR of the designed assays against both groups of genomes, with insilicoPCR 0.8.0+:",
+        "# In silico PCR of the designed assays against both groups of genomes, with insilicoPCR 0.11.0+:",
         "#   https://github.com/duceppemo/insilicoPCR",
         "# An assay is selective when it amplifies every inclusion genome and no exclusion genome.",
     ]
@@ -506,10 +548,27 @@ def write_script(path: Path, launcher: Sequence[str] | None, primers: Sequence[P
             "# a genome that amplifies only there is held off by bases a polymerase can read "
             "through.",
         ]
+    needed = ".".join(map(str, REQUIRED_VERSION))
     lines += [
         "set -euo pipefail",
         "",
         f'out="${{1:-{path.parent}/insilico_pcr}}"',
+        "",
+        *([] if launcher else [
+            ': "${INSILICO_PCR:?point INSILICO_PCR at the folder of an extracted insilicoPCR release}"', ""]),
+        # A design checks the release before it does anything; this script runs without one. The check
+        # matters more here than a usage error would: an older release exits 0 with empty reports.
+        "# The primer files declare each assay's product size (size=) on the forward primer's header. A",
+        f"# release older than {needed} reads that as part of the primer's name and reports that nothing",
+        "# amplified -- on the exclusion group, the answer of a selective assay -- so it is refused here.",
+        f"version=\"$({start} -v 2> /dev/null | grep -Eo '[0-9]+\\.[0-9]+(\\.[0-9]+)?' | head -n 1 || true)\"",
+        f'if [ -z "${{version}}" ] || '
+        f'[ "$(printf \'%s\\n\' {needed} "${{version}}" | sort -V | head -n 1)" != "{needed}" ]; then',
+        f'    echo "insilicoPCR {needed} or newer is needed; this is '
+        '${version:-a release that cannot say its version}:" >&2',
+        '    echo "  https://github.com/duceppemo/insilicoPCR/releases" >&2',
+        "    exit 1",
+        "fi",
         "",
     ]
     passes: list[tuple[str, Path, str]] = []

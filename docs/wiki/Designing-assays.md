@@ -499,19 +499,32 @@ primer-finder design results/ -o assays/ --insilico-pcr /path/to/insilicoPCR-lin
 ```
 
 `--insilico-pcr` takes the folder of an extracted portable release (which brings its own Java), its jar, or
-a launcher script — **insilicoPCR 0.8.0 or newer**. Since that release a row of its report is a called
+a launcher script — **insilicoPCR 0.11.0 or newer**. Since 0.8.0 a row of its report is a called
 amplicon: the two primers on the same contig, facing each other, within a size limit, and for a probe assay
 with the probe inside the product. The report of an older release — whose rows were every pairing of two
 primer alignments, most of them nothing PCR could make — is refused rather than counted; primer-finder
-1.9.x carries the reading that re-checked them. The releases since (0.9.0 to 0.10.1) changed only
+1.9.x carries the reading that re-checked them. The releases from 0.9.0 to 0.10.1 changed only
 insilicoPCR's FASTQ mode, GUI and bundled BBTools: designed under 0.10.1, the *Xylella* panel gives the
 same reports and the same verdict, assay for assay, as under 0.8.0
 ([`2026-11-07_v1.11.0_insilico0101/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-11-07_v1.11.0_insilico0101/SUMMARY.md)).
-0.11.0 adds an HTML report and optional product-size labels, and corrects the size it reports for a
-product whose primer hangs off the start of a contig; primer-finder counts the rows of the report and
-does not read the size, so nothing it reads moves
+0.11.0 adds an HTML report and product-size labels, and corrects the size it reports for a product whose
+primer hangs off the start of a contig; the amplifications it reports are the same
 ([`2026-11-10_v1.11.0_insilico0110/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-11-10_v1.11.0_insilico0110/SUMMARY.md)).
-Without `--insilico-pcr`, the same thing can be run later with the `run_insilico_pcr.sh` the command writes.
+Without `--insilico-pcr`, the same thing can be run later with the `run_insilico_pcr.sh` the command
+writes, which asks the release its version first and runs nothing on one older than 0.11.0.
+
+**The primer files declare the product size.** The header of each forward primer carries the size the
+assay was designed to give — `>Contig_1_67.5167_assay4-F size=78` — which insilicoPCR 0.11.0 reads. Its
+report then ends with a `SizeCheck` column saying of every product whether it is that one (`target`,
+within 10 bases of the size) or another (`unexpected`), and the `report.html` it writes beside each
+report counts a sample as positive only on the first. It labels and removes nothing, and neither does
+primer-finder: **a product of another size is still a product**, and on the exclusion group still a
+cross-reaction, so the verdicts are counted exactly as before. This is also why 0.11.0 is the oldest
+release that will do. A release from 0.8.0 to 0.10.1 reads the whole header as the primer's name, finds
+no primer of that name among its own alignments, and writes an empty report without a word — measured on
+the example with 0.10.1, no row where 0.11.0 writes 68. On the exclusion group that is the answer of a
+perfectly selective assay, so such a release is refused before any of the work, and a report without the
+`SizeCheck` column is not counted.
 
 insilicoPCR reads only the top level of a genome folder, so a genome in a subfolder would be skipped. Both
 groups are therefore staged into `insilico_genomes/` first — flattened, decompressed, duplicate names
@@ -681,7 +694,7 @@ over bases that are absent rather than differing.
 | File | What it holds |
 |---|---|
 | `assays.tsv` | every assay, the usable ones first, with the numbers behind the order (see [Outputs](Outputs)) |
-| `assays_qpcr.fasta` | the assays that have a probe, with it: insilicoPCR only calls these positive when the probe binds inside the product |
+| `assays_qpcr.fasta` | the assays that have a probe, with it: insilicoPCR only calls these positive when the probe binds inside the product. In both files the forward primer's header declares the product size (`size=`), for insilicoPCR 0.11.0 or newer |
 | `assays_pcr.fasta` | every assay carried forward, primers only, so the primer pair is judged alone. The ones `--min-primer-differences` set aside are in `assays.tsv` alone |
 | `run_insilico_pcr.sh` | the in silico PCR of both files against both groups, as staged in `insilico_genomes/`, to run later |
 | `design_info.json` | the parameters, the programs and their versions, and the counts |
@@ -689,7 +702,7 @@ over bases that are absent rather than differing.
 | `primer3/` | exactly what was sent to Primer3 and what came back |
 | `amplicons/` | the blast databases and hits of the amplicon checks |
 | `insilico_genomes/` | both genome folders laid out the way insilicoPCR needs them: one flat folder of plain fasta per group, subfolders flattened, gzipped genomes written out, a name used twice numbered. Written whether or not the check is run, because `run_insilico_pcr.sh` reads these and the verdicts are counted against them — deleting it breaks the script |
-| `insilico_pcr/` | what insilicoPCR wrote, when it was run |
+| `insilico_pcr/` | what insilicoPCR wrote, when it was run: per file and group, `consolidated_report/report.tsv` — the table the verdicts are counted from, each product labelled `target` or `unexpected` against the declared size — and `report.html`, the same results as a page to open in a browser |
 
 ## Limits
 

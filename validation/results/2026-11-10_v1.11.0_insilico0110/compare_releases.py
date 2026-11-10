@@ -16,6 +16,10 @@ size must be the size it was built with (plan.tsv).
     python compare_releases.py <folder of make_contig_edges.py> <insilicoPCR-0.10.1> <insilicoPCR-0.11.0>
 
 Exits 1 if what primer-finder reads differs, or if a report differs in any other way.
+
+Runs the primer-finder this script sits in, and needs v1.11.0 checked out: a later primer-finder
+declares product sizes in its own primer files, requires insilicoPCR 0.11.0, and refuses the reports of
+these runs, whose primer files declare none.
 """
 import csv
 import sys
