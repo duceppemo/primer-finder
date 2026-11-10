@@ -92,7 +92,12 @@ assay the old pair parked as `undecided (3' end)` — 34 in PCR mode, 12 in qPCR
 [Designing assays](Designing-assays). insilicoPCR 0.10.1 changes none of this:
 [`validation/results/2026-11-07_v1.11.0_insilico0101/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-11-07_v1.11.0_insilico0101/SUMMARY.md)
 designs the same find results under 0.8.0 and 0.10.1, and every report is byte-identical, apart from one
-region where Primer3 itself proposed a different number of assays, and no in silico verdict moved.
+region where Primer3 itself proposed a different number of assays, and no in silico verdict moved. Nor
+does 0.11.0:
+[`validation/results/2026-11-10_v1.11.0_insilico0110/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-11-10_v1.11.0_insilico0110/SUMMARY.md)
+designs the example under 0.10.1 and 0.11.0 with byte-identical results, and on genomes whose contigs
+break inside primer sites the two releases differ only in the size reported for a product at a contig
+start, which primer-finder does not read.
 
 The default is now `--mismatches 1`: 0 assumes any internal mismatch stops a primer, which hid 12 of the 30
 absence-based assays that amplify something off-target in an exclusion genome; 2 assumes two mismatches per
