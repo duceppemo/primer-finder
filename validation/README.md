@@ -42,6 +42,12 @@ a primer — ten times the reach of the retired `undecided (3' end)` verdict, wh
 cases its own blind spots left over. The flag catches the parked assays a single readable base held and
 correctly passes over the ones a run of two refused.
 
+`2026-11-07_v1.11.0_insilico0101/` checks primer-finder 1.11.0 against insilicoPCR 0.10.1, whose
+releases since 0.8.0 changed only FASTQ mode, the GUI and the bundled BBTools. Designed on the same
+Xylella find results under both releases, every report and assay file is byte-identical outside one
+region where Primer3 itself proposed a different number of assays, and no in silico verdict moved on
+any of 4,084 assays: no change is needed, and neither earlier record needs an erratum.
+
 Not every record is about an assay. `2026-10-14_v1.7.0_unitig/` measures what a change to the code does to
 a panel whose answer is already known — the question any change to the find or assembly rules has to
 answer before it can become a default.
