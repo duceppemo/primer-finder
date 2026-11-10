@@ -48,6 +48,13 @@ Xylella find results under both releases, every report and assay file is byte-id
 region where Primer3 itself proposed a different number of assays, and no in silico verdict moved on
 any of 4,084 assays: no change is needed, and neither earlier record needs an erratum.
 
+`2026-11-10_v1.11.0_insilico0110/` checks primer-finder 1.11.0 against insilicoPCR 0.11.0, which adds an
+HTML report and optional product-size labels and, in assembly mode, corrects the size reported for a
+product whose primer hangs off the start of a contig. The example designed under 0.10.1 and 0.11.0 is
+byte-identical; on *Listeria* sequence broken into contigs inside 100 primer sites the two releases
+report the same products, 0.11.0 sizing those at a contig start 1-5 bases longer, and what primer-finder
+reads (which samples amplify, and which only at the 3' end) is the same: no change is needed.
+
 Not every record is about an assay. `2026-10-14_v1.7.0_unitig/` measures what a change to the code does to
 a panel whose answer is already known — the question any change to the find or assembly rules has to
 answer before it can become a default.
