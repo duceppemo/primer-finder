@@ -503,8 +503,11 @@ a launcher script — **insilicoPCR 0.8.0 or newer**. Since that release a row o
 amplicon: the two primers on the same contig, facing each other, within a size limit, and for a probe assay
 with the probe inside the product. The report of an older release — whose rows were every pairing of two
 primer alignments, most of them nothing PCR could make — is refused rather than counted; primer-finder
-1.9.x carries the reading that re-checked them. Without `--insilico-pcr`, the same thing can be run later
-with the `run_insilico_pcr.sh` the command writes.
+1.9.x carries the reading that re-checked them. The releases since (0.9.0 to 0.10.1) changed only
+insilicoPCR's FASTQ mode, GUI and bundled BBTools: designed under 0.10.1, the *Xylella* panel gives the
+same reports and the same verdict, assay for assay, as under 0.8.0
+([`2026-11-07_v1.11.0_insilico0101/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-11-07_v1.11.0_insilico0101/SUMMARY.md)).
+Without `--insilico-pcr`, the same thing can be run later with the `run_insilico_pcr.sh` the command writes.
 
 insilicoPCR reads only the top level of a genome folder, so a genome in a subfolder would be skipped. Both
 groups are therefore staged into `insilico_genomes/` first — flattened, decompressed, duplicate names
@@ -534,7 +537,7 @@ at-a-time synthetic-template test as for 0.6.1
 ([`2026-11-03_v1.10.0_insilico080/mismatch_zones.py`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-11-03_v1.10.0_insilico080/mismatch_zones.py))
 — and two of them sit somewhere other than where insilicoPCR's own penalty table suggests:
 
-| Where the difference is | What insilicoPCR 0.8.0 does, measured |
+| Where the difference is | What insilicoPCR does, measured on 0.8.0 (hit filters unchanged through 0.10.1) |
 |---|---|
 | the 3'-terminal base | **refused** at every `--mismatches` (0 to 10 tested). This is the base the polymerase extends from. Rescuable deliberately: `--3p-penalty` 3 for an A/T-ending primer, 4 for G/C-ending, plus the one unit of `--mismatches` the trimmed base consumes. |
 | 2–4 bases from the 3' end | **refused**, and not rescuable even at `--3p-penalty 4` with `-m 4`: blast trims the whole tail rather than aligning through, so every unaligned base scores in the window and the penalties stack. |

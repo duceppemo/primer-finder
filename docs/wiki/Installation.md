@@ -59,8 +59,9 @@ assembler you ask for has to be installed, and `-a unitig` asks for none.
 [insilicoPCR](https://github.com/duceppemo/insilicoPCR) is **not** installed with primer-finder and is not
 needed to run it. It is a separate program, and `primer-finder design --insilico-pcr` points at an extracted
 portable release of it (which brings its own Java, BBMap and BLAST+) — **release 0.8.0 or newer**: an older
-one is refused before any of the work, since primer-finder no longer reads its reports. See
-[Designing assays](Designing-assays).
+one is refused before any of the work, since primer-finder no longer reads its reports. Releases up to
+0.10.1 have been checked against it; those after 0.8.0 change only insilicoPCR's FASTQ mode, its GUI and
+its bundled BBTools, none of which primer-finder uses. See [Designing assays](Designing-assays).
 
 ## Checking the installation
 

@@ -89,7 +89,10 @@ measures the new ones the same way, then rescores the whole *Xylella* panel with
 identical assays. The headline: a difference at the very 3' end is now judged rather than invisible, every
 assay the old pair parked as `undecided (3' end)` — 34 in PCR mode, 12 in qPCR — is a clean `yes` under
 0.8.0, and the `undecided` verdict these pages derived from the old blind spot is gone; see
-[Designing assays](Designing-assays).
+[Designing assays](Designing-assays). insilicoPCR 0.10.1 changes none of this:
+[`validation/results/2026-11-07_v1.11.0_insilico0101/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-11-07_v1.11.0_insilico0101/SUMMARY.md)
+designs the same find results under 0.8.0 and 0.10.1, and every report is byte-identical, apart from one
+region where Primer3 itself proposed a different number of assays, and no in silico verdict moved.
 
 The default is now `--mismatches 1`: 0 assumes any internal mismatch stops a primer, which hid 12 of the 30
 absence-based assays that amplify something off-target in an exclusion genome; 2 assumes two mismatches per
