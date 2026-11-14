@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.13.0
 
 primer-finder now needs [insilicoPCR](https://github.com/duceppemo/insilicoPCR) **0.12.0**, which counts a
 mismatch near the end of a primer or a probe as one mismatch. Checked up to 0.14.0, which gives the same
