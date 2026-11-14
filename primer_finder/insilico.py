@@ -5,7 +5,7 @@ that amplifies in silico against assemblies or reads with BBMap and BLAST+. prim
 it. It writes the primer fasta files insilicoPCR expects, and, when told where to find it, runs it over the
 inclusion and the exclusion genomes and reads its consolidated report.
 
-This module speaks insilicoPCR 0.11.0 or newer. Since 0.8.0 a row of the consolidated report is a called
+This module speaks insilicoPCR 0.12.0 or newer. Since 0.8.0 a row of the consolidated report is a called
 amplicon -- the two primers on the same contig, facing each other, within a size limit, and for a probe
 assay with an accepted probe hit inside the product -- so counting rows is counting amplifications. A
 report from an older release, whose rows were every pairing of two primer alignments and needed
@@ -17,6 +17,15 @@ size each assay was designed to give (`size=` on the forward primer's header), w
 whole header as the primer's name, finds no such primer among its own alignments, and reports an empty
 table without a word -- on the exclusion group, the answer of a perfectly selective assay. So those
 releases are refused too, up front, and a report without the column is not counted.
+
+0.12.0 is needed for what a mismatch near the end of an oligo counts as. blast trims such a mismatch off
+its alignment together with the matching bases beyond it, and until 0.12.0 insilicoPCR judged the hit by
+what was left: a probe bound through a mismatch in its first or last two bases for nothing, and not
+through one three or four bases in at any budget, and a single mismatch two to four bases from a primer's
+3' end weighed as several, which the 3'-end dependence check below could not readmit. 0.12.0 reads the
+trimmed bases back from the genome and counts the ones that do not pair, once each. The same assays get
+other verdicts and other counts from 0.11.0 (validation/results/2026-11-13_v1.12.0_insilico0130/), so it
+is refused as well, and so is a report without the two columns 0.12.0 added.
 
 Three rules of insilicoPCR shape what is written here:
 
@@ -62,22 +71,37 @@ NEW_COLUMNS = ("Forward3PrimeMismatches", "Strand")
 # written here does. Its absence says the release that wrote the report read the declaration as part of
 # the primer's name, and so matched no primer at all: an empty report that proves nothing.
 SIZE_COLUMN = "SizeCheck"
-# The oldest insilicoPCR this module runs: the first to read a primer header's description as one.
-REQUIRED_VERSION = (0, 11, 0)
+# The columns 0.12.0 added, one per primer: the 5' bases that do not pair with the genome. Nothing here
+# reads them -- those bases are free, within insilicoPCR's --5p-truncation -- but a report without them
+# was written by a release that counted a mismatch near the end of an oligo by what blast trimmed with it.
+UNPAIRED_COLUMNS = ("Forward5PrimeUnaligned", "Reverse5PrimeUnaligned")
+# The oldest insilicoPCR this module runs: the first to compare the bases blast trims off the end of an
+# alignment with the genome, so that one mismatch there counts as one.
+REQUIRED_VERSION = (0, 12, 0)
+# The oldest to read a primer header's description as one, and so the `size=` declared there.
+SIZE_VERSION = (0, 11, 0)
 # The oldest whose report rows are amplicons, and the oldest that can say its version (`-v`).
 AMPLICON_VERSION = (0, 8, 0)
 # The longest span that can be one product, passed to insilicoPCR as `-l`. It applies the limit itself
 # since 0.8.0, but its default (5000) is its own to move, and the verdicts should not move with it.
 # Well above anything this tool designs for -- Primer3 is asked for 70-150 bases by default.
 LONGEST_PRODUCT = 10_000
-# What the 3'-end dependence check hands insilicoPCR as --3p-penalty. Measured on 0.8.0
-# (validation/results/2026-11-03_v1.10.0_insilico080/): 4 readmits the 3'-TERMINAL base, whatever it
-# replaces -- an A/T pair scores 3 there, a G/C pair 4 -- and a mismatch five bases in (scored 1), but
-# nothing 2-4 bases in, which blast trims as a tail whose stacked penalties pass 4. The report does not
-# say where in the window the imperfection sat, so the count reads "held off only by the last five bases
-# of a primer" -- usually the terminal base, the zone the ranking aims differences at, and in every
-# admissible case a base a real polymerase occasionally reads through.
+# What the 3'-end dependence check hands insilicoPCR as --3p-penalty: 4, the price of the worst single
+# mismatch its weighted window knows, a G/C pair broken on the 3'-TERMINAL base (an A/T pair scores 3
+# there). Measured on 0.12.0 (validation/results/2026-11-13_v1.12.0_insilico0130/), it readmits one
+# mismatch anywhere in the last five bases of a primer. Until 0.12.0 it readmitted the terminal base and
+# the fifth alone: blast trims a mismatch two to four bases in together with the matching bases beyond
+# it, and every trimmed base was scored. It also readmits two mismatches in one window when they come to
+# no more than that terminal base does -- the fourth and fifth bases in score 1 each -- which it never
+# could before, and which is not what the check asks about: those rows are left out when it is read
+# (MOST_IN_WINDOW). The report does not say where in the window an imperfection sat, so the count reads
+# "held off only by the last five bases of a primer", bases a real polymerase occasionally reads through.
 LENIENT_PENALTY = 4
+# The imperfections one primer's 3' window may carry for a lenient row to count as held by the 3' end.
+# One is the question the check asks; two in the last five bases of one primer is no longer a base a
+# polymerase occasionally reads through. On the Xylella panel under 0.13.0, 818 of 4,189 held (assay,
+# genome) pairs in PCR mode rested on two in one window; insilicoPCR 0.11.0 gave none.
+MOST_IN_WINDOW = 1
 # The per-primer mismatch count and the share of it inside the 3' window, per direction.
 MISMATCH_COLUMNS = ("ForwardMismatches", "ReverseMismatches")
 WINDOW_COLUMNS = ("Forward3PrimeMismatches", "Reverse3PrimeMismatches")
@@ -268,13 +292,15 @@ def resolve(given: Path) -> list[str]:
 
 
 def check_version(launcher: Sequence[str]) -> str:
-    """Ask the launcher its version, and insist on 0.11.0 or newer. Returns the version line.
+    """Ask the launcher its version, and insist on 0.12.0 or newer. Returns the version line.
 
     Called before any of the expensive work: an older release only announced itself at the in-silico step,
     after Primer3 and every blast had already run. 0.6.x does not know `-v` at all -- it prints an
     "Unrecognized option" usage dump and exits non-zero -- which is itself the answer. A release from
     0.8.0 to 0.10.1 would not announce itself at all: it reads the product size declared on a primer's
-    header as part of the primer's name and reports that nothing amplified.
+    header as part of the primer's name and reports that nothing amplified. Nor would 0.11.0, which runs
+    to the end and counts a mismatch near the end of a probe, or near a primer's 3' end, by what blast
+    trimmed with it.
     """
     needed = ".".join(map(str, REQUIRED_VERSION))
     amplicons = ".".join(map(str, AMPLICON_VERSION))
@@ -295,13 +321,22 @@ def check_version(launcher: Sequence[str]) -> str:
             "report rows were raw primer pairings rather than amplicons. Upgrade it from "
             "https://github.com/duceppemo/insilicoPCR/releases, or design with primer-finder 1.9.x."
         )
-    if found < REQUIRED_VERSION:
+    if found < SIZE_VERSION:
         raise PrimerFinderError(
             f"insilicoPCR {match.group(0)} is older than the {needed} primer-finder needs. The primer "
-            "files declare each assay's product size on the forward primer's header (size=), which an "
-            "older release reads as part of the primer's name: it would report that nothing amplified, "
+            "files declare each assay's product size on the forward primer's header (size=), which "
+            "this release reads as part of the primer's name: it would report that nothing amplified, "
             "on the exclusion group the answer of a selective assay. Upgrade it from "
             "https://github.com/duceppemo/insilicoPCR/releases, or design with primer-finder 1.11.0."
+        )
+    if found < REQUIRED_VERSION:
+        raise PrimerFinderError(
+            f"insilicoPCR {match.group(0)} is older than the {needed} primer-finder needs. Before "
+            f"{needed} a mismatch near the end of an oligo was counted by what blast trimmed off the "
+            "alignment with it, not as one mismatch: a probe bound through one in its first or last "
+            "two bases for nothing and not through one three or four bases in at any budget, and the 3'-end "
+            "check could not see one two to four bases from a primer's 3' end. Upgrade it from "
+            "https://github.com/duceppemo/insilicoPCR/releases, or design with primer-finder 1.12.0."
         )
     return output.strip()
 
@@ -374,8 +409,9 @@ def read_report(output: Path) -> dict[str, set[str]]:
     Since insilicoPCR 0.8.0 every row is a called amplicon -- the two primers on the same contig, facing
     each other, no further apart than `-l`, each binding within the `-m` budget and with its last bases
     matching, and for a probe assay with the probe inside the product -- so a row is an amplification and
-    nothing here second-guesses it. A report from an older release is refused: its rows were every pairing
-    of two primer alignments on a contig, most of them nothing PCR could make.
+    nothing here second-guesses it. A report from an older release is refused: before 0.8.0 its rows were
+    every pairing of two primer alignments on a contig, most of them nothing PCR could make, and before
+    0.12.0 what "within the budget" meant near the end of an oligo was blast's trimming, not a count.
     """
     report = output / REPORT
     amplified: dict[str, set[str]] = {}
@@ -397,7 +433,8 @@ def _insist_on_columns(fieldnames: Sequence[str] | None, report: Path) -> None:
     """The two columns every verdict is counted from. Without them every assay would read as amplifying
     nothing at all, which looks like a clean answer rather than an unreadable report. A report of an old
     insilicoPCR has both and is still refused: before 0.8.0 its rows are not amplicons, and counting them
-    moves verdicts; from 0.8.0 to 0.10.1 it could not read the primer file, and its rows are none."""
+    moves verdicts; from 0.8.0 to 0.10.1 it could not read the primer file, and its rows are none; and
+    0.11.0 let a probe, or the lenient 3'-end pass, through on other terms than 0.12.0 does."""
     missing = [name for name in (SAMPLE_COLUMN, ASSAY_COLUMN) if name not in (fieldnames or ())]
     if missing:
         raise PrimerFinderError(
@@ -430,19 +467,31 @@ def _insist_on_columns(fieldnames: Sequence[str] | None, report: Path) -> None:
             "primer's name and report that nothing amplified, whatever the genomes hold. Upgrade "
             "insilicoPCR (https://github.com/duceppemo/insilicoPCR/releases)."
         )
+    if not all(name in (fieldnames or ()) for name in UNPAIRED_COLUMNS):
+        # The rows of 0.11.0 are amplicons and the primer file was read, but which hits it accepted near
+        # the end of a probe, and in the lenient 3'-end pass, is not what 0.12.0 accepts: the same
+        # assays get other verdicts and other held counts. Mixing the two would not show anywhere.
+        raise PrimerFinderError(
+            f"{report} has no {' and '.join(UNPAIRED_COLUMNS)} columns, so it was written by an "
+            "insilicoPCR older than 0.12.0. Those releases count a mismatch near the end of a probe, or "
+            "near a primer's 3' end, by what blast trimmed off the alignment with it, and accept other "
+            "bindings than 0.12.0 does. Upgrade insilicoPCR "
+            "(https://github.com/duceppemo/insilicoPCR/releases)."
+        )
 
 
 def read_three_prime_held(output: Path, budget: int) -> dict[str, set[str]]:
     """Which samples each assay amplifies *only* once an imperfection at the far 3' end is tolerated.
 
-    Read from the lenient exclusion rerun: `--3p-penalty` LENIENT_PENALTY, which readmits the terminal
-    base or a mismatch five bases in and nothing between (measured, see LENIENT_PENALTY), and one more
-    `-m` than the user's budget, which is what the readmitted base consumes. A sample counts for an
-    assay when every amplicon row of the pair is
-    one that rescue explains: a primer carries a 3'-window imperfection, and what each primer carries
-    *outside* the window still fits the user's own budget. A row that binds clean at the lenient settings,
-    or that needed the extra `-m` unit for an internal mismatch, is amplification for another reason, and
-    one such row means the sample is not held off by the 3' end alone.
+    Read from the lenient exclusion rerun: `--3p-penalty` LENIENT_PENALTY, which readmits a mismatch in
+    the last five bases of a primer (measured, see LENIENT_PENALTY), and one more `-m` than the user's
+    budget, which is what a readmitted base consumes. A sample counts for an assay when every amplicon
+    row of the pair is one that rescue explains: a primer carries a 3'-window imperfection, no primer
+    carries more than MOST_IN_WINDOW, and what each primer carries *outside* the window still fits the
+    user's own budget. A row that binds clean at the lenient settings, or that needed the extra `-m` unit
+    for an internal mismatch, is amplification for another reason, and one such row means the sample is
+    not held off by the 3' end alone. Nor is a row with two imperfections in one window: it amplifies
+    only at a tolerance the check does not mean to extend.
 
     The outside-the-window count is `ForwardMismatches - Forward3PrimeMismatches` (and the reverse pair),
     which counts an indel as one like everything else; a row whose counts cannot be read is not claimed.
@@ -475,7 +524,7 @@ def _three_prime_explains(row: dict[str, str], budget: int) -> bool:
         counted.append((m, w))
     if not any(w for _, w in counted):
         return False
-    return all(m - w <= budget for m, w in counted)
+    return all(m - w <= budget and w <= MOST_IN_WINDOW for m, w in counted)
 
 
 def _int(value: str | None) -> int | None:
@@ -535,9 +584,11 @@ def write_script(path: Path, launcher: Sequence[str] | None, primers: Sequence[P
     lenient = (f"-t {threads} -m {mismatches + 1} -l {LONGEST_PRODUCT} "
                f"--probe-mismatches {probe_mismatches if probe_mismatches is not None else mismatches} "
                f"--3p-penalty {LENIENT_PENALTY}")
+    needed = ".".join(map(str, REQUIRED_VERSION))
+    sized = ".".join(map(str, SIZE_VERSION))
     lines = [
         "#!/usr/bin/env bash",
-        "# In silico PCR of the designed assays against both groups of genomes, with insilicoPCR 0.11.0+:",
+        f"# In silico PCR of the designed assays against both groups of genomes, with insilicoPCR {needed}+:",
         "#   https://github.com/duceppemo/insilicoPCR",
         "# An assay is selective when it amplifies every inclusion genome and no exclusion genome.",
     ]
@@ -548,7 +599,6 @@ def write_script(path: Path, launcher: Sequence[str] | None, primers: Sequence[P
             "# a genome that amplifies only there is held off by bases a polymerase can read "
             "through.",
         ]
-    needed = ".".join(map(str, REQUIRED_VERSION))
     lines += [
         "set -euo pipefail",
         "",
@@ -557,10 +607,13 @@ def write_script(path: Path, launcher: Sequence[str] | None, primers: Sequence[P
         *([] if launcher else [
             ': "${INSILICO_PCR:?point INSILICO_PCR at the folder of an extracted insilicoPCR release}"', ""]),
         # A design checks the release before it does anything; this script runs without one. The check
-        # matters more here than a usage error would: an older release exits 0 with empty reports.
+        # matters more here than a usage error would: an older release exits 0, with empty reports or
+        # with reports counted on other terms.
         "# The primer files declare each assay's product size (size=) on the forward primer's header. A",
-        f"# release older than {needed} reads that as part of the primer's name and reports that nothing",
-        "# amplified -- on the exclusion group, the answer of a selective assay -- so it is refused here.",
+        f"# release older than {sized} reads that as part of the primer's name and reports that nothing",
+        "# amplified -- on the exclusion group, the answer of a selective assay. And a release older than",
+        f"# {needed} counts a mismatch near the end of a probe, or near a primer's 3' end, by what blast",
+        "# trimmed off the alignment with it, and accepts other bindings. Both are refused here.",
         f"version=\"$({start} -v 2> /dev/null | grep -Eo '[0-9]+\\.[0-9]+(\\.[0-9]+)?' | head -n 1 || true)\"",
         f'if [ -z "${{version}}" ] || '
         f'[ "$(printf \'%s\\n\' {needed} "${{version}}" | sort -V | head -n 1)" != "{needed}" ]; then',

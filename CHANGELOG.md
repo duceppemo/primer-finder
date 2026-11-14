@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+primer-finder now needs [insilicoPCR](https://github.com/duceppemo/insilicoPCR) **0.12.0**, which counts a
+mismatch near the end of a primer or a probe as one mismatch. Checked up to 0.14.0, which gives the same
+results. Measured in `validation/results/2026-11-13_v1.12.0_insilico0130/`.
+
+### Changed
+
+- **insilicoPCR 0.12.0 or newer is required** (it was 0.11.0). blast trims a mismatch near an alignment's
+  end together with the matching bases beyond it, and until 0.12.0 insilicoPCR judged a hit by what was
+  left. For a probe, a mismatch in its first or last two bases was not counted, and one three or four
+  bases in was refused at any `--probe-mismatches`. For a primer, one mismatch two to four bases from the
+  3' end counted as several, which the 3'-end check could not readmit. On the *Xylella* panel the PCR
+  verdicts do not move, at three settings. 23 qPCR verdicts move at the defaults, all on a probe
+  mismatched near an end: 16 `yes` to `no`, where an exclusion genome's probe site now binds through one
+  mismatch, and 7 `no` to `yes`, where the trimmed end hid a second one. `--probe-mismatches 2` now
+  moves 28 qPCR verdicts, all `yes` to `no` (13 before), so it is still a stricter screen, never a
+  rescue. `design` refuses an older release before Primer3, saying why, and so does
+  `run_insilico_pcr.sh`. A report without the two columns 0.12.0 added (`Forward5PrimeUnaligned`,
+  `Reverse5PrimeUnaligned`) is refused rather than counted. primer-finder 1.12.0 remains the release for
+  insilicoPCR 0.11.0.
+- **`*_exclusion_held_by_3prime` sees the whole of a primer's last five bases.** Under 0.12.0 the lenient
+  run readmits one mismatch anywhere in them, not only the terminal base or the fifth. On the panel the
+  share of `yes` assays flagged rises from 16% to 24% in PCR mode and from 11% to 16% in qPCR mode, and
+  the ranking, which breaks ties away from flagged assays, reorders accordingly. The same `--3p-penalty
+  4` also readmits two mismatches in one primer's window when they weigh no more than a terminal one,
+  which 0.11.0 never did. That is not a base a polymerase occasionally reads through, so such a row is
+  now left out of the count. One mismatch in each primer is counted, as before.
+
 ## 1.12.0
 
 primer-finder now needs [insilicoPCR](https://github.com/duceppemo/insilicoPCR) **0.11.0**, because the

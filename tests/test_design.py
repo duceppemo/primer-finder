@@ -2087,7 +2087,7 @@ def test_an_insilico_pcr_that_cannot_read_the_declared_size_is_refused_before_an
     old.write_text("#!/bin/sh\necho 'insilicoPCR 0.10.1'\n")
     old.chmod(0o755)
     output = tmp_path / "assays"
-    with pytest.raises(PrimerFinderError, match="insilicoPCR 0.10.1 is older than the 0.11.0"):
+    with pytest.raises(PrimerFinderError, match="insilicoPCR 0.10.1 is older than the 0.12.0"):
         run(design_settings(finished_run, output, insilico_pcr=old))
     assert not (output / "primer3").exists(), "Primer3 ran before the version was looked at"
     assert not (output / "assays.tsv").exists()
@@ -2111,7 +2111,7 @@ def test_an_insilico_pcr_older_than_0_8_0_is_refused_before_any_of_the_work(stub
     old.write_text("#!/bin/sh\necho 'Unrecognized option: -v' >&2\nexit 2\n")
     old.chmod(0o755)
     output = tmp_path / "assays"
-    with pytest.raises(PrimerFinderError, match="needs 0.11.0 or newer"):
+    with pytest.raises(PrimerFinderError, match="needs 0.12.0 or newer"):
         run(design_settings(finished_run, output, insilico_pcr=old))
     assert not (output / "primer3").exists(), "Primer3 ran before the version was looked at"
     assert not (output / "assays.tsv").exists()

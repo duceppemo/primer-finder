@@ -170,23 +170,24 @@ def build_parser(max_cpu: int, max_mem: int) -> argparse.ArgumentParser:
     design_parser.add_argument("--mismatches", metavar=str(design.DEFAULT_MISMATCHES), type=int,
                                default=design.DEFAULT_MISMATCHES,
                                help="Mismatches insilicoPCR should let each primer bind through -- "
-                                    "substitutions, indels and unaligned 3' bases all count. Default "
+                                    "substitutions, indels and unpaired 3' bases all count. Default "
                                     f"{design.DEFAULT_MISMATCHES}, since one mismatch is often not enough "
                                     "to stop a reaction; 0 assumes any mismatch does, and 2 is a stricter "
                                     "check. Whatever the budget, insilicoPCR refuses any imperfection in "
                                     "the last five bases of a primer, where a mismatch hinders extension.")
     design_parser.add_argument("--probe-mismatches", metavar="n", type=int, default=None,
-                               help="Mismatches insilicoPCR should let a probe bind through. Default: the "
+                               help="Mismatches insilicoPCR should let a probe bind through, counted "
+                                    "over every base of it. Default: the "
                                     "--mismatches value. One more than --mismatches is a stricter screen, "
                                     "not a looser one: a probe that hybridizes hotter also binds exclusion "
                                     "near-matches the default refuses.")
     design_parser.add_argument("--no-3prime-check", dest="three_prime_check", action="store_false",
-                               help="Skip the extra exclusion run that tolerates an imperfection at the "
-                                    "far 3' end. With the check, *_exclusion_held_by_3prime counts the "
-                                    "exclusion genomes an assay is held off only by the far 3' end of a "
-                                    "primer -- the last base, or one five bases in, which a polymerase "
-                                    "occasionally reads through -- and the ranking breaks ties away "
-                                    "from such assays.")
+                               help="Skip the extra exclusion run that tolerates an imperfection in "
+                                    "the last five bases of a primer. With the check, "
+                                    "*_exclusion_held_by_3prime counts the exclusion genomes an assay is "
+                                    "held off only by those bases -- one mismatch among them, which a "
+                                    "polymerase occasionally reads through -- and the ranking breaks "
+                                    "ties away from such assays.")
     design_parser.add_argument("--debug", action="store_true", help="Verbose logging.")
 
     convert = commands.add_parser(

@@ -43,11 +43,12 @@ def assay(name: str, probe: bool = True) -> Assay:
     return one
 
 
-# What insilicoPCR 0.11.0 writes for a primer file that declares product sizes, as every file written
+# What insilicoPCR 0.12.0 writes for a primer file that declares product sizes, as every file written
 # here does; primer-finder reads Sample and Gene and insists the rest is not an older release's report.
 COLUMNS = ("Sample", "Gene", "GenomeLocation", "AmpliconSize", "Contig", "Contig Description",
            "ForwardPrimers", "ReversePrimers", "ForwardMismatches", "ReverseMismatches",
-           "Forward3PrimeMismatches", "Reverse3PrimeMismatches", "Strand", "SizeCheck")
+           "Forward3PrimeMismatches", "Reverse3PrimeMismatches", "Strand",
+           "Forward5PrimeUnaligned", "Reverse5PrimeUnaligned", "SizeCheck")
 
 
 def write_report(folder: Path, rows: list[tuple[str, str]], description: str = "") -> Path:
@@ -57,7 +58,7 @@ def write_report(folder: Path, rows: list[tuple[str, str]], description: str = "
         fh.write("\t".join(COLUMNS) + "\n")
         for sample, gene in rows:
             fh.write(f"{sample}\t{gene}\t1-100\t100\tchr\t{description}"
-                     f"\t{gene}-F\t{gene}-R\t0\t0\t0\t0\t+\ttarget\n")
+                     f"\t{gene}-F\t{gene}-R\t0\t0\t0\t0\t+\t0\t0\ttarget\n")
     return report
 
 
@@ -178,7 +179,7 @@ def write_lenient_report(folder: Path, rows: list[tuple[str, str, int, int, int,
         fh.write("\t".join(COLUMNS) + "\n")
         for sample, gene, m_f, w_f, m_r, w_r in rows:
             fh.write(f"{sample}\t{gene}\t1-100\t100\tchr\t\t{gene}-F\t{gene}-R"
-                     f"\t{m_f}\t{m_r}\t{w_f}\t{w_r}\t+\ttarget\n")
+                     f"\t{m_f}\t{m_r}\t{w_f}\t{w_r}\t+\t0\t0\ttarget\n")
     return report
 
 
@@ -207,6 +208,18 @@ def test_an_internal_mismatch_over_the_budget_is_not_the_terminal_base(tmp_path)
     write_lenient_report(tmp_path, [("g0", "a", 3, 1, 0, 0)])   # window 1, internals 2, budget 1
     assert read_three_prime_held(tmp_path, budget=1) == {}
     assert read_three_prime_held(tmp_path, budget=2) == {"a": {"g0"}}
+
+
+def test_two_imperfections_in_one_window_are_not_the_3prime_end_alone(tmp_path):
+    """insilicoPCR 0.12.0 counts a mismatch near a primer's 3' end once, so the lenient run's penalty of
+    4 also lets through two mismatches in one window that weigh no more than a terminal base (the fourth
+    and fifth bases in, 1 each). That is not a base a polymerase occasionally reads through, and 0.11.0
+    never reported it; on the Xylella panel under 0.13.0 it was a fifth of the held pairs. One on each
+    primer is still one per window, as it always was."""
+    write_lenient_report(tmp_path, [("g0", "a", 2, 2, 0, 0),    # two in the forward window
+                                    ("g1", "a", 1, 1, 1, 1)])   # one in each primer's window
+    assert read_three_prime_held(tmp_path, budget=1) == {"a": {"g1"}}
+    assert read_three_prime_held(tmp_path, budget=2) == {"a": {"g1"}}
 
 
 def test_an_unreadable_count_is_not_claimed_as_the_terminal_base(tmp_path):
@@ -300,6 +313,23 @@ def test_a_report_without_the_size_column_is_refused(tmp_path):
         read_three_prime_held(tmp_path, budget=1)
 
 
+def test_a_report_of_0_11_0_is_refused(tmp_path):
+    """0.11.0 reads the primer file and its rows are amplicons, but it lets other bindings through than
+    0.12.0 does -- a probe mismatched in its first or last two bases for nothing, none mismatched three
+    or four bases in, and in the lenient pass no primer mismatched two to four bases from its 3' end --
+    so the same assays get other verdicts and other held counts. Measured on the *Xylella* panel in
+    validation/results/2026-11-13_v1.12.0_insilico0130/. The two columns 0.12.0 added are the tell, and
+    they are there on an empty report too."""
+    report = tmp_path / REPORT
+    report.parent.mkdir(parents=True, exist_ok=True)
+    old = [column for column in COLUMNS if not column.endswith("5PrimeUnaligned")]
+    report.write_text("\t".join(old) + "\n" + "g0\ta\t1-100\t100\tchr\t\ta-F\ta-R\t0\t0\t0\t0\t+\ttarget\n")
+    with pytest.raises(PrimerFinderError, match="no Forward5PrimeUnaligned.*older than 0.12.0"):
+        read_report(tmp_path)
+    with pytest.raises(PrimerFinderError, match="older than 0.12.0"):
+        read_three_prime_held(tmp_path, budget=1)
+
+
 def test_an_unexpected_size_is_still_an_amplification(tmp_path):
     """The size check labels a product and removes none, and neither does the reading: a product of
     another size than the one designed is still a product, and on the exclusion group still a
@@ -319,7 +349,7 @@ def script_that(tmp_path, body: str) -> list[str]:
 
 
 def test_check_version_accepts_a_current_release(tmp_path):
-    assert check_version(script_that(tmp_path, 'echo "insilicoPCR 0.11.0"')) == "insilicoPCR 0.11.0"
+    assert check_version(script_that(tmp_path, 'echo "insilicoPCR 0.12.0"')) == "insilicoPCR 0.12.0"
     assert check_version(script_that(tmp_path, 'echo "insilicoPCR 1.2"')) == "insilicoPCR 1.2"
 
 
@@ -327,12 +357,12 @@ def test_check_version_refuses_a_release_that_does_not_know_itself(tmp_path):
     """0.6.x has no -v at all: it prints an "Unrecognized option" usage dump and exits non-zero. That is
     the answer, and it has to arrive here -- before Primer3 and every blast -- not at the last step."""
     old = script_that(tmp_path, "echo 'Unrecognized option: -v' >&2\nexit 2")
-    with pytest.raises(PrimerFinderError, match="needs 0.11.0 or newer"):
+    with pytest.raises(PrimerFinderError, match="needs 0.12.0 or newer"):
         check_version(old)
 
 
 def test_check_version_refuses_a_release_below_0_8_0(tmp_path):
-    with pytest.raises(PrimerFinderError, match="older than the 0.11.0.*raw primer pairings"):
+    with pytest.raises(PrimerFinderError, match="older than the 0.12.0.*raw primer pairings"):
         check_version(script_that(tmp_path, 'echo "insilicoPCR 0.7.0"'))
     with pytest.raises(PrimerFinderError, match="no version"):
         check_version(script_that(tmp_path, 'echo "ready"'))
@@ -343,8 +373,18 @@ def test_check_version_refuses_a_release_that_cannot_read_the_declared_size(tmp_
     """These releases write amplicon reports, know every option a run passes and exit 0 -- having read
     `<name>-F size=<bp>` as a primer's name and so reported nothing. Nothing downstream would stop a
     design from calling every assay silent on the exclusion group, so the version has to."""
-    with pytest.raises(PrimerFinderError, match=f"insilicoPCR {release} is older than the 0.11.0.*size="):
+    with pytest.raises(PrimerFinderError, match=f"insilicoPCR {release} is older than the 0.12.0.*size="):
         check_version(script_that(tmp_path, f'echo "insilicoPCR {release}"'))
+
+
+def test_check_version_refuses_a_release_that_counts_what_blast_trimmed(tmp_path):
+    """0.11.0 reads the declared size, knows every option and writes amplicons -- and counts a mismatch
+    near the end of an oligo by what blast trimmed off the alignment with it. Nothing in its report says
+    so before the two columns 0.12.0 added are missed, at the last step; the version says so first, and
+    names the primer-finder that was written for it."""
+    with pytest.raises(PrimerFinderError, match="insilicoPCR 0.11.0 is older than the 0.12.0.*blast "
+                                                "trimmed.*primer-finder 1.12.0"):
+        check_version(script_that(tmp_path, 'echo "insilicoPCR 0.11.0"'))
 
 
 def test_run_insists_on_a_report(stubs, tmp_path, insilico_pcr):
@@ -520,13 +560,14 @@ def test_the_script_without_a_launcher_asks_for_one(tmp_path):
     assert ran.returncode != 0 and "point INSILICO_PCR at" in ran.stderr
 
 
-@pytest.mark.parametrize("says, runs", [("insilicoPCR 0.11.0", True), ("insilicoPCR 1.0", True),
-                                        ("insilicoPCR 0.10.1", False), ("insilicoPCR 0.8.0", False),
-                                        ("", False)])
-def test_the_script_refuses_a_release_that_cannot_read_the_declared_size(tmp_path, says, runs):
+@pytest.mark.parametrize("says, runs", [("insilicoPCR 0.12.0", True), ("insilicoPCR 1.0", True),
+                                        ("insilicoPCR 0.11.0", False), ("insilicoPCR 0.10.1", False),
+                                        ("insilicoPCR 0.8.0", False), ("", False)])
+def test_the_script_refuses_a_release_older_than_the_one_it_was_written_for(tmp_path, says, runs):
     """A design checks the release before it starts; the script is run by hand, later, against whatever
-    INSILICO_PCR or the recorded launcher is by then. An older release would exit 0 with empty reports,
-    so the script asks first -- and runs nothing when the answer is too old or no answer."""
+    INSILICO_PCR or the recorded launcher is by then. An older release would exit 0, with empty reports
+    or with reports counted on other terms, so the script asks first -- and runs nothing when the answer
+    is too old or no answer."""
     launcher = tmp_path / "insilico.sh"
     launcher.write_text("#!/bin/sh\n"
                         f'if [ "$1" = "-v" ]; then echo "{says}"; exit 0; fi\n'
@@ -540,7 +581,7 @@ def test_the_script_refuses_a_release_that_cannot_read_the_declared_size(tmp_pat
         assert ran.returncode == 0, ran.stderr
         assert (tmp_path / "calls").read_text().count("ran") == 3
     else:
-        assert ran.returncode == 1 and "0.11.0 or newer is needed" in ran.stderr
+        assert ran.returncode == 1 and "0.12.0 or newer is needed" in ran.stderr
         assert not (tmp_path / "calls").exists()
 
 

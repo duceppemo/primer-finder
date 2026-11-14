@@ -50,7 +50,7 @@ To turn those regions into assays, with Primer3 and a check of what would actual
 primer-finder design results/ -o assays/ --insilico-pcr /path/to/insilicoPCR-linux-x64
 ```
 
-`--insilico-pcr` is optional and points at [insilicoPCR](https://github.com/duceppemo/insilicoPCR) 0.11.0 or
+`--insilico-pcr` is optional and points at [insilicoPCR](https://github.com/duceppemo/insilicoPCR) 0.12.0 or
 newer, a separate program: given it, the designed assays are amplified in silico against both groups and
 each one is marked with whether it amplifies every inclusion genome and no exclusion genome. The primer
 files declare the product size each assay was designed to give, so insilicoPCR's own reports say of every

@@ -55,6 +55,14 @@ byte-identical; on *Listeria* sequence broken into contigs inside 100 primer sit
 report the same products, 0.11.0 sizing those at a contig start 1-5 bases longer, and what primer-finder
 reads (which samples amplify, and which only at the 3' end) is the same: no change is needed.
 
+`2026-11-13_v1.12.0_insilico0130/` is the move to insilicoPCR 0.12.0, whose hit filters compare the bases
+blast trims off an alignment's ends with the genome, so that one mismatch near the end of a primer or a
+probe counts as one; 0.12.1, 0.13.0 and 0.14.0 change nothing primer-finder reads. The zones are measured again,
+and the Xylella panel is designed under 0.11.0 and 0.13.0 at the default, `--probe-mismatches 2` and
+`--mismatches 0`: no PCR verdict moves, 23 qPCR verdicts move on a probe mismatched near an end, the
+3'-end check finds a mismatch two to four bases in that 0.11.0 could not readmit, and it also readmits
+two mismatches in one primer's window, which primer-finder now leaves out of the count.
+
 Not every record is about an assay. `2026-10-14_v1.7.0_unitig/` measures what a change to the code does to
 a panel whose answer is already known — the question any change to the find or assembly rules has to
 answer before it can become a default.

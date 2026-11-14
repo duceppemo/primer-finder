@@ -42,10 +42,11 @@ DEFAULT_ASSAYS_PER_REGION = 3
 DEFAULT_GC_CLAMP = 1
 
 # How many mismatches insilicoPCR should let a primer bind through. Since insilicoPCR 0.8.0 the budget
-# counts substitutions, indels and the 3'-end bases blast trims off the alignment, and any imperfection in
-# the last five bases of a primer is refused outright (its --3p-penalty default) -- so this governs the
-# internal mismatches, and one of those is often not enough to stop a real reaction, so assuming it does
-# would flatter an assay. See docs/wiki/Designing-assays.md.
+# counts substitutions, indels and the 3'-end bases that do not pair, and any imperfection in the last
+# five bases of a primer is refused outright (its --3p-penalty default) -- so this governs the internal
+# mismatches, and one of those is often not enough to stop a real reaction, so assuming it does would
+# flatter an assay. The probe's budget follows it unless --probe-mismatches says otherwise, and since
+# 0.12.0 counts every base of the probe. See docs/wiki/Designing-assays.md.
 DEFAULT_MISMATCHES = 1
 
 # How many differences one *primer* must cover, for an assay that rests on differences rather than on
@@ -1698,7 +1699,7 @@ def rank_key(assay: Assay) -> tuple:
 
 
 def held_of(modes: dict[str, object]) -> int:
-    """Exclusion genomes held off only by the far 3' end of a primer, summed over the modes: the
+    """Exclusion genomes held off only by the last five bases of a primer, summed over the modes: the
     tiebreak that prefers, between equally backed assays, the one whose silence does not rest on
     bases a polymerase can read through."""
     return sum(verdict.exclusion_held_by_three_prime for verdict in modes.values())
@@ -1737,11 +1738,12 @@ def run_insilico_pcr(settings: DesignSettings, assays: Sequence[Assay], primer_f
             reports[group] = insilico.read_report(output)
         held: dict[str, set[str]] = {}
         if settings.three_prime_check:
-            # The same exclusion genomes with the far 3' end readmitted (and the extra budget unit
-            # it consumes; the probes stay at the strict budget so nothing else loosens with it): a
-            # genome that amplifies only here is held off by bases a polymerase can read through.
+            # The same exclusion genomes with an imperfection in a primer's last five bases readmitted
+            # (and the extra budget unit it consumes; the probes stay at the strict budget so nothing
+            # else loosens with it): a genome that amplifies only here is held off by bases a
+            # polymerase can read through.
             log.info("In silico PCR (%s) against the exclusion genomes again, tolerating an "
-                     "imperfection at the far 3' end...", kind)
+                     "imperfection in the last five bases of a primer...", kind)
             output = settings.output / "insilico_pcr" / f"{kind}_exclusion_3prime"
             insilico.run(launcher, exclusion, primer_file, output, settings.threads,
                          settings.mismatches + 1,
@@ -1763,7 +1765,7 @@ def run_insilico_pcr(settings: DesignSettings, assays: Sequence[Assay], primer_f
                         if verdict.selective and verdict.exclusion_held_by_three_prime)
         if depending:
             log.info("In silico PCR (%s): %d of those are held off an exclusion genome only by the "
-                     "far 3' end of a primer, which a polymerase can read through; "
+                     "last five bases of a primer, which a polymerase can read through; "
                      "%s_exclusion_held_by_3prime counts the genomes and the ranking breaks ties "
                      "away from it", kind, depending, kind)
     return verdicts

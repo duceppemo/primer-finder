@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""A stand-in for insilicoPCR 0.11.0: writes the consolidated report its real counterpart writes.
+"""A stand-in for insilicoPCR 0.12.0: writes the consolidated report its real counterpart writes.
 
 `design` reads `consolidated_report/report.tsv`, whose rows are called amplicons since 0.8.0 -- the stub
 writes one row per assay and amplifying sample, with the 0.8.0 columns. Like 0.11.0 it ends a primer's
 name at the first blank of its header and reads a `size=` after it as the product size the assay
 declares: the row then carries that size, and the report ends with a `SizeCheck` column saying `target`.
+Like 0.12.0 it says of each primer how many of its 5' bases do not pair, in two columns before that one.
 Like the real program it never overwrites a report: an existing `report.tsv` makes it write
 `report(1).tsv` instead, which is what `insilico.run` clears stale reports to avoid. What the rows say is
 read from PRIMER_FINDER_STUBS, as for the other stub programs:
@@ -35,6 +36,8 @@ COLUMNS = ("Sample", "Gene", "GenomeLocation", "AmpliconSize", "Contig", "Contig
 # Appended when any assay in the primer file has a probe; a probe-less assay in such a mixed file keeps
 # them empty, as the real program pads them since 0.8.0.
 PROBE_COLUMNS = ("Probe", "ProbeLocation", "ProbeSize", "ProbeMismatches")
+# Appended since 0.12.0, after the probe columns: the 5' bases of each primer that do not pair.
+UNPAIRED_COLUMNS = ("Forward5PrimeUnaligned", "Reverse5PrimeUnaligned")
 # Appended last, since 0.11.0, when any assay in the primer file declares a product size.
 SIZE_COLUMNS = ("SizeCheck",)
 
@@ -54,7 +57,7 @@ def main(argv: list[str]) -> int:
     if "-v" in argv:
         # The version probe `design` sends before any of the work. Not logged to PRIMER_FINDER_CALLS:
         # the tests count the amplification runs, and this is not one.
-        print("insilicoPCR 0.11.0")
+        print("insilicoPCR 0.12.0")
         return 0
     options = dict(zip(argv[::2], argv[1::2], strict=False))
     scenario = json.loads(os.environ.get("PRIMER_FINDER_STUBS", "{}"))
@@ -80,7 +83,8 @@ def main(argv: list[str]) -> int:
     samples = sorted(path.name.split(".")[0] for path in genomes.glob("*.fasta"))
     inclusion = "inclusion" in genomes.name
     lenient = "--3p-penalty" in options and options["--3p-penalty"] != "0"
-    columns = COLUMNS + (PROBE_COLUMNS if with_probe else ()) + (SIZE_COLUMNS if declared else ())
+    columns = (COLUMNS + (PROBE_COLUMNS if with_probe else ()) + UNPAIRED_COLUMNS
+               + (SIZE_COLUMNS if declared else ()))
 
     if scenario.get("insilico_no_report"):
         return 0
@@ -95,14 +99,15 @@ def main(argv: list[str]) -> int:
             amplifies = (sample not in misses) if inclusion else (sample in extra or sample in held)
             if not amplifies:
                 continue
-            # A held sample's binding carries the tolerated 3'-terminal imperfection: one mismatch in
-            # the forward primer's window, which is also the one unit of -m the trimmed base consumes
+            # A held sample's binding carries the tolerated 3'-end imperfection: one mismatch in the
+            # forward primer's window, which is also the one unit of -m that base consumes
             forward, window = ("1", "1") if sample in held and sample not in extra else ("0", "0")
             size = declared.get(assay, "100")
             row = [sample, assay, f"1-{size}", size, "chr", "",
                    f"{assay}-F", f"{assay}-R", forward, "0", window, "0", "+"]
             if with_probe:
                 row += ([f"{assay}-P", "20-40", "20", "0"] if assay in with_probe else ["", "", "", ""])
+            row += ["0", "0"]
             if declared:
                 row.append("target" if assay in declared else "")
             rows.append(row)
