@@ -58,13 +58,13 @@ assembler you ask for has to be installed, and `-a unitig` asks for none.
 
 [insilicoPCR](https://github.com/duceppemo/insilicoPCR) is **not** installed with primer-finder and is not
 needed to run it. It is a separate program, and `primer-finder design --insilico-pcr` points at an extracted
-portable release of it (which brings its own Java, BBMap and BLAST+) — **release 0.12.0 or newer**: an
-older one is refused before any of the work. 0.12.0 is the first release to count a mismatch near the
-end of a probe, or near a primer's 3' end, as one mismatch rather than by what blast trimmed off the
-alignment with it, and the same assays get other verdicts from 0.11.0. Releases up to 0.14.0 have been
-checked. primer-finder 1.12.0 is the last that runs on insilicoPCR 0.11.0, and 1.11.0 the last that runs
-on 0.8.0 to 0.10.1, which cannot read the product size the primer files have declared since. See
-[Designing assays](Designing-assays).
+portable release of it (which brings its own Java, BBMap and BLAST+) — **release 2.1.0 or newer**: an
+older one is refused before any of the work. insilicoPCR 2.0 accepts a primer or probe site by its
+melting temperature on the genome rather than by a count of its mismatches, and refuses the mismatch
+options (`-m`, `--probe-mismatches`) the releases before it took; 2.1.0 is the release this was checked
+against. insilicoPCR 2.x is under the GPL; primer-finder runs it as a separate program and includes none of
+its code, so its own licence is unchanged. Older pairings: primer-finder 1.13.0 runs insilicoPCR 0.12.0
+to 0.14.0, 1.12.0 runs 0.11.0, and 1.11.0 runs 0.8.0 to 0.10.1. See [Designing assays](Designing-assays).
 
 ## Checking the installation
 

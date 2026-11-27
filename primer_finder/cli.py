@@ -166,21 +166,31 @@ def build_parser(max_cpu: int, max_mem: int) -> argparse.ArgumentParser:
                                help="Run in silico PCR of the designed assays against both groups with "
                                     "insilicoPCR, and report which assays amplify every inclusion genome "
                                     "and no exclusion genome. Give the folder of an extracted portable "
-                                    "release, its jar, or a launcher script.")
-    design_parser.add_argument("--mismatches", metavar=str(design.DEFAULT_MISMATCHES), type=int,
-                               default=design.DEFAULT_MISMATCHES,
-                               help="Mismatches insilicoPCR should let each primer bind through -- "
-                                    "substitutions, indels and unpaired 3' bases all count. Default "
-                                    f"{design.DEFAULT_MISMATCHES}, since one mismatch is often not enough "
-                                    "to stop a reaction; 0 assumes any mismatch does, and 2 is a stricter "
-                                    "check. Whatever the budget, insilicoPCR refuses any imperfection in "
-                                    "the last five bases of a primer, where a mismatch hinders extension.")
-    design_parser.add_argument("--probe-mismatches", metavar="n", type=int, default=None,
-                               help="Mismatches insilicoPCR should let a probe bind through, counted "
-                                    "over every base of it. Default: the "
-                                    "--mismatches value. One more than --mismatches is a stricter screen, "
-                                    "not a looser one: a probe that hybridizes hotter also binds exclusion "
-                                    "near-matches the default refuses.")
+                                    "release of insilicoPCR 2.1.0 or newer (it brings its own Java), its "
+                                    "jar (run with the java on PATH, which must be 25 or newer), or a "
+                                    "launcher script.")
+    design_parser.add_argument("--anneal-temp", metavar=f"{design.DEFAULT_ANNEAL_TEMP:g}", type=float,
+                               default=design.DEFAULT_ANNEAL_TEMP,
+                               help="Annealing temperature insilicoPCR judges the sites at, in degrees "
+                                    "Celsius: a primer or probe site is accepted when its Tm on the genome, "
+                                    "in the reaction above, reaches it less --tm-margin. Default "
+                                    f"{design.DEFAULT_ANNEAL_TEMP:g}, the Tm the primers are designed for. "
+                                    "Whatever the Tm, insilicoPCR refuses any imperfection in the last five "
+                                    "bases of a primer, where a mismatch hinders extension.")
+    design_parser.add_argument("--tm-margin", metavar=f"{design.DEFAULT_TM_MARGIN:g}", type=float,
+                               default=design.DEFAULT_TM_MARGIN,
+                               help="How far below --anneal-temp a site's Tm may be, in degrees Celsius. "
+                                    f"Default {design.DEFAULT_TM_MARGIN:g}, insilicoPCR's own: sites then "
+                                    "need "
+                                    f"{design.DEFAULT_ANNEAL_TEMP - design.DEFAULT_TM_MARGIN:g} C. A wider "
+                                    "margin accepts weaker sites, in the inclusion and the exclusion "
+                                    "genomes alike.")
+    # Removed with insilicoPCR 2.0, which accepts a site by its Tm and refuses a mismatch count. Kept out
+    # of --help but refused in words, as insilicoPCR refuses its own -m: an old command line should say
+    # what to give instead rather than "unrecognized arguments".
+    for removed in ("--mismatches", "--probe-mismatches"):
+        design_parser.add_argument(removed, dest=removed.lstrip("-").replace("-", "_"), default=None,
+                                   help=argparse.SUPPRESS)
     design_parser.add_argument("--no-3prime-check", dest="three_prime_check", action="store_false",
                                help="Skip the extra exclusion run that tolerates an imperfection in "
                                     "the last five bases of a primer. With the check, "
@@ -250,10 +260,23 @@ def main(argv: list[str] | None = None) -> int:
             for option, value, least in (("--assays-per-region", args.assays_per_region, 1),
                                          ("--max-regions", args.max_regions, 0),  # 0 is "every region"
                                          ("--gc-clamp", args.gc_clamp, 0),
-                                         ("--mismatches", args.mismatches, 0),
                                          ("--min-primer-differences", args.min_primer_differences, 0)):
                 if value < least:
                     parser.error(f"{option} must be {least} or more")
+            for option, value in (("--mismatches", args.mismatches),
+                                  ("--probe-mismatches", args.probe_mismatches)):
+                if value is not None:
+                    parser.error(f"{option} was removed: insilicoPCR 2.0 and newer accept a primer or probe "
+                                 "site when its Tm on the genome reaches --anneal-temp (default "
+                                 f"{design.DEFAULT_ANNEAL_TEMP:g}) less --tm-margin (default "
+                                 f"{design.DEFAULT_TM_MARGIN:g}), whatever its mismatches. Leave it out; "
+                                 "lower --anneal-temp or raise --tm-margin to accept weaker sites.")
+            # insilicoPCR refuses these itself, but only once the design has run for its last step
+            if not 0 < args.anneal_temp <= 100:
+                parser.error("--anneal-temp must be above 0 and at most 100")
+            if not 0 <= args.tm_margin < args.anneal_temp:
+                parser.error("--tm-margin must be 0 or more and below --anneal-temp: a site that pairs "
+                             "nowhere melts at 0 C, and a minimum of 0 C or below would accept every hit")
             for option, value in (("--monovalent", args.monovalent), ("--divalent", args.divalent),
                                   ("--dntp", args.dntp), ("--primer-conc", args.primer_conc),
                                   ("--probe-conc", args.probe_conc)):
@@ -280,8 +303,8 @@ def main(argv: list[str] | None = None) -> int:
                 min_primer_differences=args.min_primer_differences,
                 max_regions=args.max_regions,
                 insilico_pcr=args.insilico_pcr,
-                mismatches=args.mismatches,
-                probe_mismatches=args.probe_mismatches,
+                anneal_temp=args.anneal_temp,
+                tm_margin=args.tm_margin,
                 three_prime_check=args.three_prime_check,
                 command_line=["primer-finder", *given],
             ))

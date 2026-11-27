@@ -63,6 +63,15 @@ and the Xylella panel is designed under 0.11.0 and 0.13.0 at the default, `--pro
 3'-end check finds a mismatch two to four bases in that 0.11.0 could not readmit, and it also readmits
 two mismatches in one primer's window, which primer-finder now leaves out of the count.
 
+`2026-11-27_v1.13.0_insilico210/` is the move to insilicoPCR 2.1.0, which accepts a primer or probe site
+by its Tm on the genome rather than by a mismatch count, and refuses the `-m` and `--probe-mismatches`
+primer-finder used to pass. It measures the rule one base at a time on a designed assay (`tm_zones.py`),
+runs the contig-edge set under both rules, and designs the example and the Xylella panel with primer-finder
+1.13.0 and insilicoPCR 0.14.0 and with the new code and 2.1.0. The example does not move; on the panel 125
+PCR and 93 qPCR verdicts of 2,430 do, each moved (assay, genome) pair put to the rule `report_no_product.tsv`
+or the Tm columns give; the 3'-end check flags far fewer assays, its lenient run no longer paying for the
+window mismatch with an extra `-m`.
+
 Not every record is about an assay. `2026-10-14_v1.7.0_unitig/` measures what a change to the code does to
 a panel whose answer is already known — the question any change to the find or assembly rules has to
 answer before it can become a default.

@@ -41,13 +41,15 @@ DEFAULT_ASSAYS_PER_REGION = 3
 # a G or a C there would throw away every allele-specific primer whose target is an A or a T.
 DEFAULT_GC_CLAMP = 1
 
-# How many mismatches insilicoPCR should let a primer bind through. Since insilicoPCR 0.8.0 the budget
-# counts substitutions, indels and the 3'-end bases that do not pair, and any imperfection in the last
-# five bases of a primer is refused outright (its --3p-penalty default) -- so this governs the internal
-# mismatches, and one of those is often not enough to stop a real reaction, so assuming it does would
-# flatter an assay. The probe's budget follows it unless --probe-mismatches says otherwise, and since
-# 0.12.0 counts every base of the probe. See docs/wiki/Designing-assays.md.
-DEFAULT_MISMATCHES = 1
+# What insilicoPCR (2.0 and newer) judges a primer or probe site by: its Tm on the genome, in the reaction
+# below, must reach the annealing temperature less the margin. 60 C is the temperature the primers are
+# designed to melt at (PRIMER_OPT_TM) and insilicoPCR's own default; the margin of 5 C is insilicoPCR's
+# default too, with which a site needs 55 C. insilicoPCR's wiki (Why-Tm) keeps it there because a wider
+# margin hides the assays that rest on a weak site. Both are passed explicitly, so the verdicts do not move
+# if insilicoPCR's defaults do. Any imperfection in the last five bases of a primer is still refused
+# outright (its --3p-penalty default). See docs/wiki/Designing-assays.md.
+DEFAULT_ANNEAL_TEMP = 60.0
+DEFAULT_TM_MARGIN = 5.0
 
 # How many differences one *primer* must cover, for an assay that rests on differences rather than on
 # absence. The `find` command keeps a region because its differences could sit in one oligo -- a run of them,
@@ -1152,9 +1154,11 @@ COLUMNS = (
     "probe_hairpin_tm", "probe_self_dimer_tm",
 )
 VERDICT_COLUMNS = ("inclusion_total", "exclusion_total",
-                   "qpcr_inclusion_amplified", "qpcr_inclusion_percent", "qpcr_exclusion_amplified",
+                   "qpcr_inclusion_amplified", "qpcr_inclusion_percent", "qpcr_inclusion_weakest_tm",
+                   "qpcr_inclusion_no_product", "qpcr_exclusion_amplified",
                    "qpcr_exclusion_held_by_3prime", "qpcr_selective",
-                   "pcr_inclusion_amplified", "pcr_inclusion_percent", "pcr_exclusion_amplified",
+                   "pcr_inclusion_amplified", "pcr_inclusion_percent", "pcr_inclusion_weakest_tm",
+                   "pcr_inclusion_no_product", "pcr_exclusion_amplified",
                    "pcr_exclusion_held_by_3prime", "pcr_selective")
 
 
@@ -1174,8 +1178,8 @@ class DesignSettings:
     min_primer_differences: int = DEFAULT_MIN_PRIMER_DIFFERENCES
     max_regions: int = DEFAULT_MAX_REGIONS  # 0 for every region
     insilico_pcr: Path | None = None
-    mismatches: int = DEFAULT_MISMATCHES
-    probe_mismatches: int | None = None  # insilicoPCR's default is the --mismatches value
+    anneal_temp: float = DEFAULT_ANNEAL_TEMP
+    tm_margin: float = DEFAULT_TM_MARGIN
     # Rerun the exclusion group tolerating an imperfection at the far 3' end, to count the genomes an
     # assay is held off only there -- by bases a real polymerase occasionally reads through.
     three_prime_check: bool = True
@@ -1237,6 +1241,9 @@ def assay_row(assay: Assay, verdict: dict[str, object] | None = None) -> dict[st
             "exclusion_total": one.exclusion_total,
             f"{kind}_inclusion_amplified": one.inclusion_amplified,
             f"{kind}_inclusion_percent": one.percent,
+            f"{kind}_inclusion_weakest_tm": ("" if one.inclusion_weakest_tm is None
+                                             else f"{one.inclusion_weakest_tm:.1f}"),
+            f"{kind}_inclusion_no_product": one.inclusion_no_product,
             f"{kind}_exclusion_amplified": one.exclusion_amplified,
             f"{kind}_exclusion_held_by_3prime": one.exclusion_held_by_three_prime,
             f"{kind}_selective": one.label,
@@ -1438,10 +1445,8 @@ def run(settings: DesignSettings) -> int:
     if settings.insilico_pcr is not None:
         # Looked at now rather than at the end. Until this, what --insilico-pcr pointed at was first
         # resolved after Primer3 and both amplicon searches had run, so a mistyped path -- or a portable
-        # release whose `java` is missing, or one older than insilicoPCR 0.8.0, which does not even know
-        # the options this run passes -- threw the whole design run away at its last step. A release
-        # from 0.8.0 to 0.10.1 would do worse than fail: it cannot read the product size the primer files
-        # declare, and would report that nothing amplified.
+        # release whose `java` is missing, or one older than insilicoPCR 2.0, which does not know the
+        # options this run passes -- threw the whole design run away at its last step.
         log.info("insilicoPCR: %s", insilico.check_version(insilico.resolve(settings.insilico_pcr)))
     with system.lock_output(settings.output, "design"):
         return _design(settings, final, inclusion, exclusion, started)
@@ -1577,8 +1582,8 @@ def _design(settings: DesignSettings, final: Path, inclusion: Path, exclusion: P
         )
 
     # Both kinds of primer file: the qPCR file says whether the whole assay reports positive, probe and
-    # all, the PCR file whether the primer pair alone discriminates. insilicoPCR 0.8.0 can run both kinds
-    # mixed, but one file cannot ask both questions about the same assay.
+    # all, the PCR file whether the primer pair alone discriminates. insilicoPCR can run both kinds mixed,
+    # but one file cannot ask both questions about the same assay.
     primer_files: dict[str, Path] = {}
     for kind, name in (("qpcr", insilico.QPCR_NAME), ("pcr", insilico.PCR_NAME)):
         path = settings.output / name
@@ -1623,8 +1628,8 @@ def _design(settings: DesignSettings, final: Path, inclusion: Path, exclusion: P
                                                        held_of(verdicts[assay.name]), rank_key(assay)))
     else:
         insilico.write_script(settings.output / insilico.SCRIPT_NAME, None, list(primer_files.values()),
-                              inclusion_staged, exclusion_staged, settings.threads, settings.mismatches,
-                              settings.probe_mismatches, settings.three_prime_check)
+                              inclusion_staged, exclusion_staged, settings.threads, reaction_of(settings),
+                              settings.three_prime_check)
         log.info("In silico PCR was not run. To check the assays against both groups: %s",
                  settings.output / insilico.SCRIPT_NAME)
 
@@ -1642,8 +1647,8 @@ def _design(settings: DesignSettings, final: Path, inclusion: Path, exclusion: P
             "max_regions": settings.max_regions,
             "gc_clamp": settings.gc_clamp,
             "conditions": vars(settings.conditions),
-            "mismatches": settings.mismatches,
-            "probe_mismatches": settings.probe_mismatches,
+            "anneal_temp": settings.anneal_temp,
+            "tm_margin": settings.tm_margin,
             "three_prime_check": settings.three_prime_check,
             "min_primer_differences": settings.min_primer_differences,
             "threads": settings.threads,
@@ -1715,44 +1720,56 @@ def support_of(modes: dict[str, object]) -> float:
     return sum(backing) / len(backing) if backing else 0.0
 
 
+def reaction_of(settings: DesignSettings) -> insilico.Reaction:
+    """What insilicoPCR judges the sites by: the annealing temperature and margin asked for, in the
+    reaction Primer3 designed the oligos in. insilicoPCR takes one oligo concentration, the primers'."""
+    conditions = settings.conditions
+    return insilico.Reaction(anneal_temp=settings.anneal_temp, tm_margin=settings.tm_margin,
+                             monovalent_mm=conditions.monovalent_mm, divalent_mm=conditions.divalent_mm,
+                             dntp_mm=conditions.dntp_mm, oligo_nm=conditions.primer_nm)
+
+
 def run_insilico_pcr(settings: DesignSettings, assays: Sequence[Assay], primer_files: dict[str, Path],
                      inclusion: Path, exclusion: Path,
                      threshold: float = 1.0) -> dict[str, dict[str, object]]:
     """Amplify the assays against both groups with insilicoPCR, once per mode, and put the reports
     together. Returns, per assay, a verdict per mode."""
     launcher = insilico.resolve(settings.insilico_pcr)
+    reaction = reaction_of(settings)
     insilico.write_script(settings.output / insilico.SCRIPT_NAME, launcher, list(primer_files.values()),
-                          inclusion, exclusion, settings.threads, settings.mismatches,
-                          settings.probe_mismatches, settings.three_prime_check)
+                          inclusion, exclusion, settings.threads, reaction, settings.three_prime_check)
+    staged = {"inclusion": insilico.count_genomes(inclusion), "exclusion": insilico.count_genomes(exclusion)}
+    log.info("In silico PCR accepts a primer or probe site whose Tm on the genome reaches %g C "
+             "(--anneal-temp %g less --tm-margin %g), in the reaction the assays were designed for",
+             reaction.needed_tm, reaction.anneal_temp, reaction.tm_margin)
     verdicts: dict[str, dict[str, object]] = {assay.name: {} for assay in assays}
     for kind, primer_file in primer_files.items():
         # Only the assays that are in this mode's primer file: a probe-less assay is not in the qPCR run,
         # and giving it a verdict there would read as a failure rather than as a question never asked
         tested = [assay for assay in assays if kind == "pcr" or assay.probe is not None]
-        reports: dict[str, dict[str, set[str]]] = {}
+        reports: dict[str, Path] = {}
         for group, folder in (("inclusion", inclusion), ("exclusion", exclusion)):
             log.info("In silico PCR (%s) against the %s genomes...", kind, group)
             output = settings.output / "insilico_pcr" / f"{kind}_{group}"
-            insilico.run(launcher, folder, primer_file, output, settings.threads, settings.mismatches,
-                         settings.probe_mismatches)
-            reports[group] = insilico.read_report(output)
+            reports[group] = insilico.run(launcher, folder, primer_file, output, settings.threads, reaction)
+            insilico.check_samples(reports[group], staged[group])
         held: dict[str, set[str]] = {}
         if settings.three_prime_check:
-            # The same exclusion genomes with an imperfection in a primer's last five bases readmitted
-            # (and the extra budget unit it consumes; the probes stay at the strict budget so nothing
-            # else loosens with it): a genome that amplifies only here is held off by bases a
+            # The same exclusion genomes with an imperfection in a primer's last five bases readmitted,
+            # and nothing else changed: a genome that amplifies only here is held off by bases a
             # polymerase can read through.
             log.info("In silico PCR (%s) against the exclusion genomes again, tolerating an "
                      "imperfection in the last five bases of a primer...", kind)
             output = settings.output / "insilico_pcr" / f"{kind}_exclusion_3prime"
-            insilico.run(launcher, exclusion, primer_file, output, settings.threads,
-                         settings.mismatches + 1,
-                         settings.probe_mismatches if settings.probe_mismatches is not None
-                         else settings.mismatches,
-                         three_prime_penalty=insilico.LENIENT_PENALTY)
-            held = insilico.read_three_prime_held(output, settings.mismatches)
-        mode = insilico.verdicts(tested, inclusion, exclusion, reports["inclusion"], reports["exclusion"],
-                                 threshold, held)
+            lenient = insilico.run(launcher, exclusion, primer_file, output, settings.threads, reaction,
+                                   three_prime_penalty=insilico.LENIENT_PENALTY)
+            insilico.check_samples(lenient, staged["exclusion"])
+            held = insilico.read_three_prime_held(lenient)
+        mode = insilico.verdicts(tested, inclusion, exclusion,
+                                 insilico.read_report(reports["inclusion"], designed_only=True),
+                                 insilico.read_report(reports["exclusion"]), threshold, held,
+                                 insilico.weakest_tm(reports["inclusion"]),
+                                 insilico.no_product(reports["inclusion"]))
         for name, verdict in mode.items():
             verdicts[name][kind] = verdict
         complete = sum(1 for verdict in mode.values() if verdict.complete)
@@ -1761,6 +1778,12 @@ def run_insilico_pcr(settings: DesignSettings, assays: Sequence[Assay], primer_f
         log.info("In silico PCR (%s): %d of %d assay(s) amplify every inclusion genome and no exclusion "
                  "genome%s", kind, complete, counted,
                  f", and {partial} more reach the -p threshold" if partial else "")
+        missing = [verdict for verdict in mode.values()
+                   if verdict.inclusion_amplified < verdict.inclusion_total and verdict.inclusion_no_product]
+        if missing:
+            log.info("In silico PCR (%s): %d assay(s) miss an inclusion genome; %s_inclusion_no_product says "
+                     "which oligo has no accepted site there, and why: its best site's Tm, or the 3' rule",
+                     kind, len(missing), kind)
         depending = sum(1 for verdict in mode.values()
                         if verdict.selective and verdict.exclusion_held_by_three_prime)
         if depending:

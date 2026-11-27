@@ -14,9 +14,10 @@ import pytest
 from primer_finder import PrimerFinderError, __version__, seqio
 from primer_finder.blast import Hit
 from primer_finder.design import (
+    DEFAULT_ANNEAL_TEMP,
     DEFAULT_MIN_PRIMER_DIFFERENCES,
-    DEFAULT_MISMATCHES,
     DEFAULT_PRODUCT_SIZE,
+    DEFAULT_TM_MARGIN,
     MAX_PRODUCT_GAP,
     MIN_AMPLICON_IDENTITY,
     STRONG_BASE_WEIGHT,
@@ -241,55 +242,50 @@ def test_the_gc_clamp_can_be_turned_off():
                                                 gc_clamp=2)
 
 
-def test_in_silico_pcr_allows_one_mismatch_by_default():
-    """insilicoPCR refuses any imperfection in the last five bases of a primer whatever the budget, so
-    this governs the mismatches further in -- and one of those is often not enough to stop a reaction.
-    Assuming it is would flatter every assay that rests on a single difference."""
-    assert DEFAULT_MISMATCHES == 1
-    assert DesignSettings(results=Path("r"), output=Path("o"), threads=1).mismatches == 1
-    # and no probe tolerance unless the user chose one: insilicoPCR's own default is the -m value
-    assert DesignSettings(results=Path("r"), output=Path("o"), threads=1).probe_mismatches is None
+def test_in_silico_pcr_judges_sites_at_the_temperature_the_primers_are_designed_for():
+    """insilicoPCR 2.0+ accepts a site when its Tm on the genome reaches the annealing temperature less a
+    margin. The primers are designed to melt at 60 C; the margin is insilicoPCR's own default, with which
+    a site needs 55 C."""
+    assert (DEFAULT_ANNEAL_TEMP, DEFAULT_TM_MARGIN) == (60.0, 5.0)
+    settings = DesignSettings(results=Path("r"), output=Path("o"), threads=1)
+    assert (settings.anneal_temp, settings.tm_margin) == (60.0, 5.0)
 
 
-def test_the_default_tolerance_reaches_insilico_pcr(stubs, finished_run, tmp_path, genomes, insilico_pcr):
-    """`insilico.run` defaults to 0 of its own, so a settings value that never arrives would quietly
-    tighten the check instead of failing."""
+def test_the_default_settings_reach_insilico_pcr(stubs, finished_run, tmp_path, genomes, insilico_pcr):
+    """Every setting a site is judged by is named on the command line -- the annealing temperature and
+    margin, and the reaction Primer3 designed the oligos in -- so the verdicts do not move with
+    insilicoPCR's own defaults. No mismatch budget: 2.0 refuses one, and so does the stub."""
     calls = stubs()
     assert run(design_settings(finished_run, tmp_path / "assays", insilico_pcr=insilico_pcr)) == 0
     asked = [line for line in calls.read_text().splitlines() if line.startswith("insilico_pcr")]
     strict = [line for line in asked if "--3p-penalty" not in line]
     lenient = [line for line in asked if "--3p-penalty" in line]
     assert len(strict) == 4  # two modes, two groups
-    assert all(" -m 1" in line for line in strict), strict
-    # The size cap is always named, so the verdicts do not move with insilicoPCR's own default
-    assert all(" -l 10000" in line for line in asked), asked
-    assert all("--probe-mismatches" not in line for line in strict), strict
-    # The 3'-end dependence rerun: exclusion only, the terminal base readmitted, the budget unit it
-    # consumes, and the probe pinned at the strict budget so nothing else loosens with it
+    reaction = " --anneal-temp 60 --tm-margin 5 --na 50 --mg 3 --dntp 0.8 --oligo-conc 250"
+    assert all(" -l 10000" + reaction in line for line in asked), asked
+    assert all(" -m " not in line and "--probe-mismatches" not in line for line in asked), asked
+    # The 3'-end dependence rerun: exclusion only, the far 3' end readmitted, and nothing else changed
     assert len(lenient) == 2  # two modes, the exclusion group
-    assert all(" -m 2" in line and "--3p-penalty 4" in line and "--probe-mismatches 1" in line
-               for line in lenient), lenient
+    assert all(line.endswith(reaction + " --3p-penalty 4") for line in lenient), lenient
     assert all("exclusion" in line for line in lenient), lenient
 
 
-def test_another_tolerance_reaches_insilico_pcr(stubs, finished_run, tmp_path, genomes, insilico_pcr):
-    calls = stubs()
-    settings = design_settings(finished_run, tmp_path / "assays", insilico_pcr=insilico_pcr, mismatches=2)
-    assert run(settings) == 0
-    asked = [line for line in calls.read_text().splitlines() if line.startswith("insilico_pcr")]
-    assert all(" -m 2" in line for line in asked if "--3p-penalty" not in line), asked
-    assert all(" -m 3" in line for line in asked if "--3p-penalty" in line), asked
-
-
-def test_a_probe_tolerance_reaches_insilico_pcr(stubs, finished_run, tmp_path, genomes, insilico_pcr):
-    """A probe hybridizes hotter than its primers, so the user can give it a budget of its own; it goes to
-    every run, and insilicoPCR applies it only to the probes it finds in the file."""
+def test_another_temperature_and_reaction_reach_insilico_pcr(stubs, finished_run, tmp_path, genomes,
+                                                             insilico_pcr):
+    """The reaction is the one Primer3 designed in, so both programs judge the oligos in one reaction;
+    insilicoPCR takes one oligo concentration, the primers'."""
     calls = stubs()
     settings = design_settings(finished_run, tmp_path / "assays", insilico_pcr=insilico_pcr,
-                               probe_mismatches=2)
+                               anneal_temp=58.0, tm_margin=3.5,
+                               conditions=Conditions(monovalent_mm=40.0, divalent_mm=2.5, dntp_mm=1.0,
+                                                     primer_nm=400.0, probe_nm=150.0))
     assert run(settings) == 0
     asked = [line for line in calls.read_text().splitlines() if line.startswith("insilico_pcr")]
-    assert asked and all(" --probe-mismatches 2" in line for line in asked), asked
+    assert asked and all(" --anneal-temp 58 --tm-margin 3.5 --na 40 --mg 2.5 --dntp 1 --oligo-conc 400"
+                         in line for line in asked), asked
+    info = json.loads((tmp_path / "assays" / "design_info.json").read_text())["parameters"]
+    assert (info["anneal_temp"], info["tm_margin"]) == (58.0, 3.5)
+    assert "mismatches" not in info
 
 
 def test_a_genome_held_only_by_the_terminal_base_is_counted_and_ranked_behind(stubs, finished_run,
@@ -299,7 +295,7 @@ def test_a_genome_held_only_by_the_terminal_base_is_counted_and_ranked_behind(st
     The verdict stays `yes` -- the model's position is that the base refuses extension -- but the count
     is in the table, and between equally backed assays the ranking prefers the one not resting on it."""
     inclusion, exclusion = genomes
-    sample = sorted(path.name.split(".")[0] for path in exclusion.glob("*.fasta"))[0]
+    sample = sorted(path.stem for path in exclusion.glob("*.fasta"))[0]
     stubs(insilico_3prime_held={"ctg1_assay0": [sample]})
     output = tmp_path / "assays"
     assert run(design_settings(finished_run, output, insilico_pcr=insilico_pcr)) == 0
@@ -313,6 +309,42 @@ def test_a_genome_held_only_by_the_terminal_base_is_counted_and_ranked_behind(st
     others = [row for row in rows if row["assay"] != "ctg1_assay0" and row["pcr_selective"] == "yes"]
     assert others and all(row["pcr_exclusion_held_by_3prime"] == "0" for row in others)
     assert rows[0]["assay"] != "ctg1_assay0"
+
+
+def test_the_weakest_site_and_why_an_inclusion_genome_is_missed_are_in_the_table(stubs, finished_run,
+                                                                                 tmp_path, genomes,
+                                                                                 insilico_pcr):
+    """From the Tm columns of the inclusion run, how close each assay is to failing; from insilicoPCR's
+    report of the assays without a product, which oligo failed where it missed a genome. A product of one
+    primer alone, there instead of the designed one, is not the target and leaves the genome missed."""
+    inclusion, _ = genomes
+    sample = sorted(path.stem for path in inclusion.glob("*.fasta"))[0]
+    stubs(insilico_tm={"ctg1_assay0": "56.4"}, insilico_misses={"ctg1_assay1": [sample]},
+          insilico_one_primer={"ctg1_assay1": [sample]}, insilico_no_product_tm={"ctg1_assay1": "52.1"})
+    output = tmp_path / "assays"
+    assert run(design_settings(finished_run, output, insilico_pcr=insilico_pcr)) == 0
+    rows = {row["assay"]: row for row in iter_rows(output / "assays.tsv")}
+    for kind in ("pcr", "qpcr"):
+        assert rows["ctg1_assay0"][f"{kind}_inclusion_weakest_tm"] == "56.4", kind
+        assert rows["ctg1_assay0"][f"{kind}_inclusion_no_product"] == "", kind
+        missed = rows["ctg1_assay1"]
+        assert missed[f"{kind}_inclusion_amplified"] == "1" and missed[f"{kind}_selective"] == "no", kind
+        assert missed[f"{kind}_inclusion_no_product"] == "reverse: 1 genome, best site 52.1 °C", kind
+
+
+def test_a_genome_insilico_pcr_left_out_fails_the_check(stubs, finished_run, tmp_path, genomes,
+                                                        insilico_pcr, caplog):
+    """insilicoPCR leaves out a genome it cannot read and exits 0. Counted, the genome would read as not
+    amplifying -- on the exclusion group, a selective assay. So no verdict is given: the table is written
+    without them, the genome and the reason are named, and the exit code says so."""
+    _, exclusion = genomes
+    sample = sorted(path.stem for path in exclusion.glob("*.fasta"))[0]
+    stubs(insilico_not_analysed=[sample])
+    output = tmp_path / "assays"
+    assert run(design_settings(finished_run, output, insilico_pcr=insilico_pcr)) == 1
+    assert f"{sample} (the file holds no sequence)" in caplog.text
+    row = next(iter_rows(output / "assays.tsv"))
+    assert "pcr_selective" not in row and "qpcr_selective" not in row
 
 
 def test_the_three_prime_check_can_be_skipped(stubs, finished_run, tmp_path, genomes, insilico_pcr):
@@ -1667,7 +1699,7 @@ def test_design_runs_in_silico_pcr_and_reports_a_verdict_per_mode(stubs, finishe
 def test_an_assay_that_amplifies_an_exclusion_genome_is_not_selective(stubs, finished_run, tmp_path,
                                                                       genomes, insilico_pcr):
     inclusion, exclusion = genomes
-    sample = sorted(path.name.split(".")[0] for path in exclusion.glob("*.fasta"))[0]
+    sample = sorted(path.stem for path in exclusion.glob("*.fasta"))[0]
     stubs(insilico_extra={"ctg1_assay0": [sample]})
     output = tmp_path / "assays"
     assert run(design_settings(finished_run, output, insilico_pcr=insilico_pcr)) == 0
@@ -1909,7 +1941,7 @@ def test_a_primer3_that_reports_no_structures_still_runs(stubs, finished_run, tm
 def test_an_assay_that_misses_an_inclusion_genome_is_not_selective(stubs, finished_run, tmp_path,
                                                                    genomes, insilico_pcr):
     inclusion, _ = genomes
-    sample = sorted(path.name.split(".")[0] for path in inclusion.glob("*.fasta"))[0]
+    sample = sorted(path.stem for path in inclusion.glob("*.fasta"))[0]
     stubs(insilico_misses={"ctg1_assay0": [sample]})
     output = tmp_path / "assays"
     run(design_settings(finished_run, output, insilico_pcr=insilico_pcr))
@@ -2045,7 +2077,7 @@ def test_an_assay_missing_an_inclusion_genome_counts_when_the_run_allowed_it(stu
     inclusion, exclusion = genomes
     (finished_run / "run_info.json").write_text(json.dumps({"parameters": {
         "inclusion": str(inclusion), "exclusion": str(exclusion), "min_inclusion": 0.5}}))
-    sample = sorted(path.name.split(".")[0] for path in inclusion.glob("*.fasta"))[0]
+    sample = sorted(path.stem for path in inclusion.glob("*.fasta"))[0]
     stubs(insilico_misses={"ctg1_assay0": [sample]})
     output = tmp_path / "assays"
     assert run(design_settings(finished_run, output, insilico_pcr=insilico_pcr)) == 0
@@ -2074,20 +2106,19 @@ def test_the_primer_files_declare_the_product_size_of_each_assay(stubs, finished
         assert forward and all(words == [f"size={sizes[assay]}"] for assay, words in forward.items())
         assert all(len(header) == 1 for header in headers if not header[0].endswith("-F"))
     report = (output / "insilico_pcr" / "pcr_inclusion" / "consolidated_report" / "report.tsv").read_text()
-    assert report.splitlines()[0].endswith("\tSizeCheck")
+    assert "\tSizeCheck\t" in report.splitlines()[0]
     assert all(row["pcr_selective"] == "yes" for row in rows if row["pcr_selective"])
 
 
-def test_an_insilico_pcr_that_cannot_read_the_declared_size_is_refused_before_any_of_the_work(
+def test_an_insilico_pcr_that_counts_mismatches_is_refused_before_any_of_the_work(
         stubs, finished_run, tmp_path):
-    """0.8.0 to 0.10.1 would run to the end and report that nothing amplified, having read the size
-    declared on a primer's header as part of its name. That is the one failure a design could not see
-    afterwards, so it stops here, before Primer3."""
-    old = tmp_path / "insilico-0.10.1.sh"
-    old.write_text("#!/bin/sh\necho 'insilicoPCR 0.10.1'\n")
+    """A release before 2.0 accepts sites by mismatch counts and would stop on the options passed --
+    after Primer3 and both amplicon searches had run. So it stops here, before Primer3."""
+    old = tmp_path / "insilico-1.0.3.sh"
+    old.write_text("#!/bin/sh\necho 'insilicoPCR 1.0.3'\n")
     old.chmod(0o755)
     output = tmp_path / "assays"
-    with pytest.raises(PrimerFinderError, match="insilicoPCR 0.10.1 is older than the 0.12.0"):
+    with pytest.raises(PrimerFinderError, match="insilicoPCR 1.0.3 is older than the 2.1.0"):
         run(design_settings(finished_run, output, insilico_pcr=old))
     assert not (output / "primer3").exists(), "Primer3 ran before the version was looked at"
     assert not (output / "assays.tsv").exists()
@@ -2111,7 +2142,7 @@ def test_an_insilico_pcr_older_than_0_8_0_is_refused_before_any_of_the_work(stub
     old.write_text("#!/bin/sh\necho 'Unrecognized option: -v' >&2\nexit 2\n")
     old.chmod(0o755)
     output = tmp_path / "assays"
-    with pytest.raises(PrimerFinderError, match="needs 0.12.0 or newer"):
+    with pytest.raises(PrimerFinderError, match="needs 2.1.0 or newer"):
         run(design_settings(finished_run, output, insilico_pcr=old))
     assert not (output / "primer3").exists(), "Primer3 ran before the version was looked at"
     assert not (output / "assays.tsv").exists()

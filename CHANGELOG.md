@@ -1,5 +1,84 @@
 # Changelog
 
+## Unreleased
+
+primer-finder now needs [insilicoPCR](https://github.com/duceppemo/insilicoPCR) **2.1.0**, which accepts
+a primer or probe site by its melting temperature on the genome rather than by a count of its mismatches.
+Measured in `validation/results/2026-11-27_v1.13.0_insilico210/`. primer-finder 1.13.0 remains the
+release for insilicoPCR 0.12.0 to 0.14.0.
+
+### Breaking
+
+- **insilicoPCR 2.1.0 or newer is required** (it was 0.12.0). insilicoPCR 2.0 removed `-m`,
+  `--probe-mismatches` and `--5p-truncation`, and refuses a command line that gives one with exit 2. 1.0
+  renamed the report's `Gene` column to `Assay`, and `Forward5PrimeUnaligned`/`Reverse5PrimeUnaligned` to
+  `*5PrimeUnpaired`. So primer-finder 1.13.0 could not run any release since 1.0.
+  - `design` refuses a release older than 2.1.0 before Primer3, saying why, and so does
+    `run_insilico_pcr.sh`.
+  - A report with `Gene`, or without the Tm columns, is refused rather than counted.
+  - 2.0.0 is refused too: it is not the release this was checked against, and it counts a mismatch among
+    a primer's first five bases twice where it says why an assay gave no product.
+- **`--mismatches` and `--probe-mismatches` are removed.** Either one is refused with a message saying
+  what to give instead.
+  - **New options.** `--anneal-temp` (default 60 °C, the Tm the primers are designed for) and
+    `--tm-margin` (default 5 °C, insilicoPCR's own): a site is accepted when its Tm on the genome reaches
+    the first less the second.
+  - **The reaction.** Primer3's reaction (`--monovalent`, `--divalent`, `--dntp`, `--primer-conc`) is
+    passed to insilicoPCR, so both programs judge the oligos in one reaction. insilicoPCR takes one oligo
+    concentration, so the probe is judged at the primers'.
+  - **Recorded.** All of these are passed explicitly and recorded in `design_info.json` (`anneal_temp`,
+    `tm_margin`).
+
+### Changed
+
+- **The verdicts.** On the *Xylella* panel (2,430 assays, the same oligos) 117 PCR verdicts move `no` to
+  `yes` and 8 `yes` to `no`; in qPCR mode 78 and 15. The example's do not move. Each (assay, genome) pair
+  that moved is put to the rule insilicoPCR says decided it:
+  - **`no` to `yes`, mostly:** an exclusion genome's primer site with one mismatch (or a few unpaired 5'
+    bases, free under 1.x) that the old budget of one let through, and that melts below 55 °C;
+  - **`yes` to `no`:** a product of one primer alone binding both strands (`Pairing` `one-primer`, which
+    insilicoPCR reports since 0.15.3), a probe binding through two or three mismatches, or an inclusion
+    genome whose primer site melts below the minimum.
+- **How rows are counted.** An inclusion genome counts as amplified on a product of the assay's own
+  primer pair (`Pairing` `designed`). An exclusion genome counts on any product of the tube, one primer
+  alone included.
+- **The 3'-end check.** The lenient exclusion run now differs from the strict one in `--3p-penalty 4`
+  alone. Under the mismatch budget it also passed one more `-m`, to pay for the window mismatch, and so
+  also readmitted a second mismatch further in.
+  - A genome only the lenient run amplifies is held off by the 3' rule and nothing else. Measured, every
+    such genome carries a 3'-window imperfection.
+  - Two in one primer's window are still not counted.
+  - `*_exclusion_held_by_3prime` flags 7% of the selective assays in PCR mode and 6% in qPCR mode on the
+    panel, against 24% and 16%.
+- **The report is the one insilicoPCR names** (`Report written to <path>`).
+- **Unreadable genomes.** A genome insilicoPCR leaves out because it cannot read it (`not-analysed` in
+  `report_samples.tsv`, exit 0) fails the check. It is named, `assays.tsv` is written without verdicts,
+  and the command exits 1. Counted as not amplifying, it would have faked a selective assay, or a miss.
+- **Cells written for spreadsheets are read back.** insilicoPCR writes `-ctrl` as `'-ctrl`, and
+  primer-finder now reads such cells back as they were.
+
+### Added
+
+- **`*_inclusion_weakest_tm`:** the Tm of the weakest site an assay's inclusion products rest on, which
+  shows how close it is to failing.
+- **`*_inclusion_no_product`:** for the inclusion genomes an assay misses, which oligo has no accepted
+  site there, in how many genomes, and why: the Tm of its best site, the 3' rule, or no site at all, from
+  insilicoPCR's `report_no_product.tsv`.
+
+### Fixed
+
+- **`run_insilico_pcr.sh` quotes the launcher,** so a path with a space in it runs.
+- **A rerun removes only the numbered reports insilicoPCR writes** (`report(1).tsv`, `report(1).html`,
+  `report(1)_samples.tsv`, ...), in the design and in the script, and not a file such as
+  `report(annotated).xlsx` saved beside them.
+- **A jar run with a Java older than 25** is no longer reported as an insilicoPCR too old to say its
+  version: the message names both causes.
+
+### Licence
+
+insilicoPCR 2.x is under the GPL-3.0-or-later. primer-finder runs it as a separate program and includes
+none of its code, so primer-finder's own licence does not change.
+
 ## 1.13.0
 
 primer-finder now needs [insilicoPCR](https://github.com/duceppemo/insilicoPCR) **0.12.0**, which counts a

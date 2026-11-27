@@ -299,7 +299,12 @@ BAD_DESIGN_OPTIONS = [
     (["--assays-per-region", "0"], "--assays-per-region must be 1 or more"),
     (["--max-regions", "-1"], "--max-regions must be 0 or more"),  # 0 means every region
     (["--gc-clamp", "-1"], "--gc-clamp must be 0 or more"),
-    (["--mismatches", "-1"], "--mismatches must be 0 or more"),
+    (["--mismatches", "1"], "--mismatches was removed: insilicoPCR 2.0 and newer accept"),
+    (["--probe-mismatches", "2"], "--probe-mismatches was removed"),
+    (["--anneal-temp", "0"], "--anneal-temp must be above 0"),
+    (["--anneal-temp", "101"], "at most 100"),
+    (["--tm-margin", "-1"], "--tm-margin must be 0 or more and below --anneal-temp"),
+    (["--anneal-temp", "50", "--tm-margin", "50"], "below --anneal-temp"),
     (["--min-primer-differences", "-1"], "--min-primer-differences must be 0 or more"),
     (["--monovalent", "0"], "--monovalent must be above 0"),
     (["--dntp", "-1"], "--dntp must be above 0"),
@@ -418,18 +423,20 @@ def test_the_minimum_differences_under_one_primer_reaches_the_design_run(stubs, 
         len(list(iter_rows(tmp_path / "assays3" / "assays.tsv")))
 
 
-def test_another_mismatch_tolerance_reaches_insilico_pcr(stubs, genomes, tmp_path, insilico_pcr):
+def test_another_annealing_temperature_reaches_insilico_pcr(stubs, genomes, tmp_path, insilico_pcr):
     import json
 
     calls = stubs()
     results = a_finished_run(tmp_path, genomes)
     out = tmp_path / "assays"
-    assert main(["design", str(results), "-o", str(out), "-t", "1", "--mismatches", "2",
-                 "--insilico-pcr", str(insilico_pcr)]) == 0
-    assert json.loads((out / "design_info.json").read_text())["parameters"]["mismatches"] == 2
+    assert main(["design", str(results), "-o", str(out), "-t", "1", "--anneal-temp", "58",
+                 "--tm-margin", "4", "--insilico-pcr", str(insilico_pcr)]) == 0
+    parameters = json.loads((out / "design_info.json").read_text())["parameters"]
+    assert (parameters["anneal_temp"], parameters["tm_margin"]) == (58.0, 4.0)
     asked = [line for line in calls.read_text().splitlines() if line.startswith("insilico_pcr")]
-    assert asked and all(" -m 2" in line for line in asked if "--3p-penalty" not in line), asked
-    assert any("--3p-penalty" in line and " -m 3" in line for line in asked), asked
+    assert asked and all(" --anneal-temp 58 --tm-margin 4 " in line for line in asked), asked
+    assert all(" -m " not in line for line in asked), asked
+
 
 
 def test_a_product_size_range_primer3_cannot_read_stops_the_design_command(stubs, tmp_path, capsys):

@@ -99,18 +99,36 @@ designs the example under 0.10.1 and 0.11.0 with byte-identical results, and on 
 break inside primer sites the two releases differ only in the size reported for a product at a contig
 start, which primer-finder does not read.
 
-insilicoPCR 0.12.0 does change things, deliberately, and primer-finder now requires it:
+insilicoPCR 0.12.0 changed things, deliberately:
 [`validation/results/2026-11-13_v1.12.0_insilico0130/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-11-13_v1.12.0_insilico0130/SUMMARY.md)
 measures the zones again and redesigns the *Xylella* panel under 0.11.0 and 0.13.0 (which gives the same
 results as 0.12.0 and 0.14.0) at three settings. It counts a mismatch near the end of an oligo as one mismatch
 rather than by what blast trimmed off with it. At the default settings no PCR verdict moves; 23 qPCR
 verdicts do, all on a probe mismatched near one of its ends; and the 3'-end check sees a mismatch two to
-four bases from a primer's 3' end, which it never could.
+four bases from a primer's 3' end, which it never could. Up to primer-finder 1.13.0 the default was
+`--mismatches 1`: 0 assumed any internal mismatch stops a primer, which hid 12 of the 30 absence-based
+assays that amplify something off-target in an exclusion genome; 2 assumed two mismatches per primer still
+bind.
 
-The default is now `--mismatches 1`: 0 assumes any internal mismatch stops a primer, which hid 12 of the 30
-absence-based assays that amplify something off-target in an exclusion genome; 2 assumes two mismatches per
-primer still bind, which is what a deliberate allele-specific design uses to discriminate, so it is offered
-as a stricter second pass; 3 measured nothing 2 did not.
+### The Tm rule (insilicoPCR 2.x)
+
+insilicoPCR 2.0 replaced the mismatch count with one rule: a primer or probe site is accepted when its
+melting temperature on the genome reaches the annealing temperature less a margin (60 − 5 = 55 °C by
+default), and a primer's 3' window must still pass the 3' rule. primer-finder now requires 2.1.0, passes
+the annealing temperature, the margin and the reaction Primer3 designed in, and no longer has a mismatch
+option. [`validation/results/2026-11-27_v1.13.0_insilico210/SUMMARY.md`](https://github.com/duceppemo/primer-finder/blob/main/validation/results/2026-11-27_v1.13.0_insilico210/SUMMARY.md)
+measures the rule one base at a time on a designed assay, and designs the example and the *Xylella* panel
+with primer-finder 1.13.0 and insilicoPCR 0.14.0 and with this version and 2.1.0, on the same find results:
+
+- the example's verdicts do not move;
+- on the panel (2,430 assays) 117 PCR verdicts move `no` to `yes` and 8 `yes` to `no`, and 78 and 15 in
+  qPCR mode, each (assay, genome) pair that moved put to the rule insilicoPCR says decided it: mostly an
+  exclusion primer site with one mismatch that now melts below 55 °C, and the other way a product of one
+  primer alone, a probe binding through two or three mismatches, or an inclusion primer site that melts
+  too low;
+- the 3'-end check flags 7% of the selective assays in PCR mode and 6% in qPCR mode, against 24% and 16%:
+  the old lenient run paid for the window mismatch with one more `-m`, which also readmitted a second
+  mismatch further in.
 
 ## Thirty published *Listeria monocytogenes* clonal-complex assays
 

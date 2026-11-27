@@ -157,7 +157,11 @@ assays/
 │                           run_insilico_pcr.sh reads and what the verdicts are counted against
 └── insilico_pcr/           what insilicoPCR wrote, when it was run: for each file and group a
                             consolidated_report/ holding report.tsv, which the verdicts are counted
-                            from, and report.html, the same results as a page to open in a browser
+                            from; report_samples.tsv, every genome and whether it was analysed;
+                            report_no_product.tsv, for each assay without a product in a genome, the
+                            oligo that failed and why (its best site's Tm, or the 3' rule); and
+                            report.html, the same
+                            results as a page to open in a browser
 ```
 
 ### assays.tsv
@@ -183,9 +187,11 @@ the ones that would amplify both groups are kept at the end for the record.
 | `primer_variant_weight` | the differences under the primers, weighted by the base each replaces: 1 for a G or C, 0.5 for an A or T, 0.75 when unknown |
 | `forward_strong_variants`, `forward_terminal_run`, `forward_near_3prime` | and the same for `reverse`: how many of its differences replace a G or a C, and where they sit relative to the 3' end |
 | `inclusion_total`, `exclusion_total` | how many genomes were tested, when in silico PCR was run. These and the verdict columns below it are absent when it was not run, and also when it failed: the table is still written, and the command exits 1 with the reason in the log |
-| `qpcr_inclusion_amplified`, `qpcr_inclusion_percent`, `qpcr_exclusion_amplified`, `qpcr_selective` | what insilicoPCR said of the whole assay, probe and all |
+| `qpcr_inclusion_amplified`, `qpcr_inclusion_percent`, `qpcr_exclusion_amplified`, `qpcr_selective` | what insilicoPCR said of the whole assay, probe and all. An inclusion genome counts when it gives the assay's own product (insilicoPCR's `Pairing` `designed`); an exclusion genome counts when it gives any product, a product of one primer alone binding both strands too (`one-primer`), since that is a product of the tube |
+| `qpcr_inclusion_weakest_tm` | of the inclusion genomes the assay amplifies, the Tm of the weakest site (primer or probe) its product rests on, in the genome where that is lowest, in °C: how close it is to the Tm a site needs (`--anneal-temp` less `--tm-margin`, 55 °C by default) |
+| `qpcr_inclusion_no_product` | where the assay misses inclusion genomes, from insilicoPCR's `report_no_product.tsv`: each oligo without an accepted site there, in how many genomes, and why: its best site melts too low (the highest such Tm is given), fails the 3' rule, or there is no site at all (`reverse: 3 genomes, best site 52.1 °C`; `reverse: 2 genomes (best site 53.8 °C in 1; 3' rule in 1)` when the reasons differ); `no pair` where every oligo has a site but none face each other. Empty when it misses none |
 | `qpcr_exclusion_held_by_3prime` | of the exclusion genomes that do **not** amplify, how many amplify once an imperfection in a primer's last five bases is tolerated: genomes held off only by one mismatch there (one in each primer at most), which a real polymerase occasionally reads through. The verdict does not move with it — the model's position is that such a base refuses extension — but the ranking breaks ties away from assays that rest on it, and it names the assays to put on a bench first. `0` when `--no-3prime-check` skipped the extra exclusion run |
-| `pcr_inclusion_amplified`, `pcr_inclusion_percent`, `pcr_exclusion_amplified`, `pcr_exclusion_held_by_3prime`, `pcr_selective` | and the same of the primer pair alone |
+| `pcr_inclusion_amplified`, `pcr_inclusion_percent`, `pcr_inclusion_weakest_tm`, `pcr_inclusion_no_product`, `pcr_exclusion_amplified`, `pcr_exclusion_held_by_3prime`, `pcr_selective` | and the same of the primer pair alone |
 
 The structure temperatures are predicted for the reaction the run was given (`--monovalent`, `--divalent`,
 `--dntp`, `--primer-conc`, `--probe-conc`), which `design_info.json` records under `parameters.conditions`.
@@ -194,9 +200,10 @@ The structure temperatures are predicted for the reaction the run was given (`--
 (88%)` when it reached the `-p/--min-inclusion` the regions were found with but not all of them, and `no`
 otherwise.
 
-Since insilicoPCR 0.8.0, a difference in the last bases of a primer is judged rather than overlooked: any
-imperfection in the primer's last five bases refuses the binding (its `--3p-penalty` default), which is the
-model saying the polymerase has nothing matched to extend from. The `undecided (3' end)` verdict and the
+Since insilicoPCR 2.0 a site is accepted when its Tm on the genome reaches `--anneal-temp` less
+`--tm-margin`, and a primer's site when its last five bases also pair: any imperfection there refuses the
+binding (its `--3p-penalty` default), which is the model saying the polymerase has nothing matched to
+extend from. Since insilicoPCR 0.8.0 such a difference is judged rather than overlooked. The `undecided (3' end)` verdict and the
 `*_exclusion_terminal_only` columns of primer-finder 1.9.x existed because older releases could not see
 those bases at all; with 0.8.0 they are gone, and an assay whose specificity sits at a 3' end gets a real
 verdict.
