@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.14.0
 
 primer-finder now needs [insilicoPCR](https://github.com/duceppemo/insilicoPCR) **2.1.0**, which accepts
 a primer or probe site by its melting temperature on the genome rather than by a count of its mismatches.
